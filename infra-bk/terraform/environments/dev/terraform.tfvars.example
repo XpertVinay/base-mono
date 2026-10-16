@@ -1,9 +1,0 @@
-project_name             = "platform"
-aws_region               = "us-east-1"
-application_server_count = 1
-instance_type            = "t3.small"
-ssh_public_key           = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... user@example.com"
-admin_cidr_blocks        = ["0.0.0.0/0"]
-deployment_mode          = "docker"
-enable_load_balancer     = true
-app_port                 = 8080

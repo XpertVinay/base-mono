@@ -1,4 +1,4 @@
-import pg from 'pg';
+import pg from '../../../../node_modules/@types/pg/index.js';
 import { logger } from '../logger.js';
 
 const { Pool } = pg;

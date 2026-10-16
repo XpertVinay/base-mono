@@ -1,0 +1,142 @@
+# ==============================================================================
+# ROOT .GITIGNORE
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Explicit Exclusions
+# ------------------------------------------------------------------------------
+infra-bk/
+infa-bk/
+*-bk/
+*.bak
+*.backup
+
+# ------------------------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pub.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.id_rsa
+*.vault_pass
+secrets.yaml
+secrets.json
+**/secrets.json
+vault-password.txt
+**/app-secrets.yaml
+
+# ------------------------------------------------------------------------------
+# Build & Compiled Outputs
+# ------------------------------------------------------------------------------
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.turbo/
+.parcel-cache/
+*.tsbuildinfo
+
+# ------------------------------------------------------------------------------
+# Logs & Runtime
+# ------------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.pid
+*.seed
+*.pid.lock
+
+# ------------------------------------------------------------------------------
+# Testing & Coverage
+# ------------------------------------------------------------------------------
+coverage/
+.nyc_output/
+test-output/
+*.lcov
+.pytest_cache/
+
+# ------------------------------------------------------------------------------
+# Terraform, Ansible, Cloud & Infrastructure Artifacts
+# ------------------------------------------------------------------------------
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.ansible/
+*.retry
+ansible-inventory-generated.ini
+ansible-inventory-generated.yaml
+facts_cache/
+kubeconfig*
+*.kubeconfig
+*.tgz
+
+# ------------------------------------------------------------------------------
+# Database & Cache
+# ------------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.rdb
+
+# ------------------------------------------------------------------------------
+# IDE & Operating System Artifacts
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+*.spotlight-V100
+*.Trashes
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Temporary & Scratch
+tmp/
+temp/
+scratch/

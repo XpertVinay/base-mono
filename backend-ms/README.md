@@ -24,30 +24,31 @@ Each microservice is **100% self-contained** and independently deployable. There
                                   │  - Health Aggregator      │
                                   └─────────────┬─────────────┘
                                                 │ Reverse Proxy
-         ┌──────────────┬──────────────┬────────┼─────────────┬──────────────┬──────────────┐
-         ▼              ▼              ▼        ▼             ▼              ▼              ▼
-   ┌───────────┐  ┌───────────┐  ┌───────────┐     ┌─────────────┐  ┌───────────┐  ┌───────────┐
-   │IAM Service│  │Asset Svc  │  │Config Svc │ ... │ Order Svc   │  │Txn Svc    │  │Search Svc │
-   │  (:4001)  │  │  (:4002)  │  │  (:4003)  │     │   (:4006)   │  │  (:4007)  │  │  (:4008)  │
-   └─────┬─────┘  └───────────┘  └─────┬─────┘     └──────┬──────┘  └─────┬─────┘  └─────▲─────┘
-         │                             │                  │               │              │
-         │ gRPC (:50051)               │ gRPC (:50053)    │ gRPC (:50059) │              │
-         │                             └────────────────┐ ├───┐           │              │
-         │                                              ▼ ▼   ▼           │              │
-         │                                       ┌──────────────┐         │              │
-         │                                       │Inventory Svc │         │              │
-         │                                       │   (:4009)    │         │              │
-         │                                       └──────────────┘         │              │
-         │                                                                │              │
-         │                             RabbitMQ Topic Exchange            │              │
-         │                            ('microservices.events')            │              │
-         └──────────────────────────────────────┬─────────────────────────┴──────────────┘
+         ┌──────────────┬──────────────┬────────┼─────────────┬──────────────┬──────────────┬──────────────┐
+         ▼              ▼              ▼        ▼             ▼              ▼              ▼              ▼
+   ┌───────────┐  ┌───────────┐  ┌───────────┐     ┌─────────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
+   │IAM Service│  │Asset Svc  │  │Config Svc │ ... │ Order Svc   │  │Txn Svc    │  │Search Svc │  │Audit Svc  │
+   │  (:4001)  │  │  (:4002)  │  │  (:4003)  │     │   (:4006)   │  │  (:4007)  │  │  (:4008)  │  │  (:4011)  │
+   └─────┬─────┘  └───────────┘  └─────┬─────┘     └──────┬──────┘  └─────┬─────┘  └─────▲─────┘  └─────▲─────┘
+         │                             │                  │               │              │              │
+         │ gRPC (:50051)               │ gRPC (:50053)    │ gRPC (:50059) │              │              │
+         │                             └────────────────┐ ├───┐           │              │              │
+         │                                              ▼ ▼   ▼           │              │              │
+         │                                       ┌──────────────┐         │              │              │
+         │                                       │Inventory Svc │         │              │              │
+         │                                       │   (:4009)    │         │              │              │
+         │                                       └──────────────┘         │              │              │
+         │                                                                │              │              │
+         │                             RabbitMQ Topic Exchange            │              │              │
+         │                            ('microservices.events')            │              │              │
+         └──────────────────────────────────────┬─────────────────────────┴──────────────┴──────────────┘
                                                 ▼
                      ┌─────────────────────────────────────────────────────┐
                      │ Consumer Services:                                  │
                      │ - order-service (subscribes to txn completed)       │
                      │ - search-service (subscribes to orders, users)      │
                      │ - notification-service (subscribes to all events)   │
+                     │ - audit-service (subscribes to all domain events)   │
                      └─────────────────────────────────────────────────────┘
 ```
 
@@ -57,7 +58,7 @@ Each microservice is **100% self-contained** and independently deployable. There
 
 | Service | HTTP Port | gRPC Port | Primary Responsibilities | Cross-Service Communication |
 |---|---|---|---|---|
-| **api-gateway** | `4000` | - | Single entry point, reverse proxy, OWASP headers, rate limiting, token forwarding | Routes to all 9 downstreams |
+| **api-gateway** | `4000` | - | Single entry point, reverse proxy, OWASP headers, rate limiting, token forwarding | Routes to all 10 downstreams |
 | **iam-service** | `4001` | `50051` | Identity, JWT issue & validation, RBAC | Publishes `iam.user_registered` to RabbitMQ; Serves `IAMService` gRPC |
 | **asset-service** | `4002` | - | Media assets, files, binary storage paths | Independent persistence |
 | **config-service** | `4003` | `50053` | Dynamic configuration, active payment gateway toggles | Serves `ConfigService` gRPC to `transaction-service` |
@@ -67,6 +68,29 @@ Each microservice is **100% self-contained** and independently deployable. There
 | **transaction-service** | `4007` | - | Multi-provider payments (Stripe, PayPal, Razorpay, Mock), hosted redirects | Synchronous gRPC client to `config-service` for gateway resolution; Publishes `transactions.transaction_completed` |
 | **search-service** | `4008` | - | Inverted search index, full-text queries | Consumes `orders.order_created` & `iam.user_registered` projections from RabbitMQ |
 | **inventory-service** | `4009` | `50059` | Stock quantities, SKUs, reservation transactions | Serves `InventoryService` gRPC (`CheckStock`, `ReserveStock`) |
+| **audit-service** | `4011` | `50061` | Immutable audit logs, telemetry, monitoring adapters (AWS CloudWatch, Prometheus, Grafana) | RabbitMQ consumer for all domain events; Serves `AuditService` gRPC |
+
+---
+
+## 🔍 Audit Logging & Monitoring (Flag-Based Adapters)
+
+The **Audit Service** provides unified compliance logging and operational observability with flag-based activation:
+
+### Monitoring Adapters:
+1. **AWS CloudWatch Adapter** (`ENABLE_CLOUDWATCH=true`):
+   - Dispatches structured audit events and custom metrics to AWS CloudWatch Logs & Metrics.
+   - Configurable log group (`AWS_CLOUDWATCH_LOG_GROUP`) and stream (`AWS_CLOUDWATCH_LOG_STREAM`).
+2. **Prometheus Metrics Adapter** (`ENABLE_PROMETHEUS=true`):
+   - Real-time metrics collection exposed at `http://localhost:4011/metrics` (or via Gateway `/metrics`).
+   - Tracks metrics including `audit_events_total`, request counts, latencies, and operational counters.
+3. **Grafana Adapter & Dashboard** (`ENABLE_GRAFANA=true`):
+   - Exposes formatted annotations at `/api/v1/audit/grafana/annotations` marking system events on Grafana dashboards.
+   - Compatible with standard Prometheus and Loki data sources.
+
+### Flag-Based Config Query:
+```bash
+curl http://localhost:4000/api/v1/audit/config
+```
 
 ---
 
@@ -86,6 +110,10 @@ Protocol buffer contracts (`.proto`) are bundled natively inside each service re
 - **RPC `CheckStock`**: Real-time stock availability check prior to order creation.
 - **RPC `ReserveStock`**: Atomically reserves quantities for incoming orders.
 
+### 4. Audit Service (`audit.proto` on port `50061`)
+- **RPC `RecordAuditLog`**: Low-latency synchronous audit logging for high-assurance operations.
+- **RPC `QueryAuditLogs`**: Structured query interface for administrative audits.
+
 ---
 
 ## 🐇 Asynchronous Event-Driven Architecture (RabbitMQ)
@@ -96,13 +124,13 @@ Protocol buffer contracts (`.proto`) are bundled natively inside each service re
 ### Event Catalog:
 1. **`iam.user_registered`**:
    - **Publisher**: `iam-service`
-   - **Subscribers**: `notification-service` (sends welcome email), `search-service` (indexes user into search directory).
+   - **Subscribers**: `notification-service`, `search-service`, `audit-service`
 2. **`orders.order_created`**:
    - **Publisher**: `order-service`
-   - **Subscribers**: `notification-service` (sends order confirmation), `search-service` (indexes order).
+   - **Subscribers**: `notification-service`, `search-service`, `audit-service`
 3. **`transactions.transaction_completed`**:
    - **Publisher**: `transaction-service`
-   - **Subscribers**: `order-service` (transitions order status from `PENDING` to `PAID`), `notification-service` (sends payment receipt).
+   - **Subscribers**: `order-service` (marks order `PAID`), `notification-service`, `audit-service`
 
 ---
 
@@ -133,7 +161,7 @@ This will start:
 - PostgreSQL 16 (with automatic schema initialization)
 - RabbitMQ 3 Management UI at `http://localhost:15672` (guest / guest)
 - API Gateway at `http://localhost:4000`
-- All 9 backend microservices
+- All 10 backend microservices
 
 ### 2. Verify Health
 ```bash
@@ -151,21 +179,14 @@ curl -X POST http://localhost:4000/api/v1/iam/register \
   -d '{"email":"alice@example.com","password":"Password123!","name":"Alice"}'
 ```
 
-#### Login & Obtain JWT Token
+#### Check Audit Trail
 ```bash
-curl -X POST http://localhost:4000/api/v1/iam/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"alice@example.com","password":"Password123!"}'
+curl http://localhost:4000/api/v1/audit/logs
 ```
 
-#### Check Inventory
+#### Check Prometheus Metrics
 ```bash
-curl http://localhost:4000/api/v1/inventory/prod-1
-```
-
-#### Search Documents
-```bash
-curl "http://localhost:4000/api/v1/search?q=Alice"
+curl http://localhost:4011/metrics
 ```
 
 ---
@@ -189,5 +210,6 @@ backend-ms/
     ├── order-service/          # Port 4006 (gRPC client -> inventory)
     ├── transaction-service/    # Port 4007 (gRPC client -> config)
     ├── search-service/         # Port 4008
-    └── inventory-service/      # Port 4009, gRPC 50059
+    ├── inventory-service/      # Port 4009, gRPC 50059
+    └── audit-service/          # Port 4011, gRPC 50061 (CloudWatch/Prometheus/Grafana)
 ```

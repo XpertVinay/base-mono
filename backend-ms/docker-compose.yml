@@ -60,10 +60,12 @@ services:
       TRANSACTION_SERVICE_URL: http://transaction-service:4007
       SEARCH_SERVICE_URL: http://search-service:4008
       INVENTORY_SERVICE_URL: http://inventory-service:4009
+      AUDIT_SERVICE_URL: http://audit-service:4011
     depends_on:
       - iam-service
       - config-service
       - order-service
+      - audit-service
     networks:
       - microservices-net
 
@@ -293,6 +295,36 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     depends_on:
       postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  audit-service:
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+    container_name: ms-audit-service
+    restart: unless-stopped
+    ports:
+      - "4011:4011"
+      - "50061:50061"
+    environment:
+      NODE_ENV: production
+      PORT: 4011
+      GRPC_PORT: 50061
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      ENABLE_CLOUDWATCH: "false"
+      ENABLE_PROMETHEUS: "true"
+      ENABLE_GRAFANA: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - microservices-net
