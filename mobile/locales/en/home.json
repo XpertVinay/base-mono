@@ -1,0 +1,17 @@
+{
+  "greeting": "Hello, {{name}}",
+  "dashboardTitle": "Enterprise Workspace",
+  "quickActions": "Quick Shortcuts",
+  "activeFeatures": "Enabled Platform Features",
+  "tenantBranding": "White-Label Tenant Details",
+  "previewBranding": "Tenant Branding Preview",
+  "profile": "Profile",
+  "settings": "Settings",
+  "notifications": "Notifications",
+  "language": "Language",
+  "helpSupport": "Help & Support",
+  "orderTracking": "Orders",
+  "appointmentBooking": "Appointments",
+  "inventorySearch": "Inventory",
+  "noFeatures": "No specialized features enabled for this tenant."
+}

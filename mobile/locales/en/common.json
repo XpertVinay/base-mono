@@ -1,0 +1,27 @@
+{
+  "appName": "Enterprise Platform",
+  "welcome": "Welcome",
+  "login": "Log In",
+  "logout": "Log Out",
+  "save": "Save",
+  "cancel": "Cancel",
+  "continue": "Continue",
+  "getStarted": "Get Started",
+  "back": "Back",
+  "retry": "Try Again",
+  "loading": "Loading...",
+  "errorOccurred": "An unexpected error occurred",
+  "noData": "No items found",
+  "languages": {
+    "en": "English",
+    "hi": "हिन्दी (Hindi)"
+  },
+  "switchTenant": "Switch Demo Tenant",
+  "activeTenant": "Active Tenant",
+  "selectLanguage": "Select Language",
+  "languageChanged": "Language changed successfully",
+  "system": "System",
+  "light": "Light",
+  "dark": "Dark",
+  "theme": "Theme"
+}

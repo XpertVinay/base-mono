@@ -1,0 +1,17 @@
+{
+  "greeting": "नमस्ते, {{name}}",
+  "dashboardTitle": "एंटरप्राइज कार्यक्षेत्र",
+  "quickActions": "त्वरित शॉर्टकट",
+  "activeFeatures": "सक्षम प्लेटफॉर्म सुविधाएं",
+  "tenantBranding": "व्हाइट-लेबल टेनेंट विवरण",
+  "previewBranding": "टेनेंट ब्रांडिंग पूर्वावलोकन",
+  "profile": "प्रोफ़ाइल",
+  "settings": "सेटिंग्स",
+  "notifications": "सूचनाएं",
+  "language": "भाषा",
+  "helpSupport": "सहायता एवं समर्थन",
+  "orderTracking": "ऑर्डर",
+  "appointmentBooking": "अपॉइंटमेंट",
+  "inventorySearch": "इन्वेंट्री",
+  "noFeatures": "इस टेनेंट के लिए कोई विशिष्ट सुविधा सक्षम नहीं है।"
+}
