@@ -1,0 +1,107 @@
+name: Infra - CI & Quality Gates
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-ci.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  validate-terraform:
+    name: Terraform Validation & Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Check Terraform Formatting
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Validate Providers
+        run: |
+          cd terraform/providers/aws && terraform init -backend=false && terraform validate
+          cd ../gcp && terraform init -backend=false && terraform validate
+
+      - name: Run Server Count Boundary Tests
+        run: ./tests/test_server_count_bounds.sh
+
+      - name: Test Dynamic Environment & Secret Management
+        run: python3 tests/test_dynamic_env.py
+
+      - name: Run tfsec Security Scanner
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infra/terraform/
+
+  validate-ansible:
+    name: Ansible Syntax & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible & Tools
+        run: |
+          pip install ansible ansible-lint
+
+      - name: Check Playbook Syntax
+        run: |
+          cd ansible
+          ansible-playbook --syntax-check playbooks/bootstrap.yml
+          ansible-playbook --syntax-check playbooks/docker-host.yml
+          ansible-playbook --syntax-check playbooks/k8s-cluster.yml
+          ansible-playbook --syntax-check playbooks/deploy-app.yml
+
+  validate-docker-and-k8s:
+    name: Dockerfile & K8s Manifest Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/containers/Dockerfile.example
+
+      - name: Validate Kubernetes Manifests
+        uses: stefanprodan/kube-tools@v1
+        with:
+          kubectl: 1.29.0
+          kustomize: 5.3.0
+
+      - name: Build and Validate Kustomize Overlays
+        run: |
+          ./scripts/load-env.sh local k8s
+          ./scripts/load-env.sh dev k8s
+          ./scripts/load-env.sh staging k8s
+          ./scripts/load-env.sh prod k8s
+          kustomize build kubernetes/overlays/local > /dev/null
+          kustomize build kubernetes/overlays/dev > /dev/null
+          kustomize build kubernetes/overlays/staging > /dev/null
+          kustomize build kubernetes/overlays/prod > /dev/null

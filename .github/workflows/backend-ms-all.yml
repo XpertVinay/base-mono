@@ -1,0 +1,87 @@
+name: Backend - All Microservices (Matrix)
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend-ms/package.json'
+      - 'backend-ms/docker-compose.yml'
+      - 'backend-ms/Makefile'
+      - '.github/workflows/backend-ms-all.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'backend-ms/package.json'
+      - 'backend-ms/docker-compose.yml'
+      - 'backend-ms/Makefile'
+      - '.github/workflows/backend-ms-all.yml'
+  workflow_dispatch:
+    inputs:
+      run_docker_build:
+        description: 'Build Docker container images for all services'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - asset-service
+          - audit-service
+          - config-service
+          - iam-service
+          - inventory-service
+          - notification-service
+          - order-service
+          - scheduler-service
+          - search-service
+          - transaction-service
+    defaults:
+      run:
+        working-directory: backend-ms/services/${{ matrix.service }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend-ms/services/${{ matrix.service }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Compile TypeScript
+        run: npm run build
+
+      - name: Run Tests (if defined)
+        run: |
+          if grep -q '"test":' package.json; then
+            npm test
+          else
+            echo "No test script configured for ${{ matrix.service }}, skipping."
+          fi
+
+      - name: Set up Docker Buildx
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_docker_build }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_docker_build }}
+        uses: docker/build-push-action@v5
+        with:
+          context: backend-ms/services/${{ matrix.service }}
+          push: false
+          tags: ${{ github.repository_owner }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

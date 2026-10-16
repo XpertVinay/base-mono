@@ -1,0 +1,90 @@
+name: Infra - Controlled Deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target Deployment Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Configure AWS Credentials via OIDC
+        if: ${{ env.AWS_DEPLOYMENT_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOYMENT_ROLE_ARN }}
+          aws-region: us-east-1
+        env:
+          AWS_DEPLOYMENT_ROLE_ARN: ${{ secrets.AWS_DEPLOYMENT_ROLE_ARN }}
+
+      - name: Terraform Plan with Dynamic Environment & Secrets
+        env:
+          TARGET_ENV: ${{ inputs.target_env || 'dev' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: |
+          ./scripts/load-env.sh "${TARGET_ENV}" run bash -c "cd terraform/environments/${TARGET_ENV} && terraform init && terraform plan -out=tfplan"
+
+  apply:
+    name: Gated Apply
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env || 'dev' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Configure AWS Credentials via OIDC
+        if: ${{ env.AWS_DEPLOYMENT_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOYMENT_ROLE_ARN }}
+          aws-region: us-east-1
+        env:
+          AWS_DEPLOYMENT_ROLE_ARN: ${{ secrets.AWS_DEPLOYMENT_ROLE_ARN }}
+
+      - name: Terraform Apply with Dynamic Environment & Secrets
+        env:
+          TARGET_ENV: ${{ inputs.target_env || 'dev' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+        run: |
+          ./scripts/load-env.sh "${TARGET_ENV}" run bash -c "cd terraform/environments/${TARGET_ENV} && terraform init && terraform apply -auto-approve"

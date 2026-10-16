@@ -118,7 +118,7 @@ const INITIAL_RECORDS: Record<string, EntityRecord[]> = {
   ],
 };
 
-let recordsMemory = { ...INITIAL_RECORDS };
+const recordsMemory = { ...INITIAL_RECORDS };
 
 export const mockBackend = {
   getRecords(tenantSlug: string): EntityRecord[] {

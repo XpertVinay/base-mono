@@ -1,0 +1,76 @@
+name: Backend - Asset Service
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend-ms/services/asset-service/**'
+      - '.github/workflows/backend-asset-service.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'backend-ms/services/asset-service/**'
+      - '.github/workflows/backend-asset-service.yml'
+  workflow_dispatch:
+    inputs:
+      run_docker_build:
+        description: 'Build Docker container image'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: backend-ms/services/asset-service
+
+jobs:
+  test-and-build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend-ms/services/asset-service/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Compile TypeScript
+        run: npm run build
+
+      - name: Run Tests (if defined)
+        run: |
+          if grep -q '"test":' package.json; then
+            npm test
+          else
+            echo "No test script configured for asset-service, skipping."
+          fi
+
+  docker-build:
+    name: Docker Image Build
+    needs: test-and-build
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_docker_build }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend-ms/services/asset-service
+          push: false
+          tags: ${{ github.repository_owner }}/asset-service:latest,${{ github.repository_owner }}/asset-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
