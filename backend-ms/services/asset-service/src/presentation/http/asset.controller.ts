@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { CreateAssetUseCase } from '../../application/commands/create-asset.use-case.js';
 import { ListAssetsQuery } from '../../application/queries/list-assets.query.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const createAssetSchema = z.object({
   name: z.string().min(1),
@@ -20,14 +21,24 @@ export class AssetController {
     try {
       const ownerId = req.user?.id || (req.header('x-user-id') as string);
       if (!ownerId) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: 'Authentication required',
+          errors: [{ code: 'UNAUTHORIZED', message: 'No authenticated user identity provided' }]
+        });
         return;
       }
 
       const validated = createAssetSchema.parse(req.body);
       const result = await this.createUseCase.execute({ ...validated, ownerId });
 
-      res.status(201).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'Asset registered successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -37,12 +48,32 @@ export class AssetController {
     try {
       const ownerId = req.user?.id || (req.header('x-user-id') as string);
       if (!ownerId) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: 'Authentication required',
+          errors: [{ code: 'UNAUTHORIZED', message: 'No authenticated user identity provided' }]
+        });
         return;
       }
 
       const result = await this.listQuery.execute({ ownerId });
-      res.status(200).json({ success: true, data: result.getValue() });
+      const assets = result.getValue();
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Assets retrieved successfully',
+        data: assets,
+        meta: {
+          pagination: {
+            total: assets.length,
+            limit: assets.length,
+            page: 1,
+            totalPages: 1
+          }
+        }
+      });
     } catch (err) {
       next(err);
     }

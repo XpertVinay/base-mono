@@ -7,6 +7,28 @@ service AuditService {
   rpc QueryAuditLogs (QueryAuditRequest) returns (QueryAuditResponse);
 }
 
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
 message AuditLogRequest {
   string actorId = 1;
   string actorEmail = 2;
@@ -19,10 +41,22 @@ message AuditLogRequest {
   string correlationId = 9;
 }
 
+message AuditLogData {
+  string logId = 1;
+  string timestamp = 2;
+}
+
 message AuditLogResponse {
-  bool success = 1;
-  string logId = 2;
-  string timestamp = 3;
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  AuditLogData data = 5;
+
+  // Direct backwards-compatibility fields
+  bool success = 6;
+  string logId = 7;
+  string timestamp = 8;
 }
 
 message QueryAuditRequest {
@@ -46,6 +80,17 @@ message AuditItem {
   string timestamp = 11;
 }
 
-message QueryAuditResponse {
+message QueryAuditData {
   repeated AuditItem items = 1;
+}
+
+message QueryAuditResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  QueryAuditData data = 5;
+
+  // Direct backwards-compatibility field
+  repeated AuditItem items = 6;
 }

@@ -7,19 +7,65 @@ service ConfigService {
   rpc GetActivePaymentGateway (GetActiveGatewayRequest) returns (GetActiveGatewayResponse);
 }
 
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
 message GetConfigRequest {
   string key = 1;
   string defaultValue = 2;
 }
 
-message GetConfigResponse {
+message ConfigData {
   string key = 1;
   string value = 2;
   bool isEncrypted = 3;
 }
 
+message GetConfigResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ConfigData data = 5;
+
+  // Direct backwards-compatibility fields
+  string key = 6;
+  string value = 7;
+  bool isEncrypted = 8;
+}
+
 message GetActiveGatewayRequest {}
 
-message GetActiveGatewayResponse {
+message GatewayData {
   string provider = 1;
+}
+
+message GetActiveGatewayResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  GatewayData data = 5;
+
+  // Direct backwards-compatibility field
+  string provider = 6;
 }

@@ -12,6 +12,7 @@ async function bootstrap() {
 
   const server = app.listen(port, host, () => {
     logger.info(`🌐 API Gateway running at http://${host}:${port}`);
+    logger.info(`📚 Swagger UI API Docs: http://${host}:${port}/api-docs`);
     logger.info(`📊 Aggregated Health check: http://${host}:${port}/health/detailed`);
   });
 

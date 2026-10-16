@@ -5,6 +5,7 @@ import {
   ListJobsQuery,
   TriggerJobUseCase
 } from '../../application/use-cases/scheduler.use-cases.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const createJobSchema = z.object({
   name: z.string().min(1),
@@ -18,10 +19,25 @@ export class SchedulerController {
     private readonly triggerUseCase: TriggerJobUseCase
   ) {}
 
-  list = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await this.listQuery.execute();
-      res.status(200).json({ success: true, data: result.getValue() });
+      const jobs = result.getValue();
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Scheduled jobs retrieved successfully',
+        data: jobs,
+        meta: {
+          pagination: {
+            total: jobs.length,
+            limit: jobs.length,
+            page: 1,
+            totalPages: 1
+          }
+        }
+      });
     } catch (err) {
       next(err);
     }
@@ -32,7 +48,12 @@ export class SchedulerController {
       const validated = createJobSchema.parse(req.body);
       const result = await this.createUseCase.execute(validated);
 
-      res.status(201).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'Scheduled job registered successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -44,11 +65,21 @@ export class SchedulerController {
       const result = await this.triggerUseCase.execute({ id });
 
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError(), field: 'id' }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Scheduled job triggered successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }

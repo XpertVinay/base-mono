@@ -5,6 +5,7 @@ import {
   AddStockUseCase,
   GetStockQuery
 } from '../../application/use-cases/inventory.use-cases.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const reserveSchema = z.object({
   productId: z.string().min(1),
@@ -30,11 +31,21 @@ export class InventoryController {
       const result = await this.getStockQuery.execute({ productId });
 
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError(), field: 'productId' }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Stock retrieved successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -46,11 +57,21 @@ export class InventoryController {
       const result = await this.reserveUseCase.execute(validated);
 
       if (result.isFailure) {
-        res.status(400).json({ success: false, error: { code: 'STOCK_UNAVAILABLE', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'STOCK_UNAVAILABLE', message: result.getError() }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Stock reserved successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -61,7 +82,12 @@ export class InventoryController {
       const validated = addStockSchema.parse(req.body);
       const result = await this.addStockUseCase.execute(validated);
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Stock added successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }

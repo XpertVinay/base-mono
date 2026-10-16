@@ -6,6 +6,7 @@ import {
   GetOrderByIdQuery,
   ListMyOrdersQuery
 } from '../../application/commands/order.commands.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const createOrderSchema = z.object({
   items: z.array(
@@ -31,7 +32,12 @@ export class OrderController {
     try {
       const userId = req.user?.id || (req.header('x-user-id') as string);
       if (!userId) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: 'Authentication required',
+          errors: [{ code: 'UNAUTHORIZED', message: 'No authenticated user identity provided' }]
+        });
         return;
       }
 
@@ -39,11 +45,28 @@ export class OrderController {
       const result = await this.createUseCase.execute({ ...validated, userId });
 
       if (result.isFailure) {
-        res.status(400).json({ success: false, error: { code: 'ORDER_CREATION_FAILED', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'ORDER_CREATION_FAILED', message: result.getError() }],
+          meta: { further_steps: ['Check stock availability or item details'] }
+        });
         return;
       }
 
-      res.status(201).json({ success: true, data: result.getValue() });
+      const order = result.getValue();
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'Order created successfully',
+        data: order,
+        meta: {
+          further_steps: [
+            `Proceed to payment initiation at POST /api/v1/transactions/initiate with referenceId: "${(order as any).id}"`
+          ]
+        }
+      });
     } catch (err) {
       next(err);
     }
@@ -57,11 +80,21 @@ export class OrderController {
 
       const result = await this.cancelUseCase.execute({ orderId: id, userId, role });
       if (result.isFailure) {
-        res.status(400).json({ success: false, error: { code: 'CANCEL_FAILED', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'CANCEL_FAILED', message: result.getError() }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Order cancelled successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -75,11 +108,21 @@ export class OrderController {
 
       const result = await this.getByIdQuery.execute({ orderId: id, userId, role });
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError(), field: 'id' }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Order retrieved successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -89,12 +132,32 @@ export class OrderController {
     try {
       const userId = req.user?.id || (req.header('x-user-id') as string);
       if (!userId) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: 'Authentication required',
+          errors: [{ code: 'UNAUTHORIZED', message: 'No authenticated user identity provided' }]
+        });
         return;
       }
 
       const result = await this.listMyQuery.execute({ userId });
-      res.status(200).json({ success: true, data: result.getValue() });
+      const orders = result.getValue();
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Orders retrieved successfully',
+        data: orders,
+        meta: {
+          pagination: {
+            total: orders.length,
+            limit: orders.length,
+            page: 1,
+            totalPages: 1
+          }
+        }
+      });
     } catch (err) {
       next(err);
     }

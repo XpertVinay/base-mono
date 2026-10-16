@@ -4,10 +4,15 @@ import cors from 'cors';
 import compression from 'compression';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import jwt from 'jsonwebtoken';
+import swaggerUi from 'swagger-ui-express';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
+import { ApiResponse } from './shared/presentation/standard-response.js';
 import { logger } from './shared/infrastructure/logger.js';
+import { swaggerRestDoc } from './docs/swagger-rest.js';
+import { swaggerGrpcDoc } from './docs/swagger-grpc.js';
+import { swaggerCombinedDoc } from './docs/swagger-combined.js';
 
 export function createApp(): Express {
   const app = express();
@@ -21,7 +26,7 @@ export function createApp(): Express {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'blob:']
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://validator.swagger.io']
         }
       },
       crossOriginEmbedderPolicy: false
@@ -33,12 +38,67 @@ export function createApp(): Express {
   app.use(correlationIdMiddleware);
   app.use(rateLimiter({ windowMs: 60000, max: 300 }));
 
-  // Gateway Liveness Check
-  app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({
-      status: 'UP',
-      service: 'api-gateway',
-      timestamp: new Date().toISOString()
+  // Swagger OpenAPI Documentation JSON Endpoints
+  app.get('/api-docs/openapi.json', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(swaggerCombinedDoc);
+  });
+
+  app.get('/api-docs/rest.json', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(swaggerRestDoc);
+  });
+
+  app.get('/api-docs/grpc.json', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(swaggerGrpcDoc);
+  });
+
+  // Swagger UI with Multi-Spec Selection (REST + gRPC + Combined)
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(undefined, {
+      explorer: true,
+      swaggerOptions: {
+        urls: [
+          { url: '/api-docs/openapi.json', name: 'Unified Platform (REST & gRPC)' },
+          { url: '/api-docs/rest.json', name: 'HTTP REST APIs (All Microservices)' },
+          { url: '/api-docs/grpc.json', name: 'gRPC Services Contract (:50051, :50053, :50059, :50061)' }
+        ]
+      },
+      customSiteTitle: 'Enterprise Microservices API & gRPC Documentation',
+      customCss: `
+        .swagger-ui .topbar { background-color: #0f172a; border-bottom: 2px solid #3b82f6; }
+        .swagger-ui .topbar-wrapper img { content: url('https://raw.githubusercontent.com/swagger-api/swagger-ui/master/dist/favicon-32x32.png'); }
+        .swagger-ui .info { margin: 25px 0; }
+        .swagger-ui .info .title { color: #1e293b; font-weight: 700; }
+      `
+    })
+  );
+
+  // Convenient doc redirects
+  app.get('/docs', (_req: Request, res: Response) => res.redirect('/api-docs/'));
+  app.get('/swagger', (_req: Request, res: Response) => res.redirect('/api-docs/'));
+
+  // Gateway Liveness Check with Standard Response
+  app.get('/health', (req: Request, res: Response) => {
+    ApiResponse.success(res, {
+      req,
+      statusCode: 200,
+      message: 'API Gateway is healthy and operational',
+      data: {
+        gateway: 'api-gateway',
+        status: 'UP',
+        uptimeSeconds: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+      },
+      meta: {
+        further_steps: [
+          'Detailed downstream health available at /health/detailed',
+          'Explore interactive documentation at /api-docs'
+        ]
+      }
     });
   });
 
@@ -55,8 +115,8 @@ export function createApp(): Express {
     audit: process.env.AUDIT_SERVICE_URL || 'http://localhost:4011'
   };
 
-  // Detailed Aggregated Health Check
-  app.get('/health/detailed', async (_req: Request, res: Response) => {
+  // Detailed Aggregated Health Check with Standard Response
+  app.get('/health/detailed', async (req: Request, res: Response) => {
     const checks: Record<string, { status: string; latencyMs: number; error?: string }> = {};
     let overallHealthy = true;
 
@@ -82,12 +142,30 @@ export function createApp(): Express {
       })
     );
 
-    res.status(overallHealthy ? 200 : 503).json({
-      status: overallHealthy ? 'UP' : 'DEGRADED',
-      gateway: 'api-gateway',
-      timestamp: new Date().toISOString(),
-      services: checks
-    });
+    if (overallHealthy) {
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'All microservices downstream are operational',
+        data: {
+          gateway: 'api-gateway',
+          services: checks
+        }
+      });
+    } else {
+      ApiResponse.error(res, {
+        req,
+        statusCode: 503,
+        message: 'One or more downstream services are degraded or unavailable',
+        errors: Object.entries(checks)
+          .filter(([_, v]) => v.status !== 'UP')
+          .map(([k, v]) => ({ service: k, status: v.status, error: v.error })),
+        meta: {
+          debug: { checks },
+          further_steps: ['Check individual service logs or container liveness']
+        }
+      });
+    }
   });
 
   // Centralized JWT Auth & Identity Propagation Middleware
@@ -102,7 +180,7 @@ export function createApp(): Express {
         req.headers['x-user-email'] = decoded.email || '';
         req.headers['x-user-role'] = decoded.role || 'USER';
       } catch (err) {
-        // Invalid token - downstream or auth middleware can reject
+        // Invalid token - downstream or auth middleware will handle
       }
     }
     next();
@@ -111,7 +189,7 @@ export function createApp(): Express {
   app.use(authPropagation);
 
   // Setup reverse proxies for all services
-  const createServiceProxy = (targetUrl: string) => {
+  const createServiceProxy = (targetUrl: string, serviceName: string) => {
     return createProxyMiddleware({
       target: targetUrl,
       changeOrigin: true,
@@ -128,13 +206,25 @@ export function createApp(): Express {
           }
         },
         error: (err: any, req: any, res: any) => {
-          logger.error('Proxy routing error', err, { url: req.url });
+          logger.error(`Proxy routing error for ${serviceName}`, err, { url: req.url });
           if (!res.headersSent) {
-            res.status(502).json({
-              success: false,
-              error: {
-                code: 'BAD_GATEWAY',
-                message: 'Downstream microservice unavailable or unreachable'
+            ApiResponse.error(res, {
+              req,
+              statusCode: 502,
+              message: `Downstream microservice '${serviceName}' is unavailable or unreachable`,
+              errors: [
+                {
+                  code: 'BAD_GATEWAY',
+                  service: serviceName,
+                  message: err.message || 'Connection refused or timed out'
+                }
+              ],
+              meta: {
+                debug: { targetUrl, serviceName },
+                further_steps: [
+                  `Ensure ${serviceName} is running and reachable at ${targetUrl}`,
+                  'Verify system health at /health/detailed'
+                ]
               }
             });
           }
@@ -143,35 +233,35 @@ export function createApp(): Express {
     });
   };
 
-  app.use('/api/v1/iam', createServiceProxy(serviceTargets.iam));
-  app.use('/api/iam', createServiceProxy(serviceTargets.iam));
+  app.use('/api/v1/iam', createServiceProxy(serviceTargets.iam, 'iam-service'));
+  app.use('/api/iam', createServiceProxy(serviceTargets.iam, 'iam-service'));
 
-  app.use('/api/v1/assets', createServiceProxy(serviceTargets.assets));
-  app.use('/api/assets', createServiceProxy(serviceTargets.assets));
+  app.use('/api/v1/assets', createServiceProxy(serviceTargets.assets, 'asset-service'));
+  app.use('/api/assets', createServiceProxy(serviceTargets.assets, 'asset-service'));
 
-  app.use('/api/v1/config', createServiceProxy(serviceTargets.config));
-  app.use('/api/config', createServiceProxy(serviceTargets.config));
+  app.use('/api/v1/config', createServiceProxy(serviceTargets.config, 'config-service'));
+  app.use('/api/config', createServiceProxy(serviceTargets.config, 'config-service'));
 
-  app.use('/api/v1/notifications', createServiceProxy(serviceTargets.notifications));
-  app.use('/api/notifications', createServiceProxy(serviceTargets.notifications));
+  app.use('/api/v1/notifications', createServiceProxy(serviceTargets.notifications, 'notification-service'));
+  app.use('/api/notifications', createServiceProxy(serviceTargets.notifications, 'notification-service'));
 
-  app.use('/api/v1/scheduler', createServiceProxy(serviceTargets.scheduler));
-  app.use('/api/scheduler', createServiceProxy(serviceTargets.scheduler));
+  app.use('/api/v1/scheduler', createServiceProxy(serviceTargets.scheduler, 'scheduler-service'));
+  app.use('/api/scheduler', createServiceProxy(serviceTargets.scheduler, 'scheduler-service'));
 
-  app.use('/api/v1/orders', createServiceProxy(serviceTargets.orders));
-  app.use('/api/orders', createServiceProxy(serviceTargets.orders));
+  app.use('/api/v1/orders', createServiceProxy(serviceTargets.orders, 'order-service'));
+  app.use('/api/orders', createServiceProxy(serviceTargets.orders, 'order-service'));
 
-  app.use('/api/v1/transactions', createServiceProxy(serviceTargets.transactions));
-  app.use('/api/transactions', createServiceProxy(serviceTargets.transactions));
+  app.use('/api/v1/transactions', createServiceProxy(serviceTargets.transactions, 'transaction-service'));
+  app.use('/api/transactions', createServiceProxy(serviceTargets.transactions, 'transaction-service'));
 
-  app.use('/api/v1/search', createServiceProxy(serviceTargets.search));
-  app.use('/api/search', createServiceProxy(serviceTargets.search));
+  app.use('/api/v1/search', createServiceProxy(serviceTargets.search, 'search-service'));
+  app.use('/api/search', createServiceProxy(serviceTargets.search, 'search-service'));
 
-  app.use('/api/v1/inventory', createServiceProxy(serviceTargets.inventory));
-  app.use('/api/inventory', createServiceProxy(serviceTargets.inventory));
+  app.use('/api/v1/inventory', createServiceProxy(serviceTargets.inventory, 'inventory-service'));
+  app.use('/api/inventory', createServiceProxy(serviceTargets.inventory, 'inventory-service'));
 
-  app.use('/api/v1/audit', createServiceProxy(serviceTargets.audit));
-  app.use('/api/audit', createServiceProxy(serviceTargets.audit));
+  app.use('/api/v1/audit', createServiceProxy(serviceTargets.audit, 'audit-service'));
+  app.use('/api/audit', createServiceProxy(serviceTargets.audit, 'audit-service'));
 
   app.use((req: Request, _res: Response, next: NextFunction) => {
     next(new NotFoundError(`API Route ${req.method} ${req.originalUrl}`));

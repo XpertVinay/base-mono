@@ -29,11 +29,12 @@ export class ConfigGrpcClient {
   async getActiveGateway(): Promise<string> {
     return new Promise((resolve) => {
       this.client.GetActivePaymentGateway({}, (err: any, response: any) => {
-        if (err || !response || !response.provider) {
+        const provider = response?.data?.provider ?? response?.provider;
+        if (err || !provider) {
           logger.warn('gRPC GetActivePaymentGateway failed, fallback to env/STRIPE', { err: err?.message });
           return resolve(process.env.DEFAULT_PAYMENT_GATEWAY || 'STRIPE');
         }
-        resolve(response.provider);
+        resolve(provider);
       });
     });
   }

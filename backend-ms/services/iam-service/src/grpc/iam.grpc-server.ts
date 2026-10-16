@@ -28,17 +28,43 @@ export function startIamGrpcServer(userRepo: IUserRepository, port: number = 500
     VerifyToken: (call: any, callback: any) => {
       const { token } = call.request;
       const secret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
+      const requestId = `grpc-iam-${Date.now()}`;
+
       try {
         const decoded = jwt.verify(token, secret) as any;
+        const userId = decoded.sub || decoded.id;
+        const email = decoded.email || '';
+        const role = decoded.role || 'USER';
+
         callback(null, {
+          status: true,
+          message: 'Token verified successfully',
+          errors: [],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'iam-service', rpc: 'VerifyToken' },
+            further_steps: ['Token is valid; proceed with authorized request']
+          },
+          data: { valid: true, userId, email, role },
           valid: true,
-          userId: decoded.sub || decoded.id,
-          email: decoded.email,
-          role: decoded.role || 'USER',
+          userId,
+          email,
+          role,
           error: ''
         });
       } catch (err: any) {
         callback(null, {
+          status: false,
+          message: err.message || 'Token verification failed',
+          errors: [{ code: 'INVALID_TOKEN', message: err.message, field: 'token' }],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'iam-service', rpc: 'VerifyToken' },
+            further_steps: ['Obtain a new bearer token via POST /api/v1/iam/login']
+          },
+          data: { valid: false, userId: '', email: '', role: '' },
           valid: false,
           userId: '',
           email: '',
@@ -49,22 +75,53 @@ export function startIamGrpcServer(userRepo: IUserRepository, port: number = 500
     },
 
     GetUserById: async (call: any, callback: any) => {
+      const requestId = `grpc-iam-${Date.now()}`;
       try {
         const { userId } = call.request;
         const user = await userRepo.findById(userId);
+
         if (!user) {
-          return callback({
-            code: grpc.status.NOT_FOUND,
-            message: 'User not found'
+          return callback(null, {
+            status: false,
+            message: 'User not found',
+            errors: [{ code: 'NOT_FOUND', message: `User ${userId} does not exist`, field: 'userId' }],
+            meta_data: {
+              request_id: requestId,
+              timestamp: new Date().toISOString(),
+              debug_data: { service: 'iam-service', rpc: 'GetUserById' },
+              further_steps: ['Check user ID or register a new user']
+            },
+            data: null,
+            id: '',
+            email: '',
+            name: '',
+            role: '',
+            isActive: false,
+            createdAt: ''
           });
         }
-        callback(null, {
+
+        const userData = {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
           isActive: user.isActive,
           createdAt: user.createdAt.toISOString()
+        };
+
+        callback(null, {
+          status: true,
+          message: 'User retrieved successfully',
+          errors: [],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'iam-service', rpc: 'GetUserById' },
+            further_steps: []
+          },
+          data: userData,
+          ...userData
         });
       } catch (err: any) {
         callback({

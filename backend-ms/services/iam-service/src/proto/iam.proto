@@ -7,27 +7,79 @@ service IAMService {
   rpc GetUserById (GetUserRequest) returns (GetUserResponse);
 }
 
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
 message VerifyTokenRequest {
   string token = 1;
 }
 
-message VerifyTokenResponse {
+message VerifyTokenData {
   bool valid = 1;
   string userId = 2;
   string email = 3;
   string role = 4;
-  string error = 5;
+}
+
+message VerifyTokenResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  VerifyTokenData data = 5;
+
+  // Direct backwards-compatibility fields
+  bool valid = 6;
+  string userId = 7;
+  string email = 8;
+  string role = 9;
+  string error = 10;
 }
 
 message GetUserRequest {
   string userId = 1;
 }
 
-message GetUserResponse {
+message UserData {
   string id = 1;
   string email = 2;
   string name = 3;
   string role = 4;
   bool isActive = 5;
   string createdAt = 6;
+}
+
+message GetUserResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  UserData data = 5;
+
+  // Direct backwards-compatibility fields
+  string id = 6;
+  string email = 7;
+  string name = 8;
+  string role = 9;
+  bool isActive = 10;
+  string createdAt = 11;
 }

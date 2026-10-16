@@ -6,6 +6,7 @@ import {
   ListConfigsQuery,
   DeleteConfigUseCase
 } from '../../application/use-cases/config.use-cases.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const setConfigSchema = z.object({
   key: z.string().min(1),
@@ -22,10 +23,24 @@ export class ConfigController {
     private readonly deleteUseCase: DeleteConfigUseCase
   ) {}
 
-  getAll = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await this.listQuery.execute();
-      res.status(200).json({ success: true, data: result.getValue() });
+      const items = result.getValue();
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Configurations retrieved successfully',
+        data: items,
+        meta: {
+          pagination: {
+            total: items.length,
+            limit: items.length,
+            page: 1,
+            totalPages: 1
+          }
+        }
+      });
     } catch (err) {
       next(err);
     }
@@ -38,11 +53,21 @@ export class ConfigController {
       const result = await this.getQuery.execute({ key, defaultValue });
 
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError(), field: 'key' }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Configuration retrieved successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -53,7 +78,12 @@ export class ConfigController {
       const validated = setConfigSchema.parse(req.body);
       const result = await this.setUseCase.execute(validated);
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Configuration updated successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -65,11 +95,21 @@ export class ConfigController {
       const result = await this.deleteUseCase.execute({ key });
 
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError(), field: 'key' }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: { deleted: true } });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Configuration deleted successfully',
+        data: { deleted: true, key }
+      });
     } catch (err) {
       next(err);
     }

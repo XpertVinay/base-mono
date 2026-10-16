@@ -25,14 +25,41 @@ export function startInventoryGrpcServer(repo: IInventoryRepository, port: numbe
 
   server.addService(inventoryProto.InventoryService.service, {
     CheckStock: async (call: any, callback: any) => {
+      const requestId = `grpc-inv-${Date.now()}`;
       try {
         const { productId, quantity } = call.request;
         const item = await repo.findByProductId(productId);
+
         if (!item) {
-          return callback(null, { available: false, availableQuantity: 0 });
+          return callback(null, {
+            status: false,
+            message: `Product ${productId} not found in inventory`,
+            errors: [{ code: 'PRODUCT_NOT_FOUND', message: `Product ${productId} does not exist`, field: 'productId' }],
+            meta_data: {
+              request_id: requestId,
+              timestamp: new Date().toISOString(),
+              debug_data: { service: 'inventory-service', rpc: 'CheckStock' },
+              further_steps: ['Add stock for this product via POST /api/v1/inventory/stock']
+            },
+            data: { available: false, availableQuantity: 0 },
+            available: false,
+            availableQuantity: 0
+          });
         }
+
+        const isAvailable = item.availableQuantity >= quantity;
         callback(null, {
-          available: item.availableQuantity >= quantity,
+          status: isAvailable,
+          message: isAvailable ? 'Stock is available' : 'Insufficient stock',
+          errors: isAvailable ? [] : [{ code: 'INSUFFICIENT_STOCK', message: `Requested ${quantity}, available: ${item.availableQuantity}` }],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'inventory-service', rpc: 'CheckStock' },
+            further_steps: isAvailable ? ['Proceed with stock reservation'] : ['Reduce quantity or replenish inventory']
+          },
+          data: { available: isAvailable, availableQuantity: item.availableQuantity },
+          available: isAvailable,
           availableQuantity: item.availableQuantity
         });
       } catch (err: any) {
@@ -41,21 +68,59 @@ export function startInventoryGrpcServer(repo: IInventoryRepository, port: numbe
     },
 
     ReserveStock: async (call: any, callback: any) => {
+      const requestId = `grpc-inv-${Date.now()}`;
       try {
-        const { productId, quantity } = call.request;
+        const { productId, quantity, orderId } = call.request;
         const item = await repo.findByProductId(productId);
+
         if (!item) {
-          return callback(null, { success: false, message: 'Product not found in inventory' });
+          return callback(null, {
+            status: false,
+            message: `Product ${productId} not found in inventory`,
+            errors: [{ code: 'NOT_FOUND', message: `Product ${productId} not found`, field: 'productId' }],
+            meta_data: {
+              request_id: requestId,
+              timestamp: new Date().toISOString(),
+              debug_data: { service: 'inventory-service', rpc: 'ReserveStock' },
+              further_steps: []
+            },
+            data: null,
+            success: false
+          });
         }
+
         const reserved = item.reserve(quantity);
         if (!reserved) {
           return callback(null, {
-            success: false,
-            message: `Insufficient stock. Available: ${item.availableQuantity}, Requested: ${quantity}`
+            status: false,
+            message: `Insufficient stock. Available: ${item.availableQuantity}, Requested: ${quantity}`,
+            errors: [{ code: 'STOCK_DEPLETED', message: `Available: ${item.availableQuantity}` }],
+            meta_data: {
+              request_id: requestId,
+              timestamp: new Date().toISOString(),
+              debug_data: { service: 'inventory-service', rpc: 'ReserveStock' },
+              further_steps: ['Replenish inventory stock']
+            },
+            data: null,
+            success: false
           });
         }
+
         await repo.update(item);
-        callback(null, { success: true, message: 'Stock reserved successfully' });
+
+        callback(null, {
+          status: true,
+          message: 'Stock reserved successfully',
+          errors: [],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'inventory-service', rpc: 'ReserveStock' },
+            further_steps: ['Proceed to order creation and payment authorization']
+          },
+          data: { productId, reservedQuantity: quantity, orderId },
+          success: true
+        });
       } catch (err: any) {
         callback({ code: grpc.status.INTERNAL, message: err.message });
       }

@@ -30,6 +30,7 @@ export function startAuditGrpcServer(
 
   server.addService(auditProto.AuditService.service, {
     RecordAuditLog: async (call: any, callback: any) => {
+      const requestId = `grpc-audit-${Date.now()}`;
       try {
         const req = call.request;
         let details = {};
@@ -50,10 +51,23 @@ export function startAuditGrpcServer(
         });
 
         const log = result.getValue();
+        const logId = log.id;
+        const timestamp = String(log.createdAt);
+
         callback(null, {
+          status: true,
+          message: 'Audit log recorded successfully',
+          errors: [],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'audit-service', rpc: 'RecordAuditLog' },
+            further_steps: []
+          },
+          data: { logId, timestamp },
           success: true,
-          logId: log.id,
-          timestamp: log.createdAt
+          logId,
+          timestamp
         });
       } catch (err: any) {
         callback({ code: grpc.status.INTERNAL, message: err.message });
@@ -61,6 +75,7 @@ export function startAuditGrpcServer(
     },
 
     QueryAuditLogs: async (call: any, callback: any) => {
+      const requestId = `grpc-audit-${Date.now()}`;
       try {
         const req = call.request;
         const result = await queryUseCase.execute({
@@ -81,10 +96,29 @@ export function startAuditGrpcServer(
           detailsJson: JSON.stringify(l.details || {}),
           ipAddress: l.ipAddress || '',
           correlationId: l.correlationId || '',
-          timestamp: l.createdAt
+          timestamp: String(l.createdAt)
         }));
 
-        callback(null, { items });
+        callback(null, {
+          status: true,
+          message: 'Audit logs retrieved successfully',
+          errors: [],
+          meta_data: {
+            request_id: requestId,
+            timestamp: new Date().toISOString(),
+            debug_data: { service: 'audit-service', rpc: 'QueryAuditLogs' },
+            pagination: {
+              page: 1,
+              limit: req.limit || 50,
+              total: items.length,
+              total_pages: 1,
+              has_next: false
+            },
+            further_steps: []
+          },
+          data: { items },
+          items
+        });
       } catch (err: any) {
         callback({ code: grpc.status.INTERNAL, message: err.message });
       }

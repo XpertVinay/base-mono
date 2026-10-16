@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { RegisterUserUseCase } from '../../application/commands/register-user.use-case.js';
 import { LoginUserUseCase } from '../../application/commands/login-user.use-case.js';
 import { GetUserByIdQuery } from '../../application/queries/get-user-by-id.query.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -29,16 +30,22 @@ export class IamController {
       const result = await this.registerUseCase.execute(validated);
 
       if (result.isFailure) {
-        res.status(400).json({
-          success: false,
-          error: { code: 'REGISTRATION_FAILED', message: result.getError() }
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'REGISTRATION_FAILED', message: result.getError() }],
+          meta: { further_steps: ['Try with a different email address'] }
         });
         return;
       }
 
-      res.status(201).json({
-        success: true,
-        data: result.getValue()
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'User registered successfully',
+        data: result.getValue(),
+        meta: { further_steps: ['Log in at POST /api/v1/iam/login to receive an access token'] }
       });
     } catch (err) {
       next(err);
@@ -51,16 +58,22 @@ export class IamController {
       const result = await this.loginUseCase.execute(validated);
 
       if (result.isFailure) {
-        res.status(401).json({
-          success: false,
-          error: { code: 'INVALID_CREDENTIALS', message: result.getError() }
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: result.getError(),
+          errors: [{ code: 'INVALID_CREDENTIALS', message: result.getError() }],
+          meta: { further_steps: ['Verify your password or request a reset'] }
         });
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        data: result.getValue()
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Authentication successful',
+        data: result.getValue(),
+        meta: { further_steps: ['Pass the returned token in the Authorization: Bearer <token> header'] }
       });
     } catch (err) {
       next(err);
@@ -71,18 +84,30 @@ export class IamController {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: 'Authentication required',
+          errors: [{ code: 'UNAUTHORIZED', message: 'No valid user session found' }]
+        });
         return;
       }
 
       const result = await this.getUserByIdQuery.execute({ userId });
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError() }]
+        });
         return;
       }
 
-      res.status(200).json({
-        success: true,
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'User profile retrieved successfully',
         data: result.getValue()
       });
     } catch (err) {
@@ -96,12 +121,19 @@ export class IamController {
       const result = await this.getUserByIdQuery.execute({ userId: id });
 
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError() }]
+        });
         return;
       }
 
-      res.status(200).json({
-        success: true,
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'User retrieved successfully',
         data: result.getValue()
       });
     } catch (err) {

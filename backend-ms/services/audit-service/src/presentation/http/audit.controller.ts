@@ -5,6 +5,7 @@ import {
   QueryAuditLogsQuery
 } from '../../application/use-cases/audit.use-cases.js';
 import { monitoringManager } from '../../infrastructure/monitoring/monitoring.manager.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const recordSchema = z.object({
   actorId: z.string().optional(),
@@ -36,7 +37,12 @@ export class AuditController {
         ipAddress: validated.ipAddress || ipAddress
       });
 
-      res.status(201).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'Audit log recorded successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -58,7 +64,21 @@ export class AuditController {
         limit
       });
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      const logs = result.getValue();
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Audit logs retrieved successfully',
+        data: logs,
+        meta: {
+          pagination: {
+            total: logs.length,
+            limit,
+            page: 1,
+            totalPages: 1
+          }
+        }
+      });
     } catch (err) {
       next(err);
     }
@@ -69,9 +89,11 @@ export class AuditController {
     res.send(monitoringManager.prometheusAdapter.getMetricsOutput());
   };
 
-  getConfig = async (_req: Request, res: Response): Promise<void> => {
-    res.status(200).json({
-      success: true,
+  getConfig = async (req: Request, res: Response): Promise<void> => {
+    ApiResponse.success(res, {
+      req,
+      statusCode: 200,
+      message: 'Monitoring configuration retrieved successfully',
       data: {
         adapters: monitoringManager.getActiveAdapters(),
         timestamp: new Date().toISOString()

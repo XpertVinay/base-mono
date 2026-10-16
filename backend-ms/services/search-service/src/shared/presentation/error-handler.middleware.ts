@@ -37,7 +37,8 @@ export function errorHandlerMiddleware(
   res: Response,
   _next: NextFunction
 ): void {
-  const correlationId = req.context?.correlationId || req.header('x-request-id') || 'unknown';
+  const correlationId = req.context?.correlationId || (req.header('x-request-id') as string) || (req.header('x-correlation-id') as string) || `req-${Date.now()}`;
+  const isDev = process.env.NODE_ENV !== 'production';
 
   if (err instanceof AppError) {
     logger.warn(`AppError: ${err.message}`, {
@@ -47,31 +48,56 @@ export function errorHandlerMiddleware(
     });
 
     res.status(err.statusCode).json({
-      success: false,
-      error: {
-        code: err.code,
-        message: err.message,
-        details: err.details
-      },
-      meta: {
+      status: false,
+      message: err.message,
+      data: null,
+      errors: [
+        {
+          code: err.code,
+          message: err.message,
+          ...(err.details ? { details: err.details } : {})
+        }
+      ],
+      meta_data: {
         requestId: correlationId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        pagination: null,
+        further_steps: ['Check search query parameters'],
+        ...(isDev ? {
+          debug: {
+            service: 'search-service',
+            env: process.env.NODE_ENV || 'development',
+            code: err.code
+          }
+        } : {})
       }
     });
     return;
   }
 
   if (err.name === 'ZodError') {
+    const errorList = (err.errors || []).map((e: any) => ({
+      code: 'VALIDATION_ERROR',
+      field: Array.isArray(e.path) ? e.path.join('.') : String(e.path),
+      message: e.message
+    }));
+
     res.status(400).json({
-      success: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request input',
-        details: err.errors
-      },
-      meta: {
+      status: false,
+      message: 'Validation error: invalid request input',
+      data: null,
+      errors: errorList,
+      meta_data: {
         requestId: correlationId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        pagination: null,
+        further_steps: ['Check search query parameters in /api-docs'],
+        ...(isDev ? {
+          debug: {
+            service: 'search-service',
+            env: process.env.NODE_ENV || 'development'
+          }
+        } : {})
       }
     });
     return;
@@ -80,16 +106,29 @@ export function errorHandlerMiddleware(
   logger.error('Unhandled internal server error', err, { correlationId });
 
   res.status(500).json({
-    success: false,
-    error: {
-      code: 'INTERNAL_SERVER_ERROR',
-      message: process.env.NODE_ENV === 'production' 
-        ? 'An unexpected internal error occurred' 
-        : err.message || 'Internal Server Error'
-    },
-    meta: {
+    status: false,
+    message: process.env.NODE_ENV === 'production' 
+      ? 'An unexpected internal error occurred' 
+      : err.message || 'Internal Server Error',
+    data: null,
+    errors: [
+      {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: err.message || 'Internal Server Error'
+      }
+    ],
+    meta_data: {
       requestId: correlationId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      pagination: null,
+      further_steps: ['Retry operation or inspect search-service logs'],
+      ...(isDev ? {
+        debug: {
+          service: 'search-service',
+          env: process.env.NODE_ENV || 'development',
+          stack: err.stack
+        }
+      } : {})
     }
   });
 }

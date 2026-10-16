@@ -163,14 +163,75 @@ This will start:
 - API Gateway at `http://localhost:4000`
 - All 10 backend microservices
 
-### 2. Verify Health
+### 2. Verify Health & Access Swagger API Documentation
 ```bash
 make health
 # or curl directly:
 curl http://localhost:4000/health/detailed
 ```
 
-### 3. Example API Workflows (through Gateway `:4000`)
+### 3. 📚 Swagger API & gRPC Contract Documentation
+Interactive Swagger UI with a multi-specification dropdown selector is available directly via the API Gateway:
+- **Interactive Swagger UI**: [http://localhost:4000/api-docs](http://localhost:4000/api-docs) (aliases: `/docs`, `/swagger`)
+- **Combined Specification (REST + gRPC)**: [http://localhost:4000/api-docs/openapi.json](http://localhost:4000/api-docs/openapi.json)
+- **HTTP REST APIs Specification**: [http://localhost:4000/api-docs/rest.json](http://localhost:4000/api-docs/rest.json)
+- **gRPC Services Contract Specification**: [http://localhost:4000/api-docs/grpc.json](http://localhost:4000/api-docs/grpc.json)
+
+#### 📋 Unified Standard Response Envelope Format
+Both HTTP REST APIs and gRPC contracts return all payloads within the standardized response envelope:
+```json
+{
+  "status": true,
+  "message": "Success message",
+  "data": { ... },
+  "errors": [],
+  "meta_data": {
+    "requestId": "req-c7f8a9e1-3b4d-4e9a-9d2a-8f7a6b5c4d3e",
+    "timestamp": "2026-10-16T10:30:00.000Z",
+    "debug": {
+      "service": "iam-service",
+      "env": "development",
+      "durationMs": 14
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 120,
+      "totalPages": 6,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "further_steps": [
+      "Authenticate with POST /api/v1/iam/login",
+      "Proceed to checkout"
+    ]
+  }
+}
+```
+
+On validation or operational errors:
+```json
+{
+  "status": false,
+  "message": "Validation error: invalid request input",
+  "data": null,
+  "errors": [
+    {
+      "code": "VALIDATION_ERROR",
+      "field": "email",
+      "message": "Invalid email address format"
+    }
+  ],
+  "meta_data": {
+    "requestId": "req-c7f8a9e1",
+    "timestamp": "2026-10-16T10:30:00.000Z",
+    "pagination": null,
+    "further_steps": ["Check request body schema in /api-docs"]
+  }
+}
+```
+
+### 4. Example API Workflows (through Gateway `:4000`)
 
 #### Register User
 ```bash

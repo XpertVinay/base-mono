@@ -5,6 +5,7 @@ import {
   CompletePaymentUseCase,
   GetTransactionByIdQuery
 } from '../../application/use-cases/transaction.use-cases.js';
+import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const initiateSchema = z.object({
   referenceId: z.string().min(1),
@@ -31,14 +32,30 @@ export class TransactionController {
     try {
       const userId = req.user?.id || (req.header('x-user-id') as string);
       if (!userId) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 401,
+          message: 'Authentication required',
+          errors: [{ code: 'UNAUTHORIZED', message: 'No authenticated user identity provided' }]
+        });
         return;
       }
 
       const validated = initiateSchema.parse(req.body);
       const result = await this.initiateUseCase.execute({ ...validated, userId });
 
-      res.status(201).json({ success: true, data: result.getValue() });
+      const txn = result.getValue();
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'Payment transaction initiated successfully',
+        data: txn,
+        meta: {
+          further_steps: [
+            `Forward customer to checkout redirectUrl if provided, or finalize via payment provider: "${(txn as any).gateway}"`
+          ]
+        }
+      });
     } catch (err) {
       next(err);
     }
@@ -55,11 +72,21 @@ export class TransactionController {
       });
 
       if (result.isFailure) {
-        res.status(400).json({ success: false, error: { code: 'WEBHOOK_FAILED', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'WEBHOOK_FAILED', message: result.getError() }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Payment webhook processed successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }
@@ -71,11 +98,21 @@ export class TransactionController {
       const result = await this.getByIdQuery.execute({ id });
 
       if (result.isFailure) {
-        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: result.getError() } });
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'NOT_FOUND', message: result.getError(), field: 'id' }]
+        });
         return;
       }
 
-      res.status(200).json({ success: true, data: result.getValue() });
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Transaction retrieved successfully',
+        data: result.getValue()
+      });
     } catch (err) {
       next(err);
     }

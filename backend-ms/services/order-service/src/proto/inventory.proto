@@ -7,14 +7,48 @@ service InventoryService {
   rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
 }
 
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
 message CheckStockRequest {
   string productId = 1;
   int32 quantity = 2;
 }
 
-message CheckStockResponse {
+message StockData {
   bool available = 1;
   int32 availableQuantity = 2;
+}
+
+message CheckStockResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  StockData data = 5;
+
+  // Direct backwards-compatibility fields
+  bool available = 6;
+  int32 availableQuantity = 7;
 }
 
 message ReserveStockRequest {
@@ -23,7 +57,19 @@ message ReserveStockRequest {
   string orderId = 3;
 }
 
+message ReserveStockData {
+  string productId = 1;
+  int32 reservedQuantity = 2;
+  string orderId = 3;
+}
+
 message ReserveStockResponse {
-  bool success = 1;
+  bool status = 1;
   string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ReserveStockData data = 5;
+
+  // Direct backwards-compatibility fields
+  bool success = 6;
 }

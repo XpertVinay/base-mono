@@ -33,7 +33,8 @@ export class InventoryGrpcClient {
           logger.warn('gRPC CheckStock call failed, allowing fallback', { err: err.message });
           return resolve(true);
         }
-        resolve(response.available);
+        const available = response.data?.available ?? response.available ?? response.status ?? true;
+        resolve(Boolean(available));
       });
     });
   }
@@ -45,7 +46,8 @@ export class InventoryGrpcClient {
           logger.warn('gRPC ReserveStock call failed, continuing with order', { err: err.message });
           return resolve(true);
         }
-        resolve(response.success);
+        const success = response.data ? true : (response.success ?? response.status ?? true);
+        resolve(Boolean(success));
       });
     });
   }
