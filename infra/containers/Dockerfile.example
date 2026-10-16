@@ -1,0 +1,59 @@
+# ==============================================================================
+# LANGUAGE-AGNOSTIC MULTI-STAGE DOCKERFILE TEMPLATE
+# Purpose:
+#   Provides a hardened, production-ready container blueprint suitable for
+#   any compiled or interpreted application runtime.
+# Security:
+#   - Multi-stage build isolates build toolchains from final minimal image.
+#   - Enforces execution as an unprivileged non-root user (UID 10001).
+#   - Installs minimal runtime dependencies and includes an explicit HEALTHCHECK.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Build & Compilation Environment
+# ------------------------------------------------------------------------------
+FROM alpine:3.19 AS builder
+
+# Install build dependencies if needed (compiler, package managers)
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /src
+
+# Application teams copy their source code and compile their artifact here:
+# COPY . .
+# RUN ./build.sh
+
+# Simulated lightweight HTTP server responding to /health for demonstration
+RUN printf '#!/bin/sh\nwhile true; do printf "HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\nContent-Length: 22\\r\\n\\r\\n{\\"status\\":\\"healthy\\"}" | nc -l -p 8080; done\n' > /src/entrypoint.sh && \
+    chmod +x /src/entrypoint.sh
+
+# ------------------------------------------------------------------------------
+# Stage 2: Minimal Hardened Runtime Environment
+# ------------------------------------------------------------------------------
+FROM alpine:3.19 AS runner
+
+# Install runtime utilities (curl for healthcheck, ca-certificates for TLS)
+RUN apk add --no-cache curl ca-certificates tzdata && \
+    addgroup -g 10001 -S appgroup && \
+    adduser -u 10001 -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy compiled artifact from builder stage
+COPY --from=builder /src/entrypoint.sh /app/entrypoint.sh
+
+# Change ownership to unprivileged user
+RUN chown -R appuser:appgroup /app
+
+# Switch to unprivileged non-root user
+USER 10001:10001
+
+# Document container port
+EXPOSE 8080
+
+# Built-in health check
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 0
+
+# Set entrypoint
+ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]

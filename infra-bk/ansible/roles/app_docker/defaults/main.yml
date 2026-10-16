@@ -1,0 +1,10 @@
+# ==============================================================================
+# ANSIBLE ROLE: APP_DOCKER - DEFAULTS
+# ==============================================================================
+---
+app_name: "sample-service"
+app_image: "ghcr.io/org/sample-service:latest"
+container_port: 8888
+host_port: 8888
+health_path: "/health"
+app_deploy_dir: "/opt/app"

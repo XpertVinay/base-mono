@@ -1,0 +1,10 @@
+# ==============================================================================
+# ANSIBLE ROLE: DOCKER - HANDLERS & TASKS
+# Purpose:
+#   Installs and manages production Docker Engine & Docker Compose plugin.
+# ==============================================================================
+---
+- name: Restart docker
+  ansible.builtin.service:
+    name: docker
+    state: restarted

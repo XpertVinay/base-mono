@@ -1,0 +1,305 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-microservices_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ms-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: ms-api-gateway
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      IAM_SERVICE_URL: http://iam-service:4001
+      ASSET_SERVICE_URL: http://asset-service:4002
+      CONFIG_SERVICE_URL: http://config-service:4003
+      NOTIFICATION_SERVICE_URL: http://notification-service:4004
+      SCHEDULER_SERVICE_URL: http://scheduler-service:4005
+      ORDER_SERVICE_URL: http://order-service:4006
+      TRANSACTION_SERVICE_URL: http://transaction-service:4007
+      SEARCH_SERVICE_URL: http://search-service:4008
+      INVENTORY_SERVICE_URL: http://inventory-service:4009
+    depends_on:
+      - iam-service
+      - config-service
+      - order-service
+    networks:
+      - microservices-net
+
+  iam-service:
+    build:
+      context: ./services/iam-service
+      dockerfile: Dockerfile
+    container_name: ms-iam-service
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
+      - "50051:50051"
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      GRPC_PORT: 50051
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  asset-service:
+    build:
+      context: ./services/asset-service
+      dockerfile: Dockerfile
+    container_name: ms-asset-service
+    restart: unless-stopped
+    ports:
+      - "4002:4002"
+    environment:
+      NODE_ENV: production
+      PORT: 4002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  config-service:
+    build:
+      context: ./services/config-service
+      dockerfile: Dockerfile
+    container_name: ms-config-service
+    restart: unless-stopped
+    ports:
+      - "4003:4003"
+      - "50053:50053"
+    environment:
+      NODE_ENV: production
+      PORT: 4003
+      GRPC_PORT: 50053
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: ms-notification-service
+    restart: unless-stopped
+    ports:
+      - "4004:4004"
+    environment:
+      NODE_ENV: production
+      PORT: 4004
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  scheduler-service:
+    build:
+      context: ./services/scheduler-service
+      dockerfile: Dockerfile
+    container_name: ms-scheduler-service
+    restart: unless-stopped
+    ports:
+      - "4005:4005"
+    environment:
+      NODE_ENV: production
+      PORT: 4005
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    container_name: ms-order-service
+    restart: unless-stopped
+    ports:
+      - "4006:4006"
+    environment:
+      NODE_ENV: production
+      PORT: 4006
+      INVENTORY_GRPC_URL: inventory-service:50059
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  transaction-service:
+    build:
+      context: ./services/transaction-service
+      dockerfile: Dockerfile
+    container_name: ms-transaction-service
+    restart: unless-stopped
+    ports:
+      - "4007:4007"
+    environment:
+      NODE_ENV: production
+      PORT: 4007
+      CONFIG_GRPC_URL: config-service:50053
+      DEFAULT_PAYMENT_GATEWAY: STRIPE
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      config-service:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  search-service:
+    build:
+      context: ./services/search-service
+      dockerfile: Dockerfile
+    container_name: ms-search-service
+    restart: unless-stopped
+    ports:
+      - "4008:4008"
+    environment:
+      NODE_ENV: production
+      PORT: 4008
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: ms-inventory-service
+    restart: unless-stopped
+    ports:
+      - "4009:4009"
+      - "50059:50059"
+    environment:
+      NODE_ENV: production
+      PORT: 4009
+      GRPC_PORT: 50059
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  pgdata:

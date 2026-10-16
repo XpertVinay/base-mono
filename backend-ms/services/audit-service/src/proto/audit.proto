@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package audit;
+
+service AuditService {
+  rpc RecordAuditLog (AuditLogRequest) returns (AuditLogResponse);
+  rpc QueryAuditLogs (QueryAuditRequest) returns (QueryAuditResponse);
+}
+
+message AuditLogRequest {
+  string actorId = 1;
+  string actorEmail = 2;
+  string action = 3;
+  string resource = 4;
+  string resourceId = 5;
+  string severity = 6;
+  string detailsJson = 7;
+  string ipAddress = 8;
+  string correlationId = 9;
+}
+
+message AuditLogResponse {
+  bool success = 1;
+  string logId = 2;
+  string timestamp = 3;
+}
+
+message QueryAuditRequest {
+  string actorId = 1;
+  string resource = 2;
+  string action = 3;
+  int32 limit = 4;
+}
+
+message AuditItem {
+  string id = 1;
+  string actorId = 2;
+  string actorEmail = 3;
+  string action = 4;
+  string resource = 5;
+  string resourceId = 6;
+  string severity = 7;
+  string detailsJson = 8;
+  string ipAddress = 9;
+  string correlationId = 10;
+  string timestamp = 11;
+}
+
+message QueryAuditResponse {
+  repeated AuditItem items = 1;
+}

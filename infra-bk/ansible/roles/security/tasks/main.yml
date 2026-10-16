@@ -1,0 +1,52 @@
+# ==============================================================================
+# ANSIBLE ROLE: SECURITY - TASKS
+# Purpose:
+#   Implements OS-level security hardening, non-root user setup, and UFW firewall.
+# ==============================================================================
+---
+- name: Ensure dedicated deployer user exists
+  ansible.builtin.user:
+    name: "{{ deployer_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: yes
+    create_home: yes
+
+- name: Harden SSH daemon configuration
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    validate: "/usr/sbin/sshd -t -f %s"
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin prohibit-password' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+    - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 4' }
+  notify: Restart sshd
+
+- name: Enable fail2ban service
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: yes
+
+- name: Configure UFW default policies
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: 'incoming', policy: 'deny' }
+    - { direction: 'outgoing', policy: 'allow' }
+
+- name: Allow configured TCP ports through UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ ufw_allowed_tcp_ports }}"
+
+- name: Enable UFW firewall
+  community.general.ufw:
+    state: enabled

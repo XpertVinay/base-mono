@@ -1,0 +1,43 @@
+# ==============================================================================
+# OPTIONAL STANDALONE OBSERVABILITY STACK (PROMETHEUS + GRAFANA)
+# Purpose:
+#   Collects host and container metrics on Docker standalone hosts.
+# ==============================================================================
+version: "3.8"
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.49.1
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+
+  grafana:
+    image: grafana/grafana:10.3.1
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false

@@ -1,0 +1,46 @@
+# ==============================================================================
+# KUBERNETES OVERLAY: LOCAL WORKSTATION (KIND / MINIKUBE / DOCKER DESKTOP / K3S)
+# ==============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: local
+
+resources:
+  - ../../base
+  - app-config.yaml
+  - app-secrets.yaml
+
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: application-service
+      spec:
+        replicas: 1
+        template:
+          spec:
+            containers:
+              - name: app
+                imagePullPolicy: IfNotPresent
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+                  limits:
+                    cpu: 250m
+                    memory: 256Mi
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: application-service
+      spec:
+        type: NodePort
+        ports:
+          - port: 80
+            targetPort: http
+            nodePort: 30080
+            protocol: TCP
+            name: http

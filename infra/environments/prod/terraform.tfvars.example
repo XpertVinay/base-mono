@@ -1,0 +1,8 @@
+project_name             = "platform"
+aws_region               = "us-east-1"
+application_server_count = 3
+instance_type            = "t3.large"
+ssh_public_key           = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... prod@example.com"
+admin_cidr_blocks        = ["10.0.0.0/8"]
+deployment_mode          = "k8s-managed"
+app_port                 = 8080

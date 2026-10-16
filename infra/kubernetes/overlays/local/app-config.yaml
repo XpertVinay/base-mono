@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: local
+data:
+  ENVIRONMENT: "local"
+  NODE_ENV: "local"
+  LOG_LEVEL: "debug"
+  PORT: "8888"
+  ENABLE_METRICS: "true"

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package config;
+
+service ConfigService {
+  rpc GetConfigByKey (GetConfigRequest) returns (GetConfigResponse);
+  rpc GetActivePaymentGateway (GetActiveGatewayRequest) returns (GetActiveGatewayResponse);
+}
+
+message GetConfigRequest {
+  string key = 1;
+  string defaultValue = 2;
+}
+
+message GetConfigResponse {
+  string key = 1;
+  string value = 2;
+  bool isEncrypted = 3;
+}
+
+message GetActiveGatewayRequest {}
+
+message GetActiveGatewayResponse {
+  string provider = 1;
+}

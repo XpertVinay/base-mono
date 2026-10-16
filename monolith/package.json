@@ -1,0 +1,29 @@
+{
+  "name": "solid-modular-monolith",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready SOLID Modular Monolith using PERN stack (PostgreSQL, Express, React, Node.js)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter @monolith/api dev",
+    "dev:web": "pnpm --filter @monolith/web dev",
+    "dev:all": "pnpm --parallel --filter @monolith/api --filter @monolith/web dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "test:arch": "pnpm --filter @monolith/api test:arch",
+    "test:security": "pnpm --filter @monolith/api test:security",
+    "migrate": "pnpm --filter @monolith/api db:migrate",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

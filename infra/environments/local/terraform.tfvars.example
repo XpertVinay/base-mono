@@ -1,0 +1,4 @@
+project_name             = "platform"
+application_server_count = 1
+deployment_mode          = "docker"
+app_port                 = 8888

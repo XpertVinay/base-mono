@@ -1,0 +1,14 @@
+CREATE SCHEMA IF NOT EXISTS asset;
+
+CREATE TABLE IF NOT EXISTS asset.assets (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    storage_path VARCHAR(500) NOT NULL,
+    owner_id VARCHAR(36) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_asset_owner ON asset.assets(owner_id);

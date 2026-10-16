@@ -1,0 +1,14 @@
+{
+  "name": "backend-ms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DDD Microservices Architecture with gRPC, RabbitMQ, and API Gateway",
+  "scripts": {
+    "install:all": "for dir in services/*; do if [ -f \"$dir/package.json\" ]; then (cd \"$dir\" && npm install); fi; done",
+    "build:all": "for dir in services/*; do if [ -f \"$dir/package.json\" ]; then (cd \"$dir\" && npm run build); fi; done",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose build",
+    "docker:logs": "docker compose logs -f"
+  }
+}

@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: monolith_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: monolith_db
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - monolith_pgdata:/var/lib/postgresql/data
+      - ../apps/api/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d monolith_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monolith_net
+
+  api:
+    build:
+      context: ../
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: monolith_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      CORS_ORIGIN: "*"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/monolith_db
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: monolith_db
+      JWT_SECRET: super-secret-development-jwt-key-replace-in-production-min-32-chars
+    ports:
+      - "${API_PORT:-4001}:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - monolith_net
+
+  web:
+    build:
+      context: ../
+      dockerfile: infrastructure/docker/Dockerfile.web
+    container_name: monolith_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - monolith_net
+
+networks:
+  monolith_net:
+    driver: bridge
+
+volumes:
+  monolith_pgdata:
+    driver: local

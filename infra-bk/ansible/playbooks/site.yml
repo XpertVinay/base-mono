@@ -1,0 +1,14 @@
+# ==============================================================================
+# MASTER ORCHESTRATION PLAYBOOK: SITE.YML
+# Purpose:
+#   Top-level execution entrypoint orchestrating OS baseline, container runtime,
+#   and cluster bootstrap.
+# ==============================================================================
+---
+- import_playbook: bootstrap.yml
+
+- import_playbook: docker-host.yml
+  when: deployment_mode | default('docker') == 'docker'
+
+- import_playbook: k8s-cluster.yml
+  when: deployment_mode | default('docker') == 'k8s-self-managed'

@@ -1,0 +1,12 @@
+# ==============================================================================
+# PLAYBOOK: DOCKER HOST SETUP
+# Purpose:
+#   Installs and configures Docker Engine, Compose plugin, and Node Exporter.
+# ==============================================================================
+---
+- name: Configure standalone Docker environment on application nodes
+  hosts: app_servers
+  become: yes
+  roles:
+    - role: docker
+    - role: monitoring

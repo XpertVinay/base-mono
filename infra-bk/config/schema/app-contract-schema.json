@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ApplicationDeploymentContract",
+  "description": "Language-agnostic specification for deploying containerized workloads via Docker or Kubernetes.",
+  "type": "object",
+  "required": ["application", "runtime", "ports", "health_check"],
+  "properties": {
+    "application": {
+      "type": "object",
+      "required": ["name", "version", "environment"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Unique DNS-safe name of the application."
+        },
+        "version": {
+          "type": "string",
+          "description": "Application semantic version or release tag."
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["dev", "staging", "prod"],
+          "description": "Target deployment environment."
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "Fully qualified container image URI (e.g., ghcr.io/org/app:v1.0.0 or image@sha256:...)"
+        },
+        "command": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional container entrypoint override."
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional container command arguments."
+        },
+        "user": {
+          "type": "string",
+          "default": "10001:10001",
+          "description": "Non-root UID:GID for execution security."
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "cpu_limit": { "type": "string", "default": "1000m" },
+        "memory_limit": { "type": "string", "default": "1Gi" },
+        "cpu_reservation": { "type": "string", "default": "250m" },
+        "memory_reservation": { "type": "string", "default": "256Mi" }
+      }
+    },
+    "scaling": {
+      "type": "object",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 1
+        }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "required": ["container_port"],
+      "properties": {
+        "container_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "service_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 80
+        },
+        "protocol": {
+          "type": "string",
+          "enum": ["TCP", "UDP"],
+          "default": "TCP"
+        }
+      }
+    },
+    "health_check": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "default": "/health"
+        },
+        "initial_delay_seconds": { "type": "integer", "default": 15 },
+        "interval_seconds": { "type": "integer", "default": 10 },
+        "timeout_seconds": { "type": "integer", "default": 5 },
+        "failure_threshold": { "type": "integer", "default": 3 }
+      }
+    },
+    "environment_variables": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Non-sensitive key-value pairs for container configuration."
+    },
+    "secret_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "key", "env_var"],
+        "properties": {
+          "name": { "type": "string" },
+          "key": { "type": "string" },
+          "env_var": { "type": "string" }
+        }
+      },
+      "description": "Pointers to secure secrets stored in Vault/K8s Secrets."
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "mount_path": { "type": "string" },
+        "size": { "type": "string", "default": "10Gi" }
+      }
+    }
+  }
+}
