@@ -34,8 +34,8 @@ export class InMemoryEventBus implements IEventBus {
       subscribersCount: handlers.length
     });
 
-    // Execute handlers asynchronously with error isolation
-    for (const handler of handlers) {
+    // Execute all handlers concurrently with complete error isolation
+    const executions = handlers.map(async (handler) => {
       try {
         await handler(event);
       } catch (err) {
@@ -44,7 +44,9 @@ export class InMemoryEventBus implements IEventBus {
           aggregateId: event.aggregateId
         });
       }
-    }
+    });
+
+    await Promise.allSettled(executions);
   }
 }
 

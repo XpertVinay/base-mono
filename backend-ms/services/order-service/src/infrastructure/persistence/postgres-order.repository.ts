@@ -24,15 +24,23 @@ export class PostgresOrderRepository implements IOrderRepository {
       [userId]
     );
 
-    const orders: Order[] = [];
-    for (const row of ordersRes.rows) {
-      const itemsRes = await dbPool.query(
-        'SELECT id, product_id, product_name, quantity, unit_price, total_price FROM orders.order_items WHERE order_id = $1',
-        [row.id]
-      );
-      orders.push(this.mapToDomain(row, itemsRes.rows));
+    if (ordersRes.rows.length === 0) return [];
+
+    // Performance optimization: Batch fetch items in 1 query instead of sequential N queries
+    const orderIds = ordersRes.rows.map(r => r.id);
+    const itemsRes = await dbPool.query(
+      'SELECT id, order_id, product_id, product_name, quantity, unit_price, total_price FROM orders.order_items WHERE order_id = ANY($1)',
+      [orderIds]
+    );
+
+    const itemsByOrderId = new Map<string, any[]>();
+    for (const item of itemsRes.rows) {
+      const list = itemsByOrderId.get(item.order_id) || [];
+      list.push(item);
+      itemsByOrderId.set(item.order_id, list);
     }
-    return orders;
+
+    return ordersRes.rows.map(row => this.mapToDomain(row, itemsByOrderId.get(row.id) || []));
   }
 
   async save(order: Order): Promise<void> {

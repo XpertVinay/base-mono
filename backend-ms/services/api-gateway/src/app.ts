@@ -1,4 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
+import http from 'http';
+import https from 'https';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
@@ -6,7 +8,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import jwt from 'jsonwebtoken';
 import swaggerUi from 'swagger-ui-express';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
-import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
+import { rateLimiter, authRateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { ApiResponse } from './shared/presentation/standard-response.js';
 import { logger } from './shared/infrastructure/logger.js';
@@ -14,10 +16,37 @@ import { swaggerRestDoc } from './docs/swagger-rest.js';
 import { swaggerGrpcDoc } from './docs/swagger-grpc.js';
 import { swaggerCombinedDoc } from './docs/swagger-combined.js';
 
+// High-performance HTTP Keep-Alive Agents for persistent upstream connection pooling
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 10000,
+  maxSockets: 100,
+  maxFreeSockets: 20,
+  timeout: 60000
+});
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 10000,
+  maxSockets: 100,
+  maxFreeSockets: 20,
+  timeout: 60000
+});
+
 export function createApp(): Express {
   const app = express();
 
   app.set('trust proxy', 1);
+
+  // Security: Strip untrusted client headers to prevent identity spoofing / privilege escalation
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    delete req.headers['x-user-id'];
+    delete req.headers['x-user-email'];
+    delete req.headers['x-user-role'];
+    delete req.headers['x-internal-secret'];
+    delete req.headers['x-gateway-signature'];
+    next();
+  });
 
   app.use(
     helmet({
@@ -37,6 +66,12 @@ export function createApp(): Express {
   app.use(compression());
   app.use(correlationIdMiddleware);
   app.use(rateLimiter({ windowMs: 60000, max: 300 }));
+
+  // Strict rate limiting on authentication routes to mitigate brute force & credential stuffing
+  app.use('/api/v1/iam/login', authRateLimiter);
+  app.use('/api/iam/login', authRateLimiter);
+  app.use('/api/v1/iam/register', authRateLimiter);
+  app.use('/api/iam/register', authRateLimiter);
 
   // Swagger OpenAPI Documentation JSON Endpoints
   app.get('/api-docs/openapi.json', (_req: Request, res: Response) => {
@@ -193,6 +228,7 @@ export function createApp(): Express {
     return createProxyMiddleware({
       target: targetUrl,
       changeOrigin: true,
+      agent: targetUrl.startsWith('https') ? httpsAgent : httpAgent,
       on: {
         proxyReq: (proxyReq: any, req: any) => {
           if (req.context?.correlationId) {
@@ -203,6 +239,10 @@ export function createApp(): Express {
             proxyReq.setHeader('x-user-id', req.headers['x-user-id'] as string);
             proxyReq.setHeader('x-user-email', (req.headers['x-user-email'] || '') as string);
             proxyReq.setHeader('x-user-role', (req.headers['x-user-role'] || '') as string);
+            proxyReq.setHeader(
+              'x-internal-secret',
+              process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars'
+            );
           }
         },
         error: (err: any, req: any, res: any) => {

@@ -8,6 +8,8 @@ import { monitoringManager } from './infrastructure/monitoring/monitoring.manage
 import { startAuditGrpcServer } from './grpc/audit.grpc-server.js';
 import { logger } from './shared/infrastructure/logger.js';
 
+import { AuditEventRecorder } from './presentation/events/audit-event-recorder.js';
+
 async function bootstrap() {
   const port = parseInt(process.env.PORT || '4011', 10);
   const grpcPort = parseInt(process.env.GRPC_PORT || '50061', 10);
@@ -20,36 +22,9 @@ async function bootstrap() {
 
   const { app, recordUseCase, queryUseCase } = createApp();
 
-  // 3. Subscribe to all relevant domain integration events for comprehensive audit trail
-  await rabbitmq.subscribe(
-    'audit-service-event-recorder',
-    [
-      'iam.*',
-      'orders.*',
-      'transactions.*',
-      'assets.*',
-      'config.*',
-      'audit.*'
-    ],
-    async (event) => {
-      logger.info(`audit-service recording immutable audit trail for event: ${event.eventName}`, {
-        eventId: event.id,
-        aggregateId: event.aggregateId
-      });
-
-      const payload = event.payload as any;
-      await recordUseCase.execute({
-        actorId: payload.userId || payload.actorId || undefined,
-        actorEmail: payload.email || undefined,
-        action: event.eventName,
-        resource: event.eventName.split('.')[0] || 'SYSTEM',
-        resourceId: event.aggregateId,
-        severity: event.eventName.includes('failed') ? 'WARN' : 'INFO',
-        details: payload,
-        correlationId: event.id
-      });
-    }
-  );
+  // 3. Start Audit Event Recorder (SOLID decoupled event subscriber)
+  const auditRecorder = new AuditEventRecorder(rabbitmq, recordUseCase);
+  await auditRecorder.start();
 
   const server = app.listen(port, '0.0.0.0', () => {
     logger.info(`🚀 audit-service HTTP running at http://0.0.0.0:${port}`);

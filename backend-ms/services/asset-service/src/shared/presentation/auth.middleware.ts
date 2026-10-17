@@ -16,7 +16,11 @@ declare global {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (req.header('x-user-id')) {
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars';
+  const providedSecret = req.header('x-internal-secret');
+
+  // Accept forwarded gateway identity headers ONLY if authenticated with the shared internal secret
+  if (req.header('x-user-id') && providedSecret === internalSecret) {
     req.user = {
       id: req.header('x-user-id') as string,
       email: (req.header('x-user-email') || '') as string,

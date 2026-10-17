@@ -1,0 +1,41 @@
+node_modules
+**/node_modules
+dist
+**/dist
+build
+**/build
+
+# Environment files
+.env
+.env.*
+.env*.local
+!.env.example
+
+# Git & Version Control
+.git
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+coverage
+.nyc_output
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.swp
+*.swo
+*~

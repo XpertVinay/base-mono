@@ -114,6 +114,9 @@ export class RabbitMQService {
         logger.info(`Bound queue '${serviceQueueName}' to exchange '${this.exchange}' with routing key '${key}'`);
       }
 
+      // Performance & resilience: apply consumer prefetch QoS to prevent memory exhaustion
+      await this.channel.prefetch(10);
+
       await this.channel.consume(
         q.queue,
         async (msg: any) => {

@@ -6,27 +6,21 @@ import { dbPool } from './shared/infrastructure/database/connection-pool.js';
 import { rabbitmq } from './shared/infrastructure/messaging/rabbitmq.service.js';
 import { logger } from './shared/infrastructure/logger.js';
 
+import { TransactionCompletedOrderHandler } from './presentation/events/transaction-completed.handler.js';
+
 async function bootstrap() {
   const port = parseInt(process.env.PORT || '4006', 10);
   await rabbitmq.connect();
 
   const { app, repo } = createApp();
 
-  // RabbitMQ consumer for transaction completions
+  // SOLID Event Consumer: Dedicated transaction completion handler
+  const transactionHandler = new TransactionCompletedOrderHandler(repo);
   await rabbitmq.subscribe(
-    'order-service-transactions',
-    ['transactions.transaction_completed'],
+    transactionHandler.queueName,
+    [transactionHandler.eventName],
     async (event) => {
-      const payload = event.payload as any;
-      if (payload.status === 'SUCCESS' && payload.referenceId) {
-        logger.info(`order-service updating order ${payload.referenceId} to PAID`);
-        const order = await repo.findById(payload.referenceId);
-        if (order) {
-          order.markPaid();
-          await repo.update(order);
-          logger.info(`Order ${order.id} marked as PAID via RabbitMQ event`);
-        }
-      }
+      await transactionHandler.handle(event as any);
     }
   );
 

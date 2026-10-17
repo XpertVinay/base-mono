@@ -5,16 +5,18 @@ import { LoginUserUseCase } from '../../application/commands/login-user.use-case
 import { GetUserByIdQuery } from '../../application/queries/get-user-by-id.query.js';
 import { getCurrentRequestId } from '../../../../shared/presentation/request-context.js';
 
+import { env } from '../../../../config/env.js';
+
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(2),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+  name: z.string().min(2).max(100),
   role: z.enum(['ADMIN', 'USER', 'AUDITOR']).optional()
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1)
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(128)
 });
 
 export class IamController {
@@ -27,7 +29,11 @@ export class IamController {
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = registerSchema.parse(req.body);
-      const result = await this.registerUserUseCase.execute(validated);
+      // Security hardening: In production, public registration strictly restricts to USER role
+      // Only authenticated ADMINs can assign privileged roles (or non-prod test environments)
+      const canAssignRole = req.user?.role === 'ADMIN' || env.NODE_ENV !== 'production';
+      const role = (canAssignRole && validated.role) ? validated.role : 'USER';
+      const result = await this.registerUserUseCase.execute({ ...validated, role });
 
       if (result.isFailure) {
         return next(result.getError());

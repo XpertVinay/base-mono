@@ -1,6 +1,7 @@
 import { IOrderRepository } from '../../domain/repositories/order-repository.interface.js';
 import { Order } from '../../domain/entities/order.entity.js';
 import { dbPool } from '../../../../infrastructure/database/connection-pool.js';
+import { TransactionManager } from '../../../../infrastructure/database/transaction-manager.js';
 import { logger } from '../../../../shared/infrastructure/logger.js';
 
 export class PostgresOrderRepository implements IOrderRepository {
@@ -35,15 +36,21 @@ export class PostgresOrderRepository implements IOrderRepository {
         return Array.from(this.fallbackStore.values()).filter(o => o.userId === userId);
       }
 
-      const orders: Order[] = [];
-      for (const row of orderRes.rows) {
-        const itemsRes = await dbPool.query(
-          'SELECT id, product_id, product_name, quantity, unit_price, total_price FROM orders.order_items WHERE order_id = $1',
-          [row.id]
-        );
-        orders.push(this.mapToDomain(row, itemsRes.rows));
+      // Performance optimization: Batch fetch all items in 1 query instead of N queries
+      const orderIds = orderRes.rows.map(r => r.id);
+      const itemsRes = await dbPool.query(
+        'SELECT id, order_id, product_id, product_name, quantity, unit_price, total_price FROM orders.order_items WHERE order_id = ANY($1)',
+        [orderIds]
+      );
+
+      const itemsByOrderId = new Map<string, any[]>();
+      for (const item of itemsRes.rows) {
+        const list = itemsByOrderId.get(item.order_id) || [];
+        list.push(item);
+        itemsByOrderId.set(item.order_id, list);
       }
-      return orders;
+
+      return orderRes.rows.map(row => this.mapToDomain(row, itemsByOrderId.get(row.id) || []));
     } catch {
       return Array.from(this.fallbackStore.values()).filter(o => o.userId === userId);
     }
@@ -52,23 +59,25 @@ export class PostgresOrderRepository implements IOrderRepository {
   async save(order: Order): Promise<void> {
     this.fallbackStore.set(order.id, order);
     try {
-      await dbPool.query(
-        `INSERT INTO orders.orders (id, user_id, status, total_amount, currency, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (id) DO UPDATE SET
-           status = EXCLUDED.status,
-           updated_at = EXCLUDED.updated_at`,
-        [order.id, order.userId, order.status, order.totalAmount, order.currency, order.createdAt, order.updatedAt]
-      );
-
-      for (const item of order.items) {
-        await dbPool.query(
-          `INSERT INTO orders.order_items (id, order_id, product_id, product_name, quantity, unit_price, total_price)
+      await TransactionManager.runInTransaction(async (ctx) => {
+        await ctx.query(
+          `INSERT INTO orders.orders (id, user_id, status, total_amount, currency, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (id) DO NOTHING`,
-          [item.id, order.id, item.productId, item.productName, item.quantity, item.unitPrice, item.totalPrice]
+           ON CONFLICT (id) DO UPDATE SET
+             status = EXCLUDED.status,
+             updated_at = EXCLUDED.updated_at`,
+          [order.id, order.userId, order.status, order.totalAmount, order.currency, order.createdAt, order.updatedAt]
         );
-      }
+
+        for (const item of order.items) {
+          await ctx.query(
+            `INSERT INTO orders.order_items (id, order_id, product_id, product_name, quantity, unit_price, total_price)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (id) DO NOTHING`,
+            [item.id, order.id, item.productId, item.productName, item.quantity, item.unitPrice, item.totalPrice]
+          );
+        }
+      });
     } catch (err) {
       logger.warn('Failed to persist order in PostgreSQL, saved in fallback store', { id: order.id });
     }

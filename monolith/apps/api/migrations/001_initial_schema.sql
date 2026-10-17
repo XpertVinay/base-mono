@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS scheduler.jobs (
 CREATE SCHEMA IF NOT EXISTS orders;
 
 CREATE TABLE IF NOT EXISTS orders.orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(36) PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     total_amount NUMERIC(12, 2) NOT NULL,

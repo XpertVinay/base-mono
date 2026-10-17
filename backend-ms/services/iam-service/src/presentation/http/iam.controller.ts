@@ -6,15 +6,15 @@ import { GetUserByIdQuery } from '../../application/queries/get-user-by-id.query
 import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(2),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+  name: z.string().min(2).max(100),
   role: z.enum(['USER', 'ADMIN', 'SUPPORT']).optional()
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string()
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(128)
 });
 
 export class IamController {
@@ -27,7 +27,11 @@ export class IamController {
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = registerSchema.parse(req.body);
-      const result = await this.registerUseCase.execute(validated);
+      // Security hardening: In production, public registration strictly restricts to USER role
+      // Only authenticated ADMINs can assign privileged roles (or non-prod test environments)
+      const canAssignRole = req.user?.role === 'ADMIN' || process.env.NODE_ENV !== 'production';
+      const role = (canAssignRole && validated.role) ? validated.role : 'USER';
+      const result = await this.registerUseCase.execute({ ...validated, role });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
