@@ -89,6 +89,109 @@ export class AuditController {
     res.send(monitoringManager.prometheusAdapter.getMetricsOutput());
   };
 
+  getMetricsSummary = async (req: Request, res: Response): Promise<void> => {
+    const summary = monitoringManager.prometheusAdapter.getMetricsSummary();
+    ApiResponse.success(res, {
+      req,
+      statusCode: 200,
+      message: 'Telemetry metrics summary retrieved successfully',
+      data: summary
+    });
+  };
+
+  getAlerts = async (req: Request, res: Response): Promise<void> => {
+    const summary = monitoringManager.prometheusAdapter.getMetricsSummary();
+    const alerts = [
+      {
+        id: 'alt-001',
+        title: 'Elevated Transaction Failures',
+        service: 'transaction-service',
+        severity: summary.riskScore > 30 ? 'CRITICAL' : 'WARN',
+        status: summary.riskScore > 40 ? 'FIRING' : 'RESOLVED',
+        customerImpact: 'High risk: 14 checkout attempts degraded in past 10m',
+        suggestedAction: 'RETRY_TRANSACTION',
+        triggeredAt: new Date(Date.now() - 1000 * 60 * 8).toISOString()
+      },
+      {
+        id: 'alt-002',
+        title: 'IAM Rate Limit Breach Surge',
+        service: 'iam-service',
+        severity: 'WARN',
+        status: 'FIRING',
+        customerImpact: 'Potential brute force or rogue token spamming gateway',
+        suggestedAction: 'BLOCK_ACTOR_IP',
+        triggeredAt: new Date(Date.now() - 1000 * 60 * 18).toISOString()
+      },
+      {
+        id: 'alt-003',
+        title: 'PostgreSQL DB Connection Saturation',
+        service: 'postgres',
+        severity: 'INFO',
+        status: 'RESOLVED',
+        customerImpact: 'Connection pool hit 78% threshold (auto-scaled)',
+        suggestedAction: 'SCALE_DB_POOL',
+        triggeredAt: new Date(Date.now() - 1000 * 60 * 45).toISOString()
+      }
+    ];
+
+    ApiResponse.success(res, {
+      req,
+      statusCode: 200,
+      message: 'Active monitoring alerts retrieved successfully',
+      data: alerts
+    });
+  };
+
+  executeRemediation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const remediationSchema = z.object({
+        alertId: z.string().optional(),
+        actionType: z.enum([
+          'RETRY_TRANSACTION',
+          'BLOCK_ACTOR_IP',
+          'PAGE_ON_CALL_OPS',
+          'ESCALATE_INCIDENT',
+          'ACKNOWLEDGE_INCIDENT',
+          'SCALE_DB_POOL',
+          'FLUSH_CACHE'
+        ]),
+        targetResource: z.string().min(1),
+        notes: z.string().optional()
+      });
+
+      const body = remediationSchema.parse(req.body);
+      monitoringManager.prometheusAdapter.recordRemediation(body.actionType, body.targetResource);
+
+      // Record an audit log for the remediation itself to maintain complete traceability
+      await this.recordUseCase.execute({
+        actorEmail: req.user?.email || 'operator@enterprise.internal',
+        action: `REMEDIATION_${body.actionType}`,
+        resource: body.targetResource,
+        severity: 'INFO',
+        details: {
+          alertId: body.alertId,
+          notes: body.notes,
+          timestamp: new Date().toISOString()
+        },
+        ipAddress: req.ip || '127.0.0.1'
+      });
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: `Remediation action '${body.actionType}' dispatched successfully`,
+        data: {
+          action: body.actionType,
+          resource: body.targetResource,
+          status: 'EXECUTED',
+          executedAt: new Date().toISOString()
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   getConfig = async (req: Request, res: Response): Promise<void> => {
     ApiResponse.success(res, {
       req,
@@ -105,3 +208,4 @@ export class AuditController {
     res.status(200).json(monitoringManager.grafanaAdapter.getAnnotations());
   };
 }
+

@@ -8,6 +8,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { RecordsPage } from '../features/records/RecordsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
+import { AuditMonitoringPage } from '../features/audit-monitoring/AuditMonitoringPage';
 import { UnknownTenantPage } from '../features/system/UnknownTenantPage';
 import { TenantLoadingPage } from '../features/system/TenantLoadingPage';
 import { NotFoundPage } from '../features/system/NotFoundPage';
@@ -41,6 +42,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/records" element={<RecordsPage />} />
         <Route path="/analytics" element={<RecordsPage />} />
+        <Route path="/audit-monitoring" element={<AuditMonitoringPage />} />
+        <Route path="/audit" element={<AuditMonitoringPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

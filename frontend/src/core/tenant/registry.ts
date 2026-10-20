@@ -56,6 +56,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         { key: 'dashboard', labelKey: 'nav.dashboard', path: '/', icon: 'LayoutDashboard' },
         { key: 'records', labelKey: 'nav.records', path: '/records', icon: 'Database', requiredFeature: 'records' },
         { key: 'analytics', labelKey: 'nav.analytics', path: '/analytics', icon: 'BarChart3', requiredFeature: 'analytics' },
+        { key: 'auditMonitoring', labelKey: 'nav.auditMonitoring', path: '/audit-monitoring', icon: 'ShieldAlert', requiredFeature: 'auditLogs' },
         { key: 'settings', labelKey: 'nav.settings', path: '/settings', icon: 'Settings' },
       ],
       dashboardWidgets: [
@@ -124,7 +125,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         records: true,
         notifications: true,
         userManagement: true,
-        auditLogs: false,
+        auditLogs: true,
         exports: true,
         billing: true,
         developerSettings: false,
@@ -133,6 +134,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         { key: 'dashboard', labelKey: 'nav.dashboard', path: '/', icon: 'LayoutDashboard' },
         { key: 'records', labelKey: 'nav.shipments', path: '/records', icon: 'Truck', requiredFeature: 'records' },
         { key: 'analytics', labelKey: 'nav.analytics', path: '/analytics', icon: 'LineChart', requiredFeature: 'analytics' },
+        { key: 'auditMonitoring', labelKey: 'nav.auditMonitoring', path: '/audit-monitoring', icon: 'ShieldAlert', requiredFeature: 'auditLogs' },
         { key: 'settings', labelKey: 'nav.settings', path: '/settings', icon: 'Settings' },
       ],
       dashboardWidgets: [
@@ -209,6 +211,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         { key: 'dashboard', labelKey: 'nav.dashboard', path: '/', icon: 'LayoutDashboard' },
         { key: 'records', labelKey: 'nav.portfolio', path: '/records', icon: 'Coins', requiredFeature: 'records' },
         { key: 'analytics', labelKey: 'nav.analytics', path: '/analytics', icon: 'TrendingUp', requiredFeature: 'analytics' },
+        { key: 'auditMonitoring', labelKey: 'nav.auditMonitoring', path: '/audit-monitoring', icon: 'ShieldAlert', requiredFeature: 'auditLogs' },
         { key: 'settings', labelKey: 'nav.settings', path: '/settings', icon: 'Settings' },
       ],
       dashboardWidgets: [

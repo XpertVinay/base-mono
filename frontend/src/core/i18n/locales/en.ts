@@ -24,6 +24,7 @@ export const en = {
     shipments: 'Shipment Tracking',
     portfolio: 'Portfolio & Assets',
     analytics: 'Analytics & Insights',
+    auditMonitoring: 'Audit & Observability',
     settings: 'Organization Settings',
   },
   dashboard: {

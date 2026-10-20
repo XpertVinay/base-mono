@@ -16,6 +16,7 @@ import {
   X,
   ExternalLink,
   LucideIcon,
+  ShieldAlert,
 } from 'lucide-react';
 import { useTenant } from '../core/tenant/TenantContext';
 import { useAuthStore } from '../core/auth/authStore';
@@ -33,6 +34,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LineChart,
   TrendingUp,
   Settings,
+  ShieldAlert,
 };
 
 export const AppLayout: React.FC = () => {

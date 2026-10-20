@@ -1,0 +1,42 @@
+groups:
+  - name: customer_protection_alerts
+    rules:
+      - alert: CriticalAuditAnomalyDetected
+        expr: increase(audit_events_total{severity="CRITICAL"}[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: customer_risk
+        annotations:
+          summary: "Critical audit event triggered on {{ $labels.resource }}"
+          description: "A critical security or data integrity failure was logged. Immediate remediation required."
+
+      - alert: HighTransactionFailureSpike
+        expr: rate(audit_events_total{action=~".*FAIL.*|.*ERROR.*"}[2m]) > 0.2
+        for: 1m
+        labels:
+          severity: critical
+          category: revenue_loss_risk
+        annotations:
+          summary: "Abnormal failure velocity detected in business transactions"
+          description: "Transaction failure velocity is exceeding SLA safety thresholds. Risk of customer churn."
+
+      - alert: AuditErrorRateElevated
+        expr: rate(audit_events_total{severity="ERROR"}[5m]) / rate(audit_events_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          category: system_health
+        annotations:
+          summary: "Audit error rate exceeds 5%"
+          description: "Error percentage over total events is higher than 5% for the last 5 minutes."
+
+      - alert: ServiceLatencyBreach
+        expr: http_request_duration_seconds{quantile="0.99"} > 1.5
+        for: 1m
+        labels:
+          severity: warning
+          category: customer_experience
+        annotations:
+          summary: "API Latency P99 > 1500ms"
+          description: "Customers experiencing slow response times across backend microservices."
