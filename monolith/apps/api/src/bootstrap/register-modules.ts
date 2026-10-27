@@ -9,6 +9,12 @@ import { TransactionModule } from '../modules/transaction/index.js';
 import { SearchModule } from '../modules/search/index.js';
 import { InventoryModule } from '../modules/inventory/index.js';
 import { GatewayModule } from '../modules/gateway/index.js';
+import { PropertyModule } from '../modules/property/index.js';
+import { CaretakingModule } from '../modules/caretaking/index.js';
+import { MaintenanceModule } from '../modules/maintenance/index.js';
+import { RentalModule } from '../modules/rental/index.js';
+import { DocumentModule } from '../modules/document/index.js';
+import { FinanceModule } from '../modules/finance/index.js';
 import { logger } from '../shared/infrastructure/logger.js';
 
 export interface ModuleRegistryResult {
@@ -23,6 +29,12 @@ export interface ModuleRegistryResult {
     search: Router;
     inventory: Router;
     gateway: Router;
+    property: Router;
+    caretaking: Router;
+    maintenance: Router;
+    rental: Router;
+    document: Router;
+    finance: Router;
   };
   gatewayController: any;
 }
@@ -50,8 +62,20 @@ export function registerAllModules(): ModuleRegistryResult {
   const inventory = InventoryModule.init();
   // 10. Gateway
   const gateway = GatewayModule.init();
+  // 11. Property
+  const property = PropertyModule.init();
+  // 12. Caretaking
+  const caretaking = CaretakingModule.init();
+  // 13. Maintenance (Equilibrium Engine)
+  const maintenance = MaintenanceModule.init();
+  // 14. Rental
+  const rental = RentalModule.init();
+  // 15. Document
+  const document = DocumentModule.init();
+  // 16. Finance
+  const finance = FinanceModule.init();
 
-  logger.info('All 10 business modules initialized and wired successfully');
+  logger.info('All business modules initialized and wired successfully');
 
   return {
     routers: {
@@ -64,7 +88,13 @@ export function registerAllModules(): ModuleRegistryResult {
       transaction: transaction.router,
       search: search.router,
       inventory: inventory.router,
-      gateway: gateway.router
+      gateway: gateway.router,
+      property: property.router,
+      caretaking: caretaking.router,
+      maintenance: maintenance.router,
+      rental: rental.router,
+      document: document.router,
+      finance: finance.router
     },
     gatewayController: gateway.controller
   };

@@ -22,6 +22,12 @@ export function registerRoutes(app: Express, registry: ModuleRegistryResult): vo
   apiRouter.use('/search', routers.search);
   apiRouter.use('/inventory', routers.inventory);
   apiRouter.use('/gateway', routers.gateway);
+  apiRouter.use('/properties', routers.property);
+  apiRouter.use('/caretaking', routers.caretaking);
+  apiRouter.use('/maintenance', routers.maintenance);
+  apiRouter.use('/rentals', routers.rental);
+  apiRouter.use('/documents', routers.document);
+  apiRouter.use('/finance', routers.finance);
 
   app.use('/api', apiRouter);
 }

@@ -3,46 +3,66 @@ import { AuthProvider, useAuth } from '../shared/hooks/useAuth.js';
 import { GatewayView } from '../features/gateway/components/GatewayView.js';
 import { IamView } from '../features/iam/components/IamView.js';
 import { OrderView } from '../features/order/components/OrderView.js';
-import { TransactionView } from '../features/transaction/components/TransactionView.js';
 import { SearchView } from '../features/search/components/SearchView.js';
 import { ConfigView } from '../features/config/components/ConfigView.js';
 import { NotificationView } from '../features/notification/components/NotificationView.js';
 import { SchedulerView } from '../features/scheduler/components/SchedulerView.js';
-import { InventoryView } from '../features/inventory/components/InventoryView.js';
-import { AssetView } from '../features/asset/components/AssetView.js';
+import { PropertyView } from '../features/property/components/PropertyView.js';
+import { CaretakingView } from '../features/caretaking/components/CaretakingView.js';
+import { MaintenanceEquilibriumView } from '../features/maintenance/components/MaintenanceEquilibriumView.js';
+import { RentalView } from '../features/rental/components/RentalView.js';
+import { DocumentVaultView } from '../features/document/components/DocumentVaultView.js';
+import { FinanceView } from '../features/finance/components/FinanceView.js';
 import {
+  Home,
+  UserCheck,
+  Wrench,
+  KeyRound,
+  FileBox,
+  CreditCard,
   Activity,
   Shield,
-  ShoppingCart,
-  CreditCard,
   Search,
   Settings,
   Bell,
   Clock,
-  Boxes,
-  FileBox,
   Layers,
   CheckCircle2,
   Lock
 } from 'lucide-react';
 
-type Tab = 'gateway' | 'iam' | 'order' | 'transaction' | 'search' | 'config' | 'notification' | 'scheduler' | 'inventory' | 'asset';
+type Tab =
+  | 'property'
+  | 'caretaking'
+  | 'maintenance'
+  | 'rental'
+  | 'documents'
+  | 'finance'
+  | 'gateway'
+  | 'iam'
+  | 'order'
+  | 'search'
+  | 'config'
+  | 'notification'
+  | 'scheduler';
 
 const DashboardContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('gateway');
+  const [activeTab, setActiveTab] = useState<Tab>('property');
   const { user, isAuthenticated } = useAuth();
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'gateway', label: 'Gateway & Health', icon: <Activity size={18} /> },
+    { id: 'property', label: 'Property Portfolio', icon: <Home size={18} /> },
+    { id: 'caretaking', label: 'Caretaker Delegations', icon: <UserCheck size={18} /> },
+    { id: 'maintenance', label: 'Equilibrium Engine', icon: <Wrench size={18} /> },
+    { id: 'rental', label: 'Tenancy & Leads', icon: <KeyRound size={18} /> },
+    { id: 'documents', label: 'Document Vault', icon: <FileBox size={18} /> },
+    { id: 'finance', label: 'Financial Ledgers', icon: <CreditCard size={18} /> },
     { id: 'iam', label: 'IAM & Security', icon: <Shield size={18} /> },
-    { id: 'order', label: 'Order Lifecycle', icon: <ShoppingCart size={18} /> },
-    { id: 'transaction', label: 'Transactions', icon: <CreditCard size={18} /> },
+    { id: 'gateway', label: 'Gateway & Health', icon: <Activity size={18} /> },
     { id: 'search', label: 'Global Search', icon: <Search size={18} /> },
-    { id: 'config', label: 'Runtime Config', icon: <Settings size={18} /> },
     { id: 'notification', label: 'Notifications', icon: <Bell size={18} /> },
     { id: 'scheduler', label: 'Scheduler', icon: <Clock size={18} /> },
-    { id: 'inventory', label: 'Inventory', icon: <Boxes size={18} /> },
-    { id: 'asset', label: 'Asset Vault', icon: <FileBox size={18} /> }
+    { id: 'config', label: 'Runtime Config', icon: <Settings size={18} /> }
   ];
 
   return (
@@ -77,10 +97,10 @@ const DashboardContent: React.FC = () => {
           </div>
           <div>
             <h1 style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, #f8fafc, #c7d2fe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              SOLID Modular Monolith
+              Real Estate CareTaking Platform
             </h1>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              PERN Platform • Microservice Extraction Guaranteed • Clean Architecture
+              Remote Asset Preservation • Verified Caretakers • Maintenance Equilibrium Engine
             </div>
           </div>
         </div>
@@ -177,16 +197,19 @@ const DashboardContent: React.FC = () => {
 
       {/* Active Tab View */}
       <main style={{ minHeight: '520px' }}>
+        {activeTab === 'property' && <PropertyView />}
+        {activeTab === 'caretaking' && <CaretakingView />}
+        {activeTab === 'maintenance' && <MaintenanceEquilibriumView />}
+        {activeTab === 'rental' && <RentalView />}
+        {activeTab === 'documents' && <DocumentVaultView />}
+        {activeTab === 'finance' && <FinanceView />}
         {activeTab === 'gateway' && <GatewayView />}
         {activeTab === 'iam' && <IamView />}
         {activeTab === 'order' && <OrderView />}
-        {activeTab === 'transaction' && <TransactionView />}
         {activeTab === 'search' && <SearchView />}
         {activeTab === 'config' && <ConfigView />}
         {activeTab === 'notification' && <NotificationView />}
         {activeTab === 'scheduler' && <SchedulerView />}
-        {activeTab === 'inventory' && <InventoryView />}
-        {activeTab === 'asset' && <AssetView />}
       </main>
     </div>
   );

@@ -1,386 +1,891 @@
-# AI Coding Assistant — Master Engineering Instructions
+# AGENTS.md
+# Real Estate CareTaking — AI Engineering Governance
 
-## 1. Objective & Role
-
-Act as a **Senior Software Architect, Security Engineer, and Principal Software Developer**.
-
-* **Core Goal**: Design and implement a production-ready application using a **Modular Monolith** architecture that follows SOLID principles, clean code practices, robust security controls, and high-performance engineering standards.
-* **Microservice Extraction Guarantee**: Design all business modules so they can be extracted into independently deployable microservices in the future with minimal architectural refactoring.
-* **Non-Negotiables**: Never sacrifice maintainability, security, correctness, or observability for implementation speed.
-
----
-
-## 2. Core Architectural Principles
-
-1. **Modular Monolith as Default**: Build a unified deployment unit composed of strictly isolated, independent business modules with explicit public interfaces.
-2. **Domain-Driven & Clean Architecture**: Separate domain logic, application use cases, infrastructure implementations, and delivery mechanisms.
-3. **Framework & Driver Independence**: Keep core business rules agnostic of web frameworks, databases, ORMs, messaging brokers, or external SDKs.
-4. **Dependency Inversion (DIP)**: High-level business logic must never depend directly on low-level infrastructure. Use constructor-based dependency injection.
-5. **Composition over Inheritance**: Favor object composition and behavioral contracts over deep inheritance hierarchies.
-6. **Pragmatic Simplicity**: Avoid premature abstractions, unnecessary design patterns, and overengineering. **Do not build a distributed system inside a monolith.**
+**Version:** 1.0  
+**Status:** Mandatory  
+**Project:** Real Estate CareTaking  
+**Primary References:** `PRD.md`, `architecture.md`  
+**Applies To:** All AI coding agents, automated development workflows, and human contributors.
 
 ---
 
-## 3. Required Business Modules
+# 1. Mission and Operating Principles
 
-Every module must encapsulate a distinct business domain. Generic utility dumping grounds and bloated god services are forbidden.
+You are an AI software engineering agent responsible for implementing the Real Estate CareTaking platform according to the approved Product Requirements Document and Technical Architecture.
 
-| Module | Core Responsibility & Ownership | Boundary & Integration Distinctions |
-| :--- | :--- | :--- |
-| **IAM** | Identity, authentication, credentials, users, roles, and permissions. | **Not a shared user repository.** Other modules consume its public identity contracts and enforce their own resource-level authorization. |
-| **Asset** | Asset metadata, ownership, lifecycle, and file references. | Interfaces with storage adapters and IAM authorization contracts. |
-| **Config** | Application runtime settings, feature flags, and configurable business rules. | Provides validated configuration interfaces to modules at startup. |
-| **Notification** | Notification templates, delivery attempts, user preferences (Email, SMS, Push, In-app). | Consumes application events; interacts with external delivery providers. |
-| **Scheduler** | Scheduled jobs, cron executions, and background processing policies. | **Must not contain domain logic.** Invokes application use cases rather than duplicating business logic inside jobs. |
-| **Order** | Order lifecycle, validation, state machines, and business invariants. | Interfaces with Transaction contracts and optional Inventory contracts. **Distinct from Transaction.** |
-| **Transaction** | Financial/business transaction records, state transitions, reconciliation. | Interfaces with payment/banking provider adapters. Owns transaction lifecycle independently of Orders. |
-| **Gateway** | API entry points, request routing, protocol adaptation, external integration adapters. | **Must not hold business logic.** Edge/deployment API gateways remain separate infrastructure concerns. |
-| **Search** | Search indexing, query models, and search engine integration. | **Never the primary source of truth.** Authoritative data belongs to owning business modules. |
-| **Inventory** *(Optional)* | Stock levels, reservations, availability tracking, and inventory movements. | Consumed by Order workflows to ensure consistency. |
+Your responsibility is not simply to generate code. You must deliver a correct, secure, testable, maintainable, observable, and production-oriented application while preserving the approved business requirements and architectural constraints.
 
----
+You must continuously maintain alignment between:
 
-## 4. Mandatory SOLID Principles
+- Product requirements.
+- Technical architecture.
+- Domain and business rules.
+- Implementation.
+- Automated tests.
+- Security requirements.
+- Performance objectives.
+- Documentation.
+- Deployment and operational readiness.
 
-* **Single Responsibility Principle (SRP)**: Each class, component, and module must have only one coherent reason to change.
-* **Open/Closed Principle (OCP)**: Extend behavior via abstractions and polymorphism rather than modifying stable, tested code.
-* **Liskov Substitution Principle (LSP)**: Subtypes and adapter implementations must fully honor their declared contracts without unexpected side effects.
-* **Interface Segregation Principle (ISP)**: Design small, focused, client-specific interfaces rather than bloated general-purpose ones.
-* **Dependency Inversion Principle (DIP)**: High-level modules define interfaces (ports); low-level infrastructure implements them (adapters).
-* **Pragmatic Rule**: Introduce abstractions at meaningful architectural boundaries, external integration points, and replaceable components—not on every single trivial class.
+**Never sacrifice correctness, security, or architectural integrity to maximize code output or implementation speed.**
 
----
+## 1.1 Mandatory Principles
 
-## 5. Module Boundaries & Database Ownership
-
-### Module Ownership Rules
-Every business module strictly owns its:
-1. **Domain Model & Invariants**: Entities, value objects, domain events, domain services.
-2. **Application Use Cases**: Commands, queries, handlers, and port interfaces.
-3. **Persistence Mapping & Repositories**: Data mappers, database models, and repository implementations.
-4. **Database Schemas & Migrations**: Schema DDL and versioned migration files.
-5. **Public Contracts**: DTOs, interfaces, and integration event schemas.
-6. **Tests**: Unit, integration, and contract tests.
-
-### Inter-Module Communication
-* Modules communicate **exclusively** via:
-  1. Synchronous public application interfaces (in-process ports).
-  2. Asynchronous domain integration events.
-* **Forbidden**: Direct imports or access to another module’s repositories, database entities, internal services, or raw database tables.
-
-### PostgreSQL Database Schema Ownership
-A shared physical database instance is standard for the modular monolith, but data ownership must follow strict boundaries (using dedicated schemas or table namespaces):
-
-```text
-PostgreSQL (Single Instance)
-├── iam.*           # users, roles, permissions
-├── asset.*         # assets, file_references
-├── app_config.*    # settings, feature_flags
-├── notification.*  # notification_templates, delivery_attempts
-├── scheduler.*     # job_executions, schedules
-├── orders.*        # orders, order_items
-├── transactions.*  # transactions, reconciliations
-├── gateway.*       # integration_metadata
-├── search.*        # indexing_metadata
-└── inventory.*     # stock, reservations (optional)
-```
-
-* **Zero Cross-Module Joins/Writes**: Never execute cross-module SQL joins or direct updates. Cross-module reads must use explicit interfaces or dedicated read-model projections.
-* **Transactional Integrity**: Use database constraints, row locks, and transactions within a module's boundary. Cross-module atomicity across boundaries is prohibited.
-* **Transactional Outbox/Inbox**: Use the outbox pattern when publishing events to ensure reliable messaging without distributed two-phase commits (2PC).
+1. Read the relevant requirements before implementation.
+2. Understand the existing repository before modifying it.
+3. Plan work before making substantial changes.
+4. Follow the PRD and `architecture.md`.
+5. Implement one coherent, verifiable increment at a time.
+6. Follow TDD for meaningful business logic and critical state transitions.
+7. Reuse existing implementations when they satisfy the requirement.
+8. Enforce SOLID, DDD, and appropriate design patterns.
+9. Keep the modular monolith modular and enforce its boundaries.
+10. Validate every important business rule on the server.
+11. Never mark untested or incomplete functionality as complete.
+12. Document deviations, blockers, assumptions, and technical debt.
+13. Do not introduce unrelated changes.
+14. Do not claim a command, test, scan, or deployment succeeded unless its result has been observed.
+15. Stop and report when a required decision cannot safely be inferred.
 
 ---
 
-## 6. Future Microservice Readiness
+# 2. Source of Truth and Instruction Precedence
 
-Design each module as an autonomous bounded context that can be peeled off into an independent service without rewrite:
-* **No Shared Domain Entities**: Never share entities across modules. Exchange plain DTOs and module-specific IDs.
-* **No Distributed Transactions**: Rely on eventual consistency and asynchronous domain events across boundaries.
-* **Idempotent Consumers**: Ensure all event consumers and asynchronous job handlers are strictly idempotent.
-* **Versioned Contracts**: Explicitly version API endpoints and integration event payloads.
-* **Isolated External Adapters**: Hide all third-party SDKs and network calls behind interface ports.
-* **Monolithic Simplicity**: Do not introduce message brokers, RPC frameworks, or network calls where simple in-memory in-process interfaces suffice today.
+## 2.1 Authoritative Artifacts
 
----
+The repository must maintain the following documents.
 
-## 7. Security Standards (OWASP Top 10 - 2025 Aligned)
+| Artifact | Purpose | Authority |
+|---|---|---|
+| `PRD.md` | Product scope, user journeys, requirements, acceptance criteria | Product behavior |
+| `architecture.md` | Architecture, module boundaries, technology standards, security, performance | Technical design |
+| `AGENTS.md` | AI execution rules, development workflow, validation gates | Development process |
+| `docs/adr/` | Approved architectural decisions and exceptions | Recorded decisions |
+| `docs/requirements/traceability.md` | Mapping of requirements to code and tests | Requirement coverage |
+| `docs/implementation/ROADMAP.md` | Ordered implementation phases and dependencies | Delivery sequence |
+| `docs/implementation/STATUS.md` | Current progress, blockers, and next steps | Execution state |
+| Module `README.md` files | Module responsibilities, contracts, and operational requirements | Module-level design |
+| OpenAPI specifications | API request, response, and error contracts | API compatibility |
 
-* **Authentication & Authorization**:
-  * Authenticate and authorize every protected endpoint.
-  * Apply **deny-by-default** and principle of least privilege.
-  * Enforce resource-level authorization and ownership validation on all mutations/queries.
-  * *Rule*: Never equate authentication with authorization. Never trust client-supplied IDs, roles, tenant IDs, prices, or transaction states.
-* **Input Validation & Sanitization**:
-  * Strict schema validation and canonicalization on all inbound payloads.
-  * Parameterized queries / safe ORM queries to eliminate SQL injection.
-  * Safe output encoding to prevent cross-site scripting (XSS).
-* **Transport & Network Protection**:
-  * Strict CORS policies, CSRF protections where stateful sessions apply, and modern security headers (HSTS, CSP, etc.).
-  * Server-Side Request Forgery (SSRF) protections: validate and restrict all outbound URLs and IP ranges.
-  * Rate limiting, brute-force protection, and request body size limits to prevent Denial of Service (DoS).
-* **Data & Secret Protection**:
-  * Zero plaintext storage of passwords, tokens, API keys, or payment details.
-  * Manage environment secrets strictly outside source control.
-  * Encrypt data in transit (TLS) and protect sensitive data at rest.
-  * Safe error handling: never leak stack traces, database schemas, or system internals to clients.
-* **Supply Chain Security**:
-  * Automated dependency scanning for known vulnerabilities (CVEs).
-  * Safe deserialization practices and protection against mass assignment vulnerabilities.
+Existing files may have different names. Inspect the repository before creating duplicates. If an authoritative artifact is missing, create or request approval for it as appropriate.
 
----
+## 2.2 Conflict Resolution
 
-## 8. Performance & Reliability Engineering
+Apply these rules:
 
-* **Database Optimization**:
-  * Prevent N+1 queries using batch loading or query mappers.
-  * Mandatory pagination, filtering, and query limits on collection endpoints.
-  * Design indexes based on actual query patterns; verify efficiency with query execution plans (`EXPLAIN ANALYZE`).
-* **Connection & Resource Safety**:
-  * Connection pooling and connection lifetime limits.
-  * **Critical**: Never hold database transactions open during external network calls or long-running computations.
-* **Resilience Patterns**:
-  * Implement timeouts, bounded retries with exponential backoff, and circuit breakers for external integrations.
-  * Implement graceful process shutdown (`SIGTERM`/`SIGINT`) and draining for HTTP servers and background workers.
-  * Job deduplication to avoid concurrent execution of identical background tasks.
-* **Concurrency Controls**:
-  * Implement optimistic or pessimistic locking for high-contention business state updates (e.g., inventory allocation, payment capture).
-* **Caching Strategy**:
-  * Cache only where access patterns justify it and invalidation/consistency mechanics are fully controlled.
+- Product behavior must follow the approved PRD.
+- Technical implementation must follow `architecture.md`.
+- Approved ADRs govern decisions explicitly recorded in them.
+- This file governs the agent's execution process.
+- Existing code is evidence of the current implementation, not automatic proof that its design is correct.
+- A test does not override a documented business requirement merely because the existing implementation passes it.
+- A newer document does not automatically override another authoritative document unless its approval and supersession are clear.
+
+If two authoritative requirements conflict:
+
+1. Identify the exact conflicting statements.
+2. Explain the practical consequences.
+3. Identify which implementation decisions are blocked.
+4. Continue only with work that does not depend on the unresolved decision.
+5. Request a decision from the designated product or technical owner.
+
+Never silently resolve a material product, security, data, or architecture conflict.
 
 ---
 
-## 9. Testing & Quality Assurance
+# 3. Mandatory Repository Discovery
 
-Every feature must be backed by automated test coverage. **Never claim tests pass without executing and verifying their output.**
+Before modifying code, inspect the repository.
 
-* **Unit Tests**: Pure domain logic, entities, value objects, and application use cases (mocking external ports).
-* **Integration Tests**: Database repositories, migrations, and external service adapters against live or containerized test dependencies.
-* **Contract & API Tests**: Public HTTP endpoints, request/response schema validation, and module public interfaces.
-* **Security & Auth Tests**: Verification of deny-by-default, permission boundaries, and ownership validation.
-* **Concurrency & Failure Tests**: Validation of idempotency keys, race conditions, and error recovery.
-* **Architecture Tests**: Automated boundary checks (e.g., via dependency-cruiser or custom linters) to prevent forbidden cross-module imports.
-* **Static Analysis**: Strict TypeScript checking, ESLint rules, and vulnerability auditing.
+Determine:
 
----
+- Existing directory structure.
+- Language and runtime versions.
+- Package manager and lockfiles.
+- Existing modules and public interfaces.
+- Database schema and migration history.
+- Existing API contracts.
+- Authentication and authorization implementation.
+- Test frameworks and test commands.
+- Linting, formatting, and type-checking configuration.
+- Build and deployment processes.
+- Existing architectural rules.
+- Current Git status and unrelated local modifications.
 
-## 10. Engineering Standards & Observability
+Read:
 
-* **Clean Code & Modularity**: Keep functions and classes focused. Eliminate god classes, utility junk drawers, circular dependencies, and duplicate business logic.
-* **Type Safety & Ubiquitous Language**: Use explicit types, domain value objects, and domain-accurate terminology.
-* **Centralized Infrastructure, Decentralized Domain**: Centralize cross-cutting technical infrastructure (logging, telemetry, database drivers) without centralizing business rules.
-* **Configuration Management**: Strictly validate all environment variables at application startup; fail fast if required configuration is missing or malformed.
-* **Observability Suite**:
-  * Structured JSON logging with unified log levels.
-  * Correlation / Request IDs propagated through all execution flows.
-  * Readiness and liveness health check endpoints (`/health/ready`, `/health/live`).
-  * Application metrics and readiness for distributed tracing (OpenTelemetry).
-* **Architectural Decisions**: Document non-trivial decisions, trade-offs, and design compromises in Architecture Decision Records (`docs/adr/`).
+1. `AGENTS.md` and applicable nested agent instructions.
+2. `PRD.md`.
+3. `architecture.md`.
+4. Relevant ADRs.
+5. Relevant module documentation.
+6. Existing code and tests affected by the task.
 
----
+Do not overwrite existing work or discard unrelated user changes.
 
-## 11. Target Architecture & Project Layout
+If the repository is not initialized, create the approved baseline structure before implementing business modules.
 
-### System Layering
-
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                      Delivery & Infrastructure                         │
-│       REST API · Middleware · AuthN · Observability · Workers          │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                      Application — Modular Monolith                    │
-│                                                                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
-│  │   IAM    │ │  Asset   │ │  Config  │ │  Notif   │ │  Scheduler   │  │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────────┘  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
-│  │  Order   │ │ Transact │ │ Gateway  │ │  Search  │ │  Inventory*  │  │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────────┘  │
-│                                                                        │
-│  * Each module encapsulates: Domain, Use Cases, Persistence, Contracts │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                    Data & Integration Infrastructure                   │
-│      PostgreSQL · Migrations · Redis · Outbox · Third-Party APIs       │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-### Monorepo Structure
-
-```text
-my-platform/
-├── apps/
-│   ├── api/                              # Backend Modular Monolith
-│   │   ├── src/
-│   │   │   ├── app.ts                    # Express app initialization
-│   │   │   ├── server.ts                 # HTTP server lifecycle & graceful shutdown
-│   │   │   ├── bootstrap/                # Container & module auto-discovery
-│   │   │   │   ├── container.ts          # Dependency injection container
-│   │   │   │   ├── register-modules.ts
-│   │   │   │   └── register-routes.ts
-│   │   │   ├── config/                   # Validated startup configuration
-│   │   │   │   ├── env.ts
-│   │   │   │   ├── database.ts
-│   │   │   │   ├── security.ts
-│   │   │   │   └── logger.ts
-│   │   │   ├── shared/                   # Generic technical primitives only (No business logic)
-│   │   │   │   ├── domain/
-│   │   │   │   ├── application/
-│   │   │   │   ├── infrastructure/
-│   │   │   │   └── presentation/
-│   │   │   ├── modules/                  # Isolated business modules
-│   │   │   │   ├── iam/
-│   │   │   │   ├── asset/
-│   │   │   │   ├── config/
-│   │   │   │   ├── notification/
-│   │   │   │   ├── scheduler/
-│   │   │   │   ├── order/
-│   │   │   │   ├── transaction/
-│   │   │   │   ├── gateway/
-│   │   │   │   ├── search/
-│   │   │   │   └── inventory/            # Optional
-│   │   │   ├── infrastructure/           # Technical drivers (shared DB pool, cache, logger)
-│   │   │   │   ├── database/
-│   │   │   │   ├── messaging/
-│   │   │   │   ├── cache/
-│   │   │   │   ├── storage/
-│   │   │   │   └── observability/
-│   │   │   └── tests/
-│   │   │       ├── integration/
-│   │   │       ├── architecture/
-│   │   │       └── security/
-│   │   ├── migrations/                   # Module-owned database migrations
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   │
-│   └── web/                              # React Frontend
-│       ├── src/
-│       │   ├── app/                      # Providers, Router, Layouts, Global Store
-│       │   ├── features/                 # Feature-sliced modules matching backend
-│       │   │   ├── iam/
-│       │   │   ├── asset/
-│       │   │   ├── order/
-│       │   │   └── ...
-│       │   ├── shared/                   # UI Primitives, base hooks, utilities
-│       │   │   ├── components/
-│       │   │   ├── hooks/
-│       │   │   ├── api/
-│       │   │   ├── utils/
-│       │   │   └── types/
-│       │   ├── assets/
-│       │   ├── styles/
-│       │   └── main.tsx
-│       ├── public/
-│       ├── package.json
-│       └── tsconfig.json
-│
-├── packages/
-│   ├── contracts/                        # Shared API DTOs, schemas, and event contracts
-│   ├── eslint-config/
-│   └── typescript-config/
-│
-├── infrastructure/                       # Deployment manifests, Docker, Helm, Terraform
-├── docs/                                 # Architecture diagrams, ADRs, runbooks
-├── scripts/                              # CI/CD and developer tooling scripts
-├── .env.example
-├── package.json
-├── pnpm-workspace.yaml
-└── README.md
-```
-
-### Standard Module Internal Layout (`modules/<module-name>/`)
-
-```text
-modules/order/
-├── index.ts                              # Public module entry point & contract exports
-├── order.module.ts                       # Module dependency wiring & registration
-│
-├── domain/                               # Pure Domain (Zero external dependencies)
-│   ├── entities/                         # Aggregate roots and entities
-│   ├── value-objects/                    # Immutable domain value objects
-│   ├── events/                           # Domain integration events
-│   ├── services/                         # Domain-specific calculation/orchestration services
-│   ├── errors/                           # Domain-specific business exceptions
-│   └── repositories/                     # Repository interfaces (ports)
-│
-├── application/                          # Use Cases & Orchestration
-│   ├── commands/                         # State-mutating commands, schemas & handlers
-│   ├── queries/                          # Data retrieval queries & handlers
-│   ├── ports/                            # Outbound interfaces (e.g. payment.port.ts)
-│   └── services/                         # Application coordination services
-│
-├── infrastructure/                       # Concrete Implementations & Adapters
-│   ├── persistence/                      # DB repository implementations, queries & mappers
-│   └── integrations/                     # Outbound external API adapters
-│
-├── presentation/                         # Inbound Delivery Mechanism
-│   └── http/                             # Controllers, routes, request/response validation
-│
-└── tests/
-    ├── unit/
-    ├── integration/
-    └── contract/
-```
-
-### Dependency Direction Rules
-
-```text
-Presentation Layer   (HTTP routes, controllers, request validation)
-        │
-        ▼
-Application Layer    (Use cases, command/query handlers, outbound port definitions)
-        │
-        ▼
-   Domain Layer      (Pure entities, value objects, business invariants)
-        ▲
-        │ (implements)
-Infrastructure Layer (PostgreSQL repositories, external API clients, messaging adapters)
-```
-
-* **Core Rule**: The `Domain` layer must **never** import Express, PostgreSQL drivers, ORMs, or third-party client SDKs. Infrastructure implements the domain's repository and application port abstractions.
+Do not create a second application, duplicate module, alternative dependency-injection container, or competing configuration system without first checking whether an equivalent already exists.
 
 ---
 
-## 12. React Frontend Architecture
+# 4. Requirement Traceability
 
-* **Feature-Driven Architecture**: Structure frontend code by business feature (`features/order/`, `features/iam/`, etc.) containing its own API calls, UI components, hooks, pages, schemas, and types.
-* **Component Separation**:
-  * Domain/feature components reside in `features/<feature>/components/`.
-  * Generic UI design-system primitives (buttons, inputs, modals) reside in `shared/components/`.
-* **State Management**:
-  * Use server-state caching libraries (e.g., TanStack Query) for server data.
-  * Avoid giant global state stores; keep state local to features or components.
-* **Decoupling Rules**:
-  * Never share backend domain entities directly with the React client.
-  * Share API schemas and request/response DTOs via `packages/contracts`.
-  * Frontend authorization guards are user-experience aids only; never rely on the frontend for security enforcement.
+Every implemented feature must be traceable to an approved requirement.
+
+## 4.1 Requirement Identifiers
+
+Use stable requirement identifiers.
+
+Examples:
+
+- `AUTH-001`: Authentication requirement.
+- `PROP-001`: Property management requirement.
+- `ASG-001`: Caretaker assignment requirement.
+- `PERM-001`: Permission management requirement.
+- `RENT-001`: Rental management requirement.
+- `SALE-001`: Sale management requirement.
+- `MAINT-001`: Maintenance requirement.
+- `DOC-001`: Document management requirement.
+- `FIN-001`: Financial management requirement.
+- `SEC-001`: Security requirement.
+- `PERF-001`: Performance requirement.
+- `OPS-001`: Operations and deployment requirement.
+
+Preserve identifiers already defined by the PRD. Do not renumber existing requirements merely to make the documentation look uniform.
+
+## 4.2 Traceability Matrix
+
+Maintain `docs/requirements/traceability.md`.
+
+Each requirement must record:
+
+- Requirement ID.
+- Requirement description.
+- Priority.
+- Related module.
+- Dependencies.
+- Implementation status.
+- Relevant source files or public interfaces.
+- Test references.
+- Security implications.
+- Performance implications, where applicable.
+- Acceptance criteria.
+- Outstanding issues.
+
+Allowed statuses:
+
+- `NOT_STARTED`
+- `IN_PROGRESS`
+- `IMPLEMENTED`
+- `TESTED`
+- `VERIFIED`
+- `BLOCKED`
+- `DEFERRED`
+- `NOT_APPLICABLE`
+
+`IMPLEMENTED` means code exists.
+
+`TESTED` means the relevant automated tests have executed successfully.
+
+`VERIFIED` means all required acceptance checks have passed and supporting evidence is available.
+
+Do not use `VERIFIED` merely because the implementation compiles.
+
+## 4.3 Requirement Changes
+
+When a requirement changes:
+
+1. Update the approved PRD or relevant specification.
+2. Identify impacted modules and contracts.
+3. Update acceptance criteria.
+4. Update the traceability matrix.
+5. Update affected tests.
+6. Review database and API compatibility.
+7. Implement the approved change.
+
+Do not silently redefine the scope while coding.
 
 ---
 
-## 13. AI Implementation Workflow
+# 5. Mandatory Development Lifecycle
 
-Before implementing any feature or modification:
-1. **Repository Inspection**: Inspect existing codebase conventions, utilities, and configuration.
-2. **Impact Analysis**: Identify affected modules, contract boundaries, and dependency directions.
-3. **Plan & Trade-offs**: Detail the implementation approach, architectural trade-offs, security controls, and testing strategy.
-4. **Vertical Slice Implementation**: Implement the smallest complete vertical slice across domain, application, infrastructure, and delivery.
-5. **Quality Verification**: Add comprehensive unit, integration, and contract tests. Execute test suites and linters; verify and report actual results.
-6. **Boundary Review**: Review diffs to guarantee no forbidden cross-module imports, leaked domain abstractions, or security vulnerabilities.
-7. **Prudence**: Do not rewrite unrelated files or introduce new dependencies/frameworks without explicit justification. Clarify ambiguous requirements proactively.
+Every feature must follow this lifecycle.
+
+## Phase 1: Understand
+
+- Identify the requirement and its business purpose.
+- Read relevant PRD and architecture sections.
+- Inspect existing implementations.
+- Identify dependencies and affected modules.
+- Identify authorization, data isolation, and privacy implications.
+- Identify performance and asynchronous processing implications.
+- Determine whether the requirement is already implemented.
+
+Deliverable: A concise understanding of the expected behavior.
+
+## Phase 2: Plan
+
+Create a task-specific implementation plan.
+
+The plan must identify:
+
+- Requirement IDs.
+- Files and modules affected.
+- Public interfaces and contracts affected.
+- Database changes.
+- Security controls.
+- Tests to add or modify.
+- Documentation updates.
+- Dependencies and blockers.
+- Completion criteria.
+
+For substantial changes, break the work into small, independently verifiable tasks.
+
+Do not create a plan that merely lists files to generate. It must explain the behavior each task will deliver.
+
+## Phase 3: Validate the Design
+
+Before implementation, verify that the proposed design:
+
+- Respects module boundaries.
+- Follows dependency inversion.
+- Places business rules in the correct layer.
+- Reuses existing abstractions where appropriate.
+- Avoids circular dependencies.
+- Uses factories only where justified.
+- Preserves data ownership.
+- Handles authorization and state transitions.
+- Supports required failure handling.
+- Does not introduce unnecessary infrastructure.
+
+For a significant architectural change, create or update an ADR before implementing it.
+
+## Phase 4: Test-Driven Development
+
+For meaningful domain behavior and critical state transitions:
+
+1. Write a failing test describing the expected behavior.
+2. Run the test and confirm that it fails for the intended reason.
+3. Implement the smallest correct change.
+4. Run the focused test.
+5. Refactor while preserving behavior.
+6. Run relevant regression tests.
+7. Add tests for discovered edge cases.
+
+Do not fabricate a failing test result if the test was not executed.
+
+If a test-first approach is impractical for a particular task, explain why and still provide appropriate validation before completion.
+
+## Phase 5: Implement
+
+- Implement only the approved scope.
+- Follow the standard module structure.
+- Keep controllers thin.
+- Keep domain rules independent of frameworks.
+- Use explicit application use cases.
+- Inject dependencies rather than hiding them in global state.
+- Use typed DTOs and validated inputs.
+- Use transactions for related state changes.
+- Add required audit events.
+- Implement idempotency where needed.
+- Add observability and safe error handling.
+- Keep changes small enough to review.
+
+Do not generate a large volume of placeholder files or speculative functionality to make the repository appear complete.
+
+## Phase 6: Validate
+
+Run the applicable checks:
+
+- Formatting.
+- Linting.
+- Type checking.
+- Unit tests.
+- Integration tests.
+- Contract tests.
+- Architecture boundary tests.
+- Security tests.
+- End-to-end tests.
+- Performance tests.
+- Build verification.
+
+Inspect the actual results and distinguish passed, failed, skipped, and blocked checks.
+
+## Phase 7: Document
+
+Update the relevant:
+
+- Requirement traceability records.
+- Module README.
+- API specification.
+- Database documentation.
+- ADRs.
+- Operational runbooks.
+- Implementation status.
+- Known limitations.
+
+Avoid duplicating the same specification across many documents when a canonical reference can be linked instead.
+
+## Phase 8: Review and Close
+
+Before marking the task complete:
+
+- Confirm acceptance criteria.
+- Inspect the complete diff.
+- Verify that unrelated files were not changed.
+- Check for secrets and sensitive information.
+- Check for missing authorization.
+- Check for unintended breaking changes.
+- Confirm tests actually ran.
+- Record remaining risks and limitations.
+- Update implementation status.
+
+If a gate fails, fix the issue or report the blocker. Do not bypass a required gate to achieve a nominally completed status.
 
 ---
 
-## 14. Definition of Done (DoD)
+# 6. Incremental Implementation Rules
 
-A task or feature is marked complete **only** when:
-- [ ] Business logic strictly resides within the appropriate module's domain/application layer.
-- [ ] SOLID principles, clean architecture layering, and module isolation boundaries are respected.
-- [ ] Authentication and authorization (including resource-level checks) are implemented and verified.
-- [ ] OWASP security risks are addressed (input validation, SQL injection prevention, safe serialization).
-- [ ] Automated tests (unit, integration, and contract) cover expected behavior and critical failure cases.
-- [ ] Required database migrations are created, deterministic, and tested.
-- [ ] Observability (structured logging, correlation IDs, health checks) is in place.
-- [ ] Documentation, API contracts, and ADRs (where applicable) are updated.
-- [ ] All linters, type checks, and automated tests have been executed and passed.
+## 6.1 One Coherent Increment at a Time
+
+A task should deliver one coherent, testable capability.
+
+Examples:
+
+- Create a property.
+- Assign a caretaker.
+- Grant a property-specific permission.
+- Submit a maintenance request.
+- Approve a quotation.
+- Record maintenance completion.
+
+Avoid implementing every property, rental, sale, finance, and notification module in a single uncontrolled change.
+
+## 6.2 Vertical Slices
+
+Prefer complete vertical slices over broad but unfinished layers.
+
+For example, a caretaker assignment slice should include:
+
+- Validated API input.
+- Application use case.
+- Domain validation.
+- Persistence.
+- Authorization.
+- Audit history.
+- API response.
+- Tests.
+- Documentation.
+
+Do not create empty controllers and placeholder services for every future module before delivering a working end-to-end feature.
+
+## 6.3 Dependencies
+
+Implement prerequisites before dependent features.
+
+A typical dependency sequence is:
+
+1. Repository standards and build pipeline.
+2. Configuration and observability.
+3. Authentication and authorization foundations.
+4. Property onboarding.
+5. Caretaker profiles.
+6. Assignments and permission management.
+7. Tasks and maintenance.
+8. Document management.
+9. Rental and sale workflows.
+10. Finance and payment integrations.
+11. Notifications, reporting, and operational hardening.
+
+This is a suggested sequence, not an unconditional requirement. Follow the actual dependency graph and approved roadmap.
+
+---
+
+# 7. Architecture Compliance Rules
+
+Every change must comply with `architecture.md`.
+
+## 7.1 SOLID
+
+- Keep each class or module cohesive.
+- Use interfaces at meaningful dependency boundaries.
+- Avoid large classes that combine unrelated business responsibilities.
+- Prefer composition over unnecessary inheritance.
+- Ensure implementations honor interface contracts.
+- Keep public interfaces focused.
+- Inject infrastructure dependencies.
+
+## 7.2 DDD
+
+- Implement domain invariants in the appropriate domain or application boundary.
+- Use aggregates to protect consistency.
+- Use value objects for meaningful concepts.
+- Separate business entities from database records and API DTOs.
+- Model explicit state transitions.
+- Keep bounded contexts aligned with business responsibilities.
+- Avoid generic repositories that expose unrestricted persistence operations across modules.
+
+## 7.3 Factory Pattern
+
+Use factories for complex or policy-dependent creation and approved implementation selection.
+
+Do not:
+
+- Create factories for trivial objects without a meaningful benefit.
+- Load arbitrary code based on user input.
+- Introduce service locators in place of dependency injection.
+- Use factories to bypass validation.
+
+## 7.4 Reusability
+
+Before creating a utility or abstraction:
+
+1. Search for existing implementations.
+2. Verify that the existing behavior is appropriate.
+3. Identify the actual common responsibility.
+4. Extract shared behavior only when the abstraction remains cohesive.
+5. Test the abstraction independently.
+6. Document its supported contract.
+
+Do not create a generic framework around hypothetical future requirements.
+
+## 7.5 Database Ownership
+
+- Each module owns its tables and migrations.
+- Cross-module writes must use an approved application contract.
+- Do not bypass domain logic with direct SQL from controllers.
+- Do not change schemas manually without a migration.
+- Do not introduce destructive migrations without an approved deployment plan.
+- Preserve existing production data.
+
+---
+
+# 8. Security Governance
+
+Security is a release requirement, not an optional enhancement.
+
+For every feature, assess:
+
+- Authentication.
+- Authorization.
+- Property-level access.
+- Tenant or organization isolation.
+- Input validation.
+- Output encoding.
+- Sensitive data exposure.
+- File upload and download controls.
+- Rate limiting and resource exhaustion.
+- Auditability.
+- Error handling.
+- External dependency risks.
+
+## 8.1 Property Caretaking Security Invariants
+
+The following are mandatory:
+
+1. A caretaker must not access a property merely by knowing its ID.
+2. A caretaker's access must be limited to active, authorized assignments.
+3. Permission revocation must prevent subsequent restricted actions.
+4. Required owner approvals must be enforced on the server.
+5. Approval records must identify the approving actor and timestamp.
+6. A vendor must access only the job information required for its assignment.
+7. Tenants and buyers must not receive private owner information.
+8. Sensitive documents must not be publicly accessible.
+9. Administrative privileges must be explicitly scoped and audited.
+10. Payment and financial state must not be trusted solely from client input.
+11. Duplicate requests and webhook replays must not create duplicate financial effects.
+12. Security failures must not reveal sensitive data.
+
+## 8.2 Vulnerability Management
+
+- Use maintained, approved dependencies.
+- Run automated dependency and secret scans.
+- Fix security regressions before marking a task complete.
+- Never suppress security findings merely to make CI pass.
+- Document and escalate any required security exception.
+- Do not claim OWASP compliance or successful VAPT without appropriate evidence.
+
+## 8.3 Sensitive Data
+
+Never commit:
+
+- Production credentials.
+- API keys.
+- Private keys.
+- Access tokens.
+- Database passwords.
+- Real owner identity documents.
+- Real property documents.
+- Unnecessary production personal data.
+
+Use environment-specific configuration and approved secret management.
+
+---
+
+# 9. Performance and Background Processing
+
+Follow the latency objectives in `architecture.md`.
+
+## 9.1 API Performance
+
+- Measure p50, p95, and p99 latency.
+- Use pagination for large collections.
+- Avoid N+1 queries.
+- Avoid unnecessary database round trips.
+- Use appropriate indexes.
+- Avoid blocking operations in request handlers.
+- Use bounded timeouts for external dependencies.
+- Monitor connection pools and query duration.
+- Optimize based on measurements, not speculation.
+
+The routine API target is p95 at or below 200 ms under the agreed representative workload.
+
+Do not claim this target is achieved without performance evidence.
+
+## 9.2 Background Processing
+
+Move suitable long-running work to background processing, including:
+
+- Bulk notifications.
+- Large document processing.
+- Bulk imports and exports.
+- Expensive report generation.
+- Non-critical external synchronization.
+- AI processing.
+
+Return `202 Accepted` only when the requested work has been durably accepted.
+
+Use a job identifier, observable job state, retries, idempotency, and failure reporting.
+
+## 9.3 Operations That Must Preserve Immediate Correctness
+
+Do not defer authoritative business decisions merely to meet a latency target.
+
+Examples include:
+
+- Recording an owner approval.
+- Revoking a permission.
+- Persisting an offer decision.
+- Enforcing an expense threshold.
+- Recording an authoritative payment status transition.
+
+Optimize the synchronous critical path and defer suitable side effects.
+
+---
+
+# 10. Database and Migration Safety
+
+Before every database change:
+
+1. Identify affected tables and modules.
+2. Inspect existing schema and migrations.
+3. Define constraints and indexes.
+4. Evaluate data migration requirements.
+5. Evaluate compatibility with currently deployed application versions.
+6. Write a reversible migration where practical.
+7. Test migration and rollback or recovery procedures.
+8. Consider locking and table size.
+9. Document any irreversible operation.
+
+Prefer expand-and-contract migrations.
+
+Never delete, overwrite, or reset existing production data to make a test pass.
+
+Tests must use isolated test data and an appropriate test database.
+
+For changes involving payments, ownership, assignments, permissions, or audit records, evaluate transactional consistency explicitly.
+
+---
+
+# 11. Event-Driven Processing Rules
+
+When introducing events:
+
+- Distinguish commands from events.
+- Use explicit, versioned contracts.
+- Avoid embedding unnecessary sensitive information.
+- Use a transactional outbox for business events requiring durable publication.
+- Make consumers idempotent.
+- Apply bounded retries and backoff.
+- Handle duplicate and out-of-order delivery where relevant.
+- Provide dead-letter monitoring and recovery.
+- Propagate correlation identifiers.
+- Document event ownership and consumer dependencies.
+
+Do not use asynchronous events to bypass authorization or hide failed business operations.
+
+Do not introduce a message broker when a simple in-process call is sufficient and durable delivery is unnecessary.
+
+---
+
+# 12. Frontend and API Consistency
+
+- Follow the approved React and TypeScript structure.
+- Reuse existing UI components and form patterns.
+- Use typed API contracts.
+- Centralize request and error handling.
+- Provide loading, success, empty, and failure states.
+- Validate forms on the client for usability and on the server for correctness.
+- Avoid duplicating authoritative business logic in React.
+- Keep role-specific UI aligned with backend permissions.
+- Do not expose sensitive data in browser storage or public URLs unnecessarily.
+- Ensure API documentation reflects actual behavior.
+
+If an API contract changes, identify and update all affected consumers and contract tests.
+
+---
+
+# 13. Testing and Quality Gates
+
+## 13.1 Mandatory Tests
+
+Every applicable change must have appropriate coverage across:
+
+- Unit tests.
+- Integration tests.
+- Contract tests.
+- End-to-end tests.
+- Security tests.
+- Performance tests.
+
+Not every trivial documentation-only change requires every test category. The agent must identify which checks are applicable and why.
+
+## 13.2 Critical Regression Scenarios
+
+Maintain regression tests for:
+
+- Unauthorized property access.
+- Cross-tenant data access.
+- Caretaker permission escalation.
+- Revoked permissions.
+- Approval bypass.
+- Duplicate payment processing.
+- Invalid state transitions.
+- Document access violations.
+- Event retries and replay.
+- Concurrent modifications.
+- Failed background jobs.
+- API and database compatibility during deployments.
+
+## 13.3 Failure Reporting
+
+For each validation command, report:
+
+- Command executed.
+- Result.
+- Relevant failure details.
+- Whether the failure is related to the current change.
+- Any blocked checks.
+
+Never fabricate test output, skip a required check without disclosure, or report a successful build when the command failed.
+
+---
+
+# 14. CI/CD and Deployment Safety
+
+Every change must remain compatible with the approved deployment strategy.
+
+The agent must consider:
+
+- Build reproducibility.
+- Dependency locking.
+- Environment configuration.
+- Container security.
+- Database migration order.
+- API compatibility.
+- Event compatibility.
+- Readiness and liveness checks.
+- Graceful shutdown.
+- Rollback or roll-forward.
+- Observability and alerting.
+
+Never deploy to production, alter live infrastructure, delete production data, rotate production credentials, or perform irreversible actions without explicit authorization.
+
+Do not introduce Kubernetes resources or IaC changes unless they are part of the approved scope.
+
+When a module is prepared for future service extraction, preserve clear contracts and data ownership without prematurely creating separate deployments.
+
+---
+
+# 15. AI Agent Task Management
+
+Maintain the following implementation artifacts:
+
+## 15.1 `docs/implementation/ROADMAP.md`
+
+Record:
+
+- Delivery phases.
+- Features.
+- Requirement IDs.
+- Dependencies.
+- Completion criteria.
+- Approved deferrals.
+
+## 15.2 `docs/implementation/STATUS.md`
+
+Record:
+
+- Current phase.
+- Current task.
+- Completed tasks.
+- Tasks in progress.
+- Pending tasks.
+- Blocked tasks.
+- Latest validation results.
+- Known risks.
+- Next recommended task.
+
+## 15.3 `docs/implementation/DECISIONS.md`
+
+Use only for operational decisions that do not warrant a formal ADR. Material architecture decisions belong in `docs/adr/`.
+
+## 15.4 Progress Rules
+
+- Update status after completing a meaningful increment.
+- Do not mark partially implemented features as complete.
+- Keep blockers explicit.
+- Record assumptions requiring confirmation.
+- Do not erase historical decisions to conceal a failed approach.
+- Avoid creating duplicate task-tracking systems.
+- Preserve enough context for another agent to continue safely.
+
+The status file must reflect observed repository state, not merely the agent's intended work.
+
+---
+
+# 16. Multi-Agent Coordination
+
+If multiple AI agents are available, assign responsibilities explicitly.
+
+Suggested roles:
+
+- Product Analyst: Requirement decomposition and traceability.
+- Architect: Domain boundaries, contracts, and ADRs.
+- Developer: Implementation and tests.
+- QA Engineer: Independent verification and regression testing.
+- Security Reviewer: Threat analysis and security validation.
+- DevOps Engineer: Build, deployment, IaC, and operational readiness.
+
+## Coordination rules
+
+1. Assign one owner to each implementation task.
+2. Define file and module ownership when work overlaps.
+3. Avoid concurrent changes to the same migration, contract, or shared interface without coordination.
+4. Require interface agreements before parallel implementation.
+5. Integrate changes through reviewed commits or equivalent controlled changes.
+6. Run the combined test suite after integration.
+7. Resolve conflicting implementations before merging.
+8. Do not treat another agent's completion claim as validation evidence.
+9. Keep a single authoritative progress record.
+
+Parallel execution is permitted only when dependencies and shared-file conflicts are controlled.
+
+---
+
+# 17. Change Management
+
+Classify each task before implementation.
+
+### Type A — Small change
+
+Examples: documentation correction, isolated bug fix, minor UI adjustment.
+
+Required: focused review, applicable tests, and documentation updates where needed.
+
+### Type B — Feature change
+
+Examples: new maintenance workflow, property listing, caretaker assignment.
+
+Required: implementation plan, traceability updates, tests, security review, API documentation, and acceptance validation.
+
+### Type C — Architectural change
+
+Examples: module extraction, database ownership change, new messaging infrastructure, authentication redesign.
+
+Required: ADR, dependency analysis, migration plan, security and performance assessment, compatibility testing, and explicit approval where required.
+
+### Type D — High-risk change
+
+Examples: financial processing, authorization changes, ownership-related workflows, document access, destructive migrations, production infrastructure changes.
+
+Required: explicit risk assessment, additional tests, independent review where available, recovery planning, and authorized approval before irreversible operations.
+
+---
+
+# 18. Definition of Done
+
+A feature can be marked `VERIFIED` only when:
+
+- [ ] Its approved requirement IDs are identified.
+- [ ] Acceptance criteria are explicit.
+- [ ] The implementation matches the PRD.
+- [ ] The implementation follows `architecture.md`.
+- [ ] Domain rules and state transitions are enforced.
+- [ ] Authorization is enforced server-side.
+- [ ] Database ownership and migration rules are respected.
+- [ ] Required tests pass.
+- [ ] Relevant regression tests pass.
+- [ ] Applicable security checks pass.
+- [ ] Performance has been measured when required.
+- [ ] Long-running operations have an appropriate execution strategy.
+- [ ] Errors and failure conditions are handled.
+- [ ] Audit and observability requirements are satisfied.
+- [ ] API and event contracts are documented.
+- [ ] Relevant module documentation is updated.
+- [ ] Traceability records reflect actual evidence.
+- [ ] The diff contains no unrelated changes.
+- [ ] Remaining limitations are documented.
+- [ ] No unsupported success claims are made.
+
+If any mandatory condition is unmet, retain the appropriate incomplete or blocked status.
+
+---
+
+# 19. Mandatory Task Completion Report
+
+At the end of each meaningful task, report:
+
+## Task Summary
+What was implemented and why.
+
+## Requirement Traceability
+Which requirement IDs were addressed.
+
+## Files Changed
+The important files created, modified, or removed.
+
+## Architecture Compliance
+How module boundaries, design principles, and security controls were preserved.
+
+## Tests and Validation
+Commands executed, results observed, and checks not run.
+
+## Database and API Changes
+Migrations, contracts, events, and compatibility implications.
+
+## Security and Performance
+Relevant risks, checks, measurements, and limitations.
+
+## Outstanding Work
+Incomplete requirements, blockers, assumptions, and known defects.
+
+## Next Step
+The smallest logical task that advances the approved roadmap.
+
+Do not report routine internal reasoning or expose hidden chain-of-thought. Provide decisions, evidence, outcomes, and concise rationale.
+
+---
+
+# 20. Final Enforcement Rule
+
+The PRD defines the product. The architecture defines the engineering boundaries. This document governs how changes are made and verified.
+
+**No feature is complete merely because code has been generated.**
+
+A feature is complete only when its approved behavior is implemented, its critical invariants are enforced, its applicable tests pass, its architectural constraints are respected, and its completion status is supported by evidence.
+
+When requirements are unclear, dependencies are missing, or the proposed implementation violates a mandatory constraint, stop the affected work, explain the issue, and request the necessary decision.
+
+The objective is a coherent, maintainable, secure, and scalable Real Estate CareTaking platform—not the largest possible amount of generated code.

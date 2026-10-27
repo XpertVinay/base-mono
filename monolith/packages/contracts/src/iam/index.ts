@@ -1,6 +1,16 @@
 import { DomainIntegrationEvent } from '../common/index.js';
 
-export type UserRole = 'ADMIN' | 'USER' | 'AUDITOR';
+export type UserRole = 
+  | 'ADMIN' 
+  | 'USER' 
+  | 'AUDITOR' 
+  | 'OWNER' 
+  | 'CARETAKER' 
+  | 'TENANT' 
+  | 'BUYER' 
+  | 'VENDOR' 
+  | 'AGENT' 
+  | 'LEGAL';
 
 export interface UserDto {
   id: string;
