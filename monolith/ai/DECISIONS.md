@@ -1,0 +1,68 @@
+# Real Estate CareTaking — Architecture & Design Decisions
+
+**Document:** `DECISIONS.md`  
+**Version:** 1.0  
+**Status:** Approved & Implemented  
+**Scope:** Architectural Decision Records (ADRs) and Operational System Decisions
+
+---
+
+## 1. Architectural Decision Records (ADRs)
+
+### ADR-0001: Modular Monolith Boundaries & Schema Isolation
+- **Status:** Approved
+- **Context:** Building microservices early introduces excessive infrastructure overhead, deployment latency, and distributed transaction complexity. However, a traditional monolith quickly degenerates into tight coupling.
+- **Decision:** Build a Modular Monolith. Each business domain is encapsulated in an isolated module with a dedicated PostgreSQL schema. No module may import another module's internal files or directly query another module's database tables.
+- **Consequences:** Low operational cost, simple local development, strict boundaries enforced by AST static tests (`pnpm test:arch`), and an effortless path to extract services if needed.
+
+### ADR-0002: Inter-Module Event-Driven Communication via Transactional Outbox
+- **Status:** Approved
+- **Context:** State changes in one module (e.g., ticket resolution) often require cross-module reactions (e.g., expense generation, tenant notification) without tight synchronous coupling.
+- **Decision:** Implement the Transactional Outbox Pattern (`common.outbox_events`). State modifications and domain event records are written in the same local ACID transaction. An asynchronous worker delivers events with at-least-once guarantees.
+- **Consequences:** Guaranteed event publication, zero distributed two-phase commits, high resilience against transient network/process failures.
+
+### ADR-0003: Security Controls & OWASP Alignment
+- **Status:** Approved
+- **Context:** Real estate management involves financial transactions, legal title deeds, and personal tenant records, demanding strict enterprise security.
+- **Decision:** Implement OWASP Top 10 defenses: Deny-by-default RBAC, parameterized SQL queries, Helmet security headers, rate limiting, and immutable security audit logs in `iam.audit_logs`.
+- **Consequences:** Protection against injection, unauthorized access, and tampering. Validated via `pnpm test:security`.
+
+---
+
+## 2. Operational & Platform Design Decisions
+
+### Decision 001: Real Estate CareTaking Clean Architecture (4-Tier)
+- **Context:** The codebase requires domain models capable of complex invariant enforcement (e.g., caretaker permission revocation, emergency float limits).
+- **Decision:** All real estate modules (`property`, `caretaking`, `maintenance`, `rental`, `document`, `finance`) strictly adhere to the 4-tier Clean Architecture:
+  - `domain/`: Entities, value objects, domain invariants, repository interfaces.
+  - `application/`: Commands, queries, use cases.
+  - `infrastructure/`: PostgreSQL repositories, external services.
+  - `presentation/`: Express controllers and route handlers.
+
+### Decision 002: Maintenance Equilibrium Engine Priority & Float Escrow
+- **Context:** Tension exists between tenant urgency (flooding, gas leaks) and property owner desire to control spending.
+- **Decision:** Implement dynamic triage (P1-P4):
+  - **P1 Emergency**: 15 min response SLA, 4 hr resolution SLA; auto-covered by pre-authorized emergency float escrow up to owner configured limit without waiting for manual quotation approval.
+  - **P2 Urgent**: 1 hr response SLA, 24 hr resolution SLA; auto-escalated on SLA breach.
+  - **P3 Standard**: 4 hr response SLA; standard quotation review.
+  - **P4 Routine**: 24 hr response SLA; scheduled review.
+
+### Decision 003: Asymmetric RS256 JWT Token Signing & Public JWKS
+- **Context:** In a multi-tenant platform with microfrontends, mobile apps, and prospective worker services, sharing symmetric secrets (`HS256`) is a major security vulnerability.
+- **Decision:** Upgrade IAM token signing to asymmetric RSA (`RS256`). The API securely holds the private RSA key to sign tokens, while publishing the corresponding public keys at the standard OpenID Connect JWKS endpoint (`/.well-known/jwks.json`).
+- **Consequences:** Distributed microservices, web gateways, and edge workers can independently verify token validity without possessing the signing secret.
+
+### Decision 004: Anti-Session Hijacking via Device Fingerprint & IP Decoupling
+- **Context:** Binding session tokens strictly to client IP addresses causes frequent session dropping on mobile devices switching between Wi-Fi and 5G cellular towers, while NAT/VPN shared IPs cause collision risks.
+- **Decision:** Compute session fingerprints using persistent client device hints (`X-Device-Fingerprint`) and User-Agent HMAC. Client IP is excluded from the token cryptographic hash, but recorded in `iam.audit_logs` for forensic anomaly detection.
+
+### Decision 005: Multi-Tenant Hierarchical Config & Relational Overrides
+- **Context:** White-label clients require custom themes, notification webhooks, and fee structures without modifying core application code.
+- **Decision:** Implement a 4-tier configuration engine: Global Defaults -> Database Base Settings -> Tenant Relational JSONB Overrides (`app_config.tenant_configurations`) -> In-Memory TTL Cache.
+
+### Decision 006: Dynamic Database-Configured MFA Protected Routes
+- **Context:** Critical operations (e.g., password change, bank account update, lease authorization) require elevated verification.
+- **Decision:** Store protected routes in `iam.mfa_protected_routes` with two reverification modes:
+  - `SESSION_24H`: Re-verifies once every 24 hours.
+  - `EVERY_TIME`: Requires immediate step-up MFA challenge on every invocation.
+

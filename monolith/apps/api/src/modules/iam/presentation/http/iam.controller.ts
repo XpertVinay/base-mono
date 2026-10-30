@@ -13,10 +13,61 @@ import { GetMfaStatusQuery } from '../../application/queries/get-mfa-status.quer
 import { SsoLoginUseCase } from '../../application/commands/sso/sso-login.use-case.js';
 import { GetAuditLogsQuery } from '../../application/queries/get-audit-logs.query.js';
 import { ManageProtectedRoutesUseCase } from '../../application/commands/mfa/manage-protected-routes.use-case.js';
+import { CreateOrganizationUseCase } from '../../application/commands/organization/create-organization.use-case.js';
+import { UpdateOrganizationUseCase } from '../../application/commands/organization/update-organization.use-case.js';
+import { UpdateOrganizationStatusUseCase } from '../../application/commands/organization/update-organization-status.use-case.js';
+import { InviteMemberUseCase } from '../../application/commands/organization/invite-member.use-case.js';
+import { AcceptInvitationUseCase } from '../../application/commands/organization/accept-invitation.use-case.js';
+import { RejectInvitationUseCase } from '../../application/commands/organization/reject-invitation.use-case.js';
+import { RequestMembershipUseCase } from '../../application/commands/organization/request-membership.use-case.js';
+import { UpdateMembershipUseCase } from '../../application/commands/organization/update-membership.use-case.js';
+import { RemoveMemberUseCase } from '../../application/commands/organization/remove-member.use-case.js';
+import { GetOrganizationQuery } from '../../application/queries/organization/get-organization.query.js';
+import { ListUserOrganizationsQuery } from '../../application/queries/organization/list-user-organizations.query.js';
+import { ListOrganizationMembersQuery } from '../../application/queries/organization/list-organization-members.query.js';
+import { ListOrganizationInvitationsQuery } from '../../application/queries/organization/list-organization-invitations.query.js';
+import { ValidateTenantContextQuery } from '../../application/queries/organization/validate-tenant-context.query.js';
+import { CreateTenantRoleUseCase } from '../../application/commands/rbac/create-tenant-role.use-case.js';
+import { UpdateRolePermissionsUseCase } from '../../application/commands/rbac/update-role-permissions.use-case.js';
+import { AssignRoleToMemberUseCase } from '../../application/commands/rbac/assign-role-to-member.use-case.js';
+import { ListTenantRolesQuery } from '../../application/queries/rbac/list-tenant-roles.query.js';
+import { GetTenantRoleQuery } from '../../application/queries/rbac/get-tenant-role.query.js';
+import { DeleteTenantRoleUseCase } from '../../application/commands/rbac/delete-tenant-role.use-case.js';
+import { EvaluatePermissionQuery } from '../../application/queries/rbac/evaluate-permission.query.js';
+import { PlatformPermission } from '@monolith/contracts';
 import { getCurrentRequestId } from '../../../../shared/presentation/request-context.js';
 import { extractClientContext } from '../../../../shared/presentation/auth.middleware.js';
 import { tokenService } from '../../../../shared/infrastructure/token.service.js';
+import { UnauthorizedError } from '../../../../shared/presentation/error-handler.middleware.js';
 import { env } from '../../../../config/env.js';
+
+const createOrgSchema = z.object({
+  name: z.string().min(2).max(100),
+  slug: z.string().min(2).max(100).optional(),
+  type: z.enum(['ENTERPRISE', 'PROPERTY_MANAGEMENT', 'AGENCY', 'BROKERAGE', 'HOA', 'INDIVIDUAL']).optional(),
+  metadata: z.record(z.any()).optional()
+});
+
+const updateOrgSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  type: z.enum(['ENTERPRISE', 'PROPERTY_MANAGEMENT', 'AGENCY', 'BROKERAGE', 'HOA', 'INDIVIDUAL']).optional(),
+  metadata: z.record(z.any()).optional()
+});
+
+const updateOrgStatusSchema = z.object({
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'ARCHIVED'])
+});
+
+const inviteMemberSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(['ADMIN', 'MEMBER']).default('MEMBER'),
+  expiresInDays: z.number().int().positive().max(30).optional()
+});
+
+const updateMembershipSchema = z.object({
+  role: z.enum(['ADMIN', 'MEMBER']).optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'REJECTED']).optional()
+});
 
 const registerSchema = z.object({
   email: z.string().email().max(255),
@@ -80,6 +131,20 @@ const createProtectedRouteSchema = z.object({
   reverificationMode: z.enum(['SESSION_24H', 'EVERY_TIME']).default('SESSION_24H')
 });
 
+const createTenantRoleSchema = z.object({
+  name: z.string().min(2).max(64),
+  description: z.string().optional(),
+  permissions: z.array(z.string()).min(1)
+});
+
+const updateRolePermissionsSchema = z.object({
+  permissions: z.array(z.string()).min(1)
+});
+
+const assignRoleSchema = z.object({
+  roleId: z.string().min(1)
+});
+
 export class IamController {
   constructor(
     private readonly registerUserUseCase: RegisterUserUseCase,
@@ -94,7 +159,28 @@ export class IamController {
     private readonly getMfaStatusQuery?: GetMfaStatusQuery,
     private readonly ssoLoginUseCase?: SsoLoginUseCase,
     private readonly getAuditLogsQuery?: GetAuditLogsQuery,
-    private readonly manageProtectedRoutesUseCase?: ManageProtectedRoutesUseCase
+    private readonly manageProtectedRoutesUseCase?: ManageProtectedRoutesUseCase,
+    private readonly createOrgUseCase?: CreateOrganizationUseCase,
+    private readonly updateOrgUseCase?: UpdateOrganizationUseCase,
+    private readonly updateOrgStatusUseCase?: UpdateOrganizationStatusUseCase,
+    private readonly inviteMemberUseCase?: InviteMemberUseCase,
+    private readonly acceptInvitationUseCase?: AcceptInvitationUseCase,
+    private readonly rejectInvitationUseCase?: RejectInvitationUseCase,
+    private readonly requestMembershipUseCase?: RequestMembershipUseCase,
+    private readonly updateMembershipUseCase?: UpdateMembershipUseCase,
+    private readonly removeMemberUseCase?: RemoveMemberUseCase,
+    private readonly getOrgQuery?: GetOrganizationQuery,
+    private readonly listUserOrgsQuery?: ListUserOrganizationsQuery,
+    private readonly listOrgMembersQuery?: ListOrganizationMembersQuery,
+    private readonly listOrgInvitationsQuery?: ListOrganizationInvitationsQuery,
+    private readonly validateTenantContextQuery?: ValidateTenantContextQuery,
+    private readonly createTenantRoleUseCase?: CreateTenantRoleUseCase,
+    private readonly updateRolePermissionsUseCase?: UpdateRolePermissionsUseCase,
+    private readonly assignRoleToMemberUseCase?: AssignRoleToMemberUseCase,
+    private readonly listTenantRolesQuery?: ListTenantRolesQuery,
+    private readonly getTenantRoleQuery?: GetTenantRoleQuery,
+    private readonly deleteTenantRoleUseCase?: DeleteTenantRoleUseCase,
+    private readonly evaluatePermissionQuery?: EvaluatePermissionQuery
   ) { }
 
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -511,5 +597,411 @@ export class IamController {
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.status(200).send(tokenService.getPublicKeyPem());
+  };
+
+  // =========================================================================
+  // Multi-Tenant Organization Management Endpoints (Sprint 03)
+  // =========================================================================
+
+  createOrganization = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const validated = createOrgSchema.parse(req.body);
+      const org = await this.createOrgUseCase!.execute(req.user.id, validated);
+
+      res.status(201).json({
+        success: true,
+        data: org,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getOrganization = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const isPlatformAdmin = req.user?.role === 'ADMIN';
+      const org = await this.getOrgQuery!.execute(id, req.user?.id, isPlatformAdmin);
+
+      res.status(200).json({
+        success: true,
+        data: org,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateOrganization = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const id = req.params.id as string;
+      const validated = updateOrgSchema.parse(req.body);
+      const org = await this.updateOrgUseCase!.execute(req.user.id, id, validated);
+
+      res.status(200).json({
+        success: true,
+        data: org,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateOrganizationStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const id = req.params.id as string;
+      const validated = updateOrgStatusSchema.parse(req.body);
+      const isPlatformAdmin = req.user.role === 'ADMIN';
+      const org = await this.updateOrgStatusUseCase!.execute(req.user.id, isPlatformAdmin, id, validated);
+
+      res.status(200).json({
+        success: true,
+        data: org,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  listUserOrganizations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const memberships = await this.listUserOrgsQuery!.execute(req.user.id);
+
+      res.status(200).json({
+        success: true,
+        data: memberships,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getOrganizationContext = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const id = req.params.id as string;
+      const context = await this.validateTenantContextQuery!.execute(req.user.id, id);
+
+      res.status(200).json({
+        success: true,
+        data: context,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  listOrganizationMembers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const id = req.params.id as string;
+      const members = await this.listOrgMembersQuery!.execute(req.user.id, id);
+
+      res.status(200).json({
+        success: true,
+        data: members,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateMembership = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const targetUserId = req.params.userId as string;
+      const validated = updateMembershipSchema.parse(req.body);
+      const membership = await this.updateMembershipUseCase!.execute(req.user.id, organizationId, targetUserId, validated);
+
+      res.status(200).json({
+        success: true,
+        data: membership,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  removeMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const targetUserId = req.params.userId as string;
+      await this.removeMemberUseCase!.execute(req.user.id, organizationId, targetUserId);
+
+      res.status(200).json({
+        success: true,
+        data: { removed: true, organizationId, userId: targetUserId },
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  inviteMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const validated = inviteMemberSchema.parse(req.body);
+      const invitation = await this.inviteMemberUseCase!.execute(req.user.id, organizationId, validated);
+
+      res.status(201).json({
+        success: true,
+        data: invitation,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  listInvitations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const invitations = await this.listOrgInvitationsQuery!.execute(req.user.id, organizationId);
+
+      res.status(200).json({
+        success: true,
+        data: invitations,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  acceptInvitation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const token = req.params.token as string;
+      const membership = await this.acceptInvitationUseCase!.execute(req.user.id, token);
+
+      res.status(200).json({
+        success: true,
+        data: membership,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  rejectInvitation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const token = req.params.token as string;
+      const invitation = await this.rejectInvitationUseCase!.execute(token);
+
+      res.status(200).json({
+        success: true,
+        data: invitation,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  requestMembership = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const membership = await this.requestMembershipUseCase!.execute(req.user.id, organizationId);
+
+      res.status(201).json({
+        success: true,
+        data: membership,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  approveJoinRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const targetUserId = req.params.userId as string;
+      const membership = await this.updateMembershipUseCase!.execute(req.user.id, organizationId, targetUserId, { status: 'ACTIVE' });
+
+      res.status(200).json({
+        success: true,
+        data: membership,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  rejectJoinRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const targetUserId = req.params.userId as string;
+      const membership = await this.updateMembershipUseCase!.execute(req.user.id, organizationId, targetUserId, { status: 'REJECTED' });
+
+      res.status(200).json({
+        success: true,
+        data: membership,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  // =========================================================================
+  // Dynamic RBAC & Organization Roles (Sprint 04)
+  // =========================================================================
+
+  listTenantRoles = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const roles = await this.listTenantRolesQuery!.execute(organizationId, req.user.id);
+
+      res.status(200).json({
+        success: true,
+        data: roles,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getTenantRole = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const roleId = req.params.roleId as string;
+      const role = await this.getTenantRoleQuery!.execute(organizationId, roleId, req.user.id);
+
+      res.status(200).json({
+        success: true,
+        data: role,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  createTenantRole = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const validated = createTenantRoleSchema.parse(req.body);
+      const organizationId = req.params.id as string;
+      const role = await this.createTenantRoleUseCase!.execute({
+        organizationId,
+        userId: req.user.id,
+        name: validated.name,
+        description: validated.description,
+        permissions: validated.permissions as PlatformPermission[]
+      });
+
+      res.status(201).json({
+        success: true,
+        data: role,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateRolePermissions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const validated = updateRolePermissionsSchema.parse(req.body);
+      const organizationId = req.params.id as string;
+      const roleId = req.params.roleId as string;
+      const role = await this.updateRolePermissionsUseCase!.execute({
+        organizationId,
+        roleId,
+        userId: req.user.id,
+        permissions: validated.permissions as PlatformPermission[]
+      });
+
+      res.status(200).json({
+        success: true,
+        data: role,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  deleteTenantRole = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const roleId = req.params.roleId as string;
+      await this.deleteTenantRoleUseCase!.execute(organizationId, roleId, req.user.id);
+
+      res.status(200).json({
+        success: true,
+        data: { message: `Role '${roleId}' successfully deleted` },
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  assignMemberRole = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const validated = assignRoleSchema.parse(req.body);
+      const organizationId = req.params.id as string;
+      const targetUserId = req.params.userId as string;
+      const membership = await this.assignRoleToMemberUseCase!.execute({
+        organizationId,
+        userId: req.user.id,
+        targetUserId,
+        roleIdOrName: validated.roleId
+      });
+
+      res.status(200).json({
+        success: true,
+        data: membership,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getMyPermissions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) return next(new UnauthorizedError('Authentication required'));
+      const organizationId = req.params.id as string;
+      const permissions = await this.evaluatePermissionQuery!.execute(req.user.id, organizationId);
+
+      res.status(200).json({
+        success: true,
+        data: permissions,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
   };
 }

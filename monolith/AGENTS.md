@@ -31,21 +31,41 @@ You must continuously maintain alignment between:
 
 ## 1.1 Mandatory Principles
 
-1. Read the relevant requirements before implementation.
-2. Understand the existing repository before modifying it.
-3. Plan work before making substantial changes.
-4. Follow the PRD and `architecture.md`.
-5. Implement one coherent, verifiable increment at a time.
-6. Follow TDD for meaningful business logic and critical state transitions.
-7. Reuse existing implementations when they satisfy the requirement.
-8. Enforce SOLID, DDD, and appropriate design patterns.
-9. Keep the modular monolith modular and enforce its boundaries.
-10. Validate every important business rule on the server.
-11. Never mark untested or incomplete functionality as complete.
-12. Document deviations, blockers, assumptions, and technical debt.
-13. Do not introduce unrelated changes.
-14. Do not claim a command, test, scan, or deployment succeeded unless its result has been observed.
-15. Stop and report when a required decision cannot safely be inferred.
+1. **One Sprint, One Objective**: Avoid bundling disparate domains (e.g., identity, RBAC, assets, property management) together. Each sprint must tackle one single, cohesive, bounded objective with unambiguous boundaries.
+2. **Repository as Memory**: Never depend on chat history as the source of project context. Every architectural decision, schema change, contract update, and sprint progression must be recorded directly in repository files (`ai/`, `STATUS.md`, `CURRENT_STATE.md`, `CHANGELOG.md`, `DECISIONS.md`).
+3. **Evidence-Based Progression**: A sprint is complete *only* when its code, migrations, tests, and acceptance criteria have been verified with observed terminal execution output. No speculative or unverified "done" claims.
+4. **Just-In-Time Sprint Specifications**: Avoid creating all 20 sprint specification files upfront. Start with Sprint 00, establish the architecture baseline, and generate detailed specifications only for the next immediate sprints based on actual repository findings.
+5. **Read Requirements First**: Read the relevant requirements before implementation.
+6. **Inspect Before Modifying**: Understand the existing repository before modifying it.
+7. **Plan Before Substantial Changes**: Plan work before making substantial changes.
+8. **Follow PRD & Architecture**: Follow the PRD and `architecture.md`.
+9. **Implement One Coherent Increment**: Implement one coherent, verifiable increment at a time.
+10. **Test-Driven Development**: Follow TDD for meaningful business logic and critical state transitions.
+11. **Reuse Existing Patterns**: Reuse existing implementations when they satisfy the requirement.
+12. **Enforce SOLID & DDD**: Enforce SOLID, DDD, and appropriate design patterns.
+13. **Strict Module Isolation**: Keep the modular monolith modular and enforce its boundaries.
+14. **Server-Side Validation**: Validate every important business rule on the server.
+15. **No Premature Completion**: Never mark untested or incomplete functionality as complete.
+16. **Document Deviations**: Document deviations, blockers, assumptions, and technical debt.
+17. **No Unrelated Changes**: Do not introduce unrelated changes.
+18. **No Unobserved Success Claims**: Do not claim a command, test, scan, or deployment succeeded unless its result has been observed.
+19. **Stop on Ambiguity**: Stop and report when a required decision cannot safely be inferred.
+
+## 1.2 Rules to Prevent AI Hallucinations and Scope Creep
+
+To maintain software integrity, prevent context degradation, and eliminate scope creep, all AI agents must strictly abide by the following prevention matrix:
+
+| Problem | Prevention Rule | Operational Enforcement |
+| :--- | :--- | :--- |
+| **Agent invents existing functionality** | **Inspect source code before implementation** | Search codebase, AST exports, and existing module structures before writing any code. Never assume an abstraction is missing without verification. |
+| **Agent forgets previous decisions** | **Maintain `DECISIONS.md`** | Review `ai/DECISIONS.md` prior to any structural design. Document all new architectural decisions, rationale, and consequences immediately. |
+| **Agent changes unrelated files** | **Enforce sprint scope** | Confine file additions and modifications strictly to the declared scope of the active sprint or task. Do not refactor unrelated modules. |
+| **Agent repeats completed work** | **Verify `STATUS.md` and actual code** | Cross-reference `implementation/STATUS.md` and inspect existing test suites and git history before beginning tasks to confirm genuine baseline state. |
+| **Agent creates duplicate entities** | **Maintain `DATA_MODEL.md`** | Audit `ai/DATA_MODEL.md` and existing schema migrations before declaring new entities or tables. Maintain single-source truth for data models. |
+| **Agent invents API conventions** | **Maintain `API_CONVENTIONS.md`** | Strictly adhere to `ai/API_CONVENTIONS.md` for REST route paths, HTTP verbs, payload envelopes (`data`, `error`), and standard headers (`X-Tenant-ID`, `X-Correlation-ID`). |
+| **Agent skips tests** | **Definition of Done** | No feature or bugfix is complete without automated unit/integration tests executing with observable passing terminal output. |
+| **Agent loses session context** | **Update `CURRENT_STATE.md`** | Keep `ai/handover/CURRENT_STATE.md` synchronized at every task boundary, documenting exact progress, open issues, and the single next action. |
+| **Agent starts future features** | **Explicit sprint boundary** | Strictly enforce sprint boundaries. When the active sprint's acceptance criteria are fulfilled, stop immediately and await user direction before starting future sprints. |
 
 ---
 
@@ -57,13 +77,19 @@ The repository must maintain the following documents.
 
 | Artifact | Purpose | Authority |
 |---|---|---|
-| `PRD.md` | Product scope, user journeys, requirements, acceptance criteria | Product behavior |
-| `architecture.md` | Architecture, module boundaries, technology standards, security, performance | Technical design |
-| `AGENTS.md` | AI execution rules, development workflow, validation gates | Development process |
-| `docs/adr/` | Approved architectural decisions and exceptions | Recorded decisions |
+| `PRD.md` / `ai/PROJECT_CONTEXT.md` | Product scope, user journeys, requirements, acceptance criteria | Product behavior |
+| `architecture.md` / `ai/ARCHITECTURE.md` | Architecture, module boundaries, technology standards, security | Technical design |
+| `AGENTS.md` / `ai/DEVELOPMENT_RULES.md` | AI execution rules, development workflow, validation gates | Development process |
+| `ai/MODULE_MAP.md` | Modules catalog, responsibilities, public exports, and boundaries | Modular boundaries |
+| `ai/DATA_MODEL.md` | Database schemas, table models, indexes, and isolation | Relational data model |
+| `ai/API_CONVENTIONS.md` | HTTP methods, REST paths, standard envelopes, and headers | API contracts |
+| `ai/SECURITY_MODEL.md` | RS256 JWKS tokens, device fingerprint anti-hijacking, dynamic MFA | Security architecture |
+| `docs/adr/` / `ai/DECISIONS.md` | Approved architectural decisions and exceptions | Recorded decisions |
 | `docs/requirements/traceability.md` | Mapping of requirements to code and tests | Requirement coverage |
 | `docs/implementation/ROADMAP.md` | Ordered implementation phases and dependencies | Delivery sequence |
-| `docs/implementation/STATUS.md` | Current progress, blockers, and next steps | Execution state |
+| `implementation/STATUS.md` / `docs/implementation/STATUS.md` | Current progress, blockers, and next steps | Execution state |
+| `ai/sprints/` | Chronological sprint milestone records and deliverables | Sprint delivery tracking |
+| `ai/handover/` | Current operational baseline and comprehensive changelog | System handover |
 | Module `README.md` files | Module responsibilities, contracts, and operational requirements | Module-level design |
 | OpenAPI specifications | API request, response, and error contracts | API compatibility |
 
