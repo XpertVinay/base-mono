@@ -51,6 +51,20 @@ export class ApiClient {
       headers['X-Tenant-ID'] = options.tenantId;
     }
 
+    if (typeof window !== 'undefined') {
+      try {
+        let fgp = localStorage.getItem('app_device_fingerprint');
+        if (!fgp) {
+          const screenRes = `${window.screen?.width || 0}x${window.screen?.height || 0}`;
+          fgp = `web-${screenRes}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
+          localStorage.setItem('app_device_fingerprint', fgp);
+        }
+        headers['X-Device-Fingerprint'] = fgp;
+      } catch {
+        // storage disabled fallback
+      }
+    }
+
     if (options.token) {
       headers['Authorization'] = `Bearer ${options.token}`;
     }

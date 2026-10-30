@@ -11,11 +11,38 @@ class ApiClient {
     }
   }
 
+  private getTenantId(): string | null {
+    try {
+      return localStorage.getItem('app_tenant_id') || localStorage.getItem('active_tenant_slug');
+    } catch {
+      return null;
+    }
+  }
+
+  private getDeviceFingerprint(): string {
+    try {
+      let fgp = localStorage.getItem('app_device_fingerprint');
+      if (!fgp) {
+        const screenRes = typeof window !== 'undefined' && window.screen ? `${window.screen.width}x${window.screen.height}` : 'generic';
+        fgp = `web-${screenRes}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
+        localStorage.setItem('app_device_fingerprint', fgp);
+      }
+      return fgp;
+    } catch {
+      return 'web-client-ephemeral';
+    }
+  }
+
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const token = this.getAuthToken();
+    const tenantId = this.getTenantId();
+    const deviceFingerprint = this.getDeviceFingerprint();
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Request-Id': `web-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      'X-Device-Fingerprint': deviceFingerprint,
+      ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
       ...(options.headers as Record<string, string> || {})
     };
 
@@ -25,6 +52,7 @@ class ApiClient {
 
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        credentials: 'same-origin', // Supports httpOnly cookie session authentication alongside Bearer token
         ...options,
         headers
       });

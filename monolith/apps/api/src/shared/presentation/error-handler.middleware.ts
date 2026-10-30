@@ -49,6 +49,12 @@ export class ValidationError extends AppError {
   }
 }
 
+export class BadRequestError extends AppError {
+  constructor(message = 'Bad Request', details?: unknown) {
+    super(message, 400, 'BAD_REQUEST', details);
+  }
+}
+
 export function errorHandlerMiddleware(
   err: Error | AppError,
   req: Request,

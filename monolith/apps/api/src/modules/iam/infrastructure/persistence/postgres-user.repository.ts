@@ -10,7 +10,10 @@ export class PostgresUserRepository implements IUserRepository {
   async findById(id: string): Promise<User | null> {
     try {
       const res = await dbPool.query(
-        'SELECT id, email, password_hash, name, role, is_active, created_at, updated_at FROM iam.users WHERE id = $1',
+        `SELECT id, email, password_hash, name, role, is_active, created_at, updated_at,
+                mfa_enabled, mfa_secret, mfa_backup_codes, mfa_enrolled_at, mfa_last_verified_at,
+                sso_provider, sso_subject_id
+         FROM iam.users WHERE id = $1`,
         [id]
       );
       if (res.rows.length === 0) {
@@ -27,7 +30,10 @@ export class PostgresUserRepository implements IUserRepository {
     const normalized = email.toLowerCase().trim();
     try {
       const res = await dbPool.query(
-        'SELECT id, email, password_hash, name, role, is_active, created_at, updated_at FROM iam.users WHERE LOWER(email) = $1',
+        `SELECT id, email, password_hash, name, role, is_active, created_at, updated_at,
+                mfa_enabled, mfa_secret, mfa_backup_codes, mfa_enrolled_at, mfa_last_verified_at,
+                sso_provider, sso_subject_id
+         FROM iam.users WHERE LOWER(email) = $1`,
         [normalized]
       );
       if (res.rows.length === 0) {
@@ -46,19 +52,54 @@ export class PostgresUserRepository implements IUserRepository {
     }
   }
 
+  async findBySso(provider: string, subjectId: string): Promise<User | null> {
+    try {
+      const res = await dbPool.query(
+        `SELECT id, email, password_hash, name, role, is_active, created_at, updated_at,
+                mfa_enabled, mfa_secret, mfa_backup_codes, mfa_enrolled_at, mfa_last_verified_at,
+                sso_provider, sso_subject_id
+         FROM iam.users WHERE sso_provider = $1 AND sso_subject_id = $2`,
+        [provider, subjectId]
+      );
+      if (res.rows.length === 0) {
+        for (const user of this.fallbackStore.values()) {
+          if (user.ssoProvider === provider && user.ssoSubjectId === subjectId) return user;
+        }
+        return null;
+      }
+      return this.mapToDomain(res.rows[0]);
+    } catch (err) {
+      logger.warn('Database query failed in PostgresUserRepository.findBySso, checking fallback cache', { provider, subjectId });
+      for (const user of this.fallbackStore.values()) {
+        if (user.ssoProvider === provider && user.ssoSubjectId === subjectId) return user;
+      }
+      return null;
+    }
+  }
+
   async save(user: User): Promise<void> {
     this.fallbackStore.set(user.id, user);
     try {
       await dbPool.query(
-        `INSERT INTO iam.users (id, email, password_hash, name, role, is_active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO iam.users (
+           id, email, password_hash, name, role, is_active, created_at, updated_at,
+           mfa_enabled, mfa_secret, mfa_backup_codes, mfa_enrolled_at, mfa_last_verified_at,
+           sso_provider, sso_subject_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          ON CONFLICT (id) DO UPDATE SET
            email = EXCLUDED.email,
            password_hash = EXCLUDED.password_hash,
            name = EXCLUDED.name,
            role = EXCLUDED.role,
            is_active = EXCLUDED.is_active,
-           updated_at = EXCLUDED.updated_at`,
+           updated_at = EXCLUDED.updated_at,
+           mfa_enabled = EXCLUDED.mfa_enabled,
+           mfa_secret = EXCLUDED.mfa_secret,
+           mfa_backup_codes = EXCLUDED.mfa_backup_codes,
+           mfa_enrolled_at = EXCLUDED.mfa_enrolled_at,
+           mfa_last_verified_at = EXCLUDED.mfa_last_verified_at,
+           sso_provider = EXCLUDED.sso_provider,
+           sso_subject_id = EXCLUDED.sso_subject_id`,
         [
           user.id,
           user.email,
@@ -67,7 +108,14 @@ export class PostgresUserRepository implements IUserRepository {
           user.role,
           user.isActive,
           user.createdAt,
-          user.updatedAt
+          user.updatedAt,
+          user.mfaEnabled,
+          user.mfaSecret,
+          JSON.stringify(user.mfaBackupCodes),
+          user.mfaEnrolledAt,
+          user.mfaLastVerifiedAt,
+          user.ssoProvider,
+          user.ssoSubjectId
         ]
       );
     } catch (err) {
@@ -80,14 +128,33 @@ export class PostgresUserRepository implements IUserRepository {
   }
 
   private mapToDomain(row: any): User {
+    let backupCodes: string[] = [];
+    if (Array.isArray(row.mfa_backup_codes)) {
+      backupCodes = row.mfa_backup_codes;
+    } else if (typeof row.mfa_backup_codes === 'string') {
+      try {
+        backupCodes = JSON.parse(row.mfa_backup_codes);
+      } catch {
+        backupCodes = [];
+      }
+    }
+
     return User.reconstitute(row.id, {
       email: row.email,
       password: Password.fromHashed(row.password_hash),
       name: row.name,
       role: row.role,
       isActive: row.is_active,
+      tenantId: row.tenant_id || undefined,
       createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at)
+      updatedAt: new Date(row.updated_at),
+      mfaEnabled: Boolean(row.mfa_enabled),
+      mfaSecret: row.mfa_secret || null,
+      mfaBackupCodes: backupCodes,
+      mfaEnrolledAt: row.mfa_enrolled_at ? new Date(row.mfa_enrolled_at) : null,
+      mfaLastVerifiedAt: row.mfa_last_verified_at ? new Date(row.mfa_last_verified_at) : null,
+      ssoProvider: row.sso_provider || null,
+      ssoSubjectId: row.sso_subject_id || null
     });
   }
 }

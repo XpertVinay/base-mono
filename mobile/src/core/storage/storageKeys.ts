@@ -3,6 +3,7 @@ export const StorageKeys = {
   ACCESS_TOKEN: 'app_auth_access_token',
   REFRESH_TOKEN: 'app_auth_refresh_token',
   USER_DATA: 'app_auth_user_data',
+  DEVICE_FINGERPRINT: 'app_device_fingerprint',
   LOCALE: 'app_user_locale',
   THEME_MODE: 'app_theme_mode',
 } as const;

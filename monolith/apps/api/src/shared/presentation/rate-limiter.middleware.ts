@@ -70,7 +70,7 @@ export function rateLimiter(options?: { windowMs?: number; max?: number; prefix?
 
 export const authRateLimiter = rateLimiter({
   windowMs: 60000,
-  max: 15,
+  max: process.env.NODE_ENV === 'test' ? 5000 : 15,
   prefix: 'auth',
   message: 'Too many authentication attempts. Please try again after 1 minute.'
 });

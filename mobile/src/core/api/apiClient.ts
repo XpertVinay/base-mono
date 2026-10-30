@@ -3,6 +3,7 @@ import { ApiError } from './apiError';
 import { SessionManager } from '../auth/sessionManager';
 import { tenantRegistry } from '../tenant/tenantRegistry';
 import { TenantResolver } from '../tenant/tenantResolver';
+import { DeviceSecurity } from '../security/deviceSecurity';
 
 export interface ApiClientConfig {
   defaultTimeoutMs?: number;
@@ -53,12 +54,15 @@ export class ApiClient {
       }
     }
 
+    const deviceFingerprint = await DeviceSecurity.getDeviceFingerprint();
+
     // Default headers
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'X-Tenant-ID': tenant.tenantId,
       'X-Tenant-Slug': tenant.tenantSlug,
+      'X-Device-Fingerprint': deviceFingerprint,
       ...headers,
     };
 

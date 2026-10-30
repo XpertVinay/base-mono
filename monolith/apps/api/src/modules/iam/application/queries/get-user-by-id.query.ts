@@ -20,6 +20,7 @@ export class GetUserByIdQuery implements IQuery<{ id: string }, UserDto> {
         name: user.name,
         role: user.role,
         isActive: user.isActive,
+        mfaEnabled: user.mfaEnabled,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
       });

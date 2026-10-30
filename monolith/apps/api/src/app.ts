@@ -8,6 +8,9 @@ import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { registerAllModules } from './bootstrap/register-modules.js';
 import { registerRoutes } from './bootstrap/register-routes.js';
+import swaggerUi from 'swagger-ui-express';
+import { openApiSpec } from './infrastructure/docs/swagger-spec.js';
+import { tokenService } from './shared/infrastructure/token.service.js';
 
 export function createApp(): Express {
   const app = express();
@@ -23,7 +26,7 @@ export function createApp(): Express {
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         scriptSrcAttr: ["'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'blob:']
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://validator.swagger.io']
       }
     },
     crossOriginEmbedderPolicy: false
@@ -48,6 +51,36 @@ export function createApp(): Express {
   // Bootstrap & Register Modules and Routes
   const registry = registerAllModules();
   registerRoutes(app, registry);
+
+  // Standard OpenID Connect / RFC 7517 Discovery Endpoint (Root Level)
+  app.get('/.well-known/jwks.json', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.json(tokenService.getJwks());
+  });
+
+  // Interactive Swagger UI & OpenAPI Specification
+  app.get('/api-docs/swagger.json', (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Content-Type', 'application/json');
+    res.json(openApiSpec);
+  });
+  app.use(
+    '/api-docs',
+    (_req: Request, res: Response, next: NextFunction) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      next();
+    },
+    swaggerUi.serve,
+    swaggerUi.setup(openApiSpec, {
+      customSiteTitle: 'Monolith API Documentation',
+      customCss: '.swagger-ui .topbar { background-color: #0f172a; border-bottom: 2px solid #3b82f6; }'
+    })
+  );
+  app.get('/docs', (_req: Request, res: Response) => res.redirect('/api-docs'));
+  app.get('/swagger', (_req: Request, res: Response) => res.redirect('/api-docs'));
 
   // 404 Catch-All Route
   app.use((req: Request, _res: Response, next: NextFunction) => {

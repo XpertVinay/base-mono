@@ -1623,6 +1623,10 @@ A change to a mandatory architecture rule requires:
 
 The architecture must evolve in response to measured requirements, not speculative scale.
 
+# 28. Work Progress Report
+
+AI coding assistant should make updated reports for each section modified | changed | updated with respect to the tasks done with sprint wise mornitoring without any miss.
+
 ## Final Principle
 
 **Build a modular monolith with microservice-quality boundaries. Keep business rules independent of frameworks and infrastructure. Make important operations auditable, secure, testable, and observable. Extract services only when evidence justifies the operational cost.**

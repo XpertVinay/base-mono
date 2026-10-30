@@ -1,8 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { AppConfigDto } from '@monolith/contracts';
+import { AppConfigDto, ConfigTarget } from '@monolith/contracts';
 import { apiClient } from '../../../shared/api/api-client.js';
 import { useAuth } from '../../../shared/hooks/useAuth.js';
-import { Settings, ToggleLeft, ToggleRight, Plus, CreditCard, CheckCircle2 } from 'lucide-react';
+import { clientConfigCache } from '../services/config-cache.service.js';
+import {
+  Settings,
+  ToggleLeft,
+  ToggleRight,
+  Plus,
+  CreditCard,
+  CheckCircle2,
+  Cpu,
+  RefreshCw,
+  Trash2,
+  Layers
+} from 'lucide-react';
 
 const SUPPORTED_GATEWAYS = [
   { id: 'STRIPE', label: 'Stripe', desc: 'SCA & PaymentIntents Card Processing' },
@@ -17,8 +29,14 @@ export const ConfigView: React.FC = () => {
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newTarget, setNewTarget] = useState<ConfigTarget>('ALL');
+  const [newIsEncrypted, setNewIsEncrypted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Cache stats states
+  const [beCacheStats, setBeCacheStats] = useState<any>(null);
+  const [feCacheStats, setFeCacheStats] = useState(clientConfigCache.getStats());
 
   const fetchConfigs = async () => {
     const res = await apiClient.get<AppConfigDto[]>('/api/config');
@@ -27,9 +45,22 @@ export const ConfigView: React.FC = () => {
     }
   };
 
+  const fetchCacheStats = async () => {
+    if (isAdmin) {
+      const res = await apiClient.get<any>('/api/config/cache/stats');
+      if (res.success && res.data) {
+        setBeCacheStats(res.data);
+      }
+    }
+    setFeCacheStats(clientConfigCache.getStats());
+  };
+
   useEffect(() => {
     fetchConfigs();
-  }, []);
+    fetchCacheStats();
+    // Preload client configs in frontend cache
+    clientConfigCache.fetchConfigs();
+  }, [isAdmin]);
 
   const activeGateway = (
     configs.find(c => c.key.toUpperCase() === 'ACTIVE_PAYMENT_GATEWAY')?.value || 'STRIPE'
@@ -44,11 +75,14 @@ export const ConfigView: React.FC = () => {
     const res = await apiClient.post('/api/config', {
       key: 'ACTIVE_PAYMENT_GATEWAY',
       value: gatewayId,
-      description: 'Active payment gateway adapter (STRIPE, PAYPAL, RAZORPAY, MOCK)'
+      description: 'Active payment gateway adapter (STRIPE, PAYPAL, RAZORPAY, MOCK)',
+      target: 'ALL'
     });
     if (res.success) {
-      setMsg(`Active Payment Gateway switched to ${gatewayId}. All future transactions will route through this adapter.`);
+      setMsg(`Active Payment Gateway switched to ${gatewayId}. In-memory BE and FE caches updated.`);
+      clientConfigCache.invalidate();
       await fetchConfigs();
+      await fetchCacheStats();
     } else {
       alert(res.error?.message || 'Failed to update payment gateway config');
     }
@@ -64,11 +98,15 @@ export const ConfigView: React.FC = () => {
     const res = await apiClient.post('/api/config', {
       key: cfg.key,
       value: toggled,
-      description: cfg.description
+      description: cfg.description,
+      target: cfg.target || 'ALL',
+      isEncrypted: cfg.isEncrypted
     });
     if (res.success) {
-      setMsg(`Config '${cfg.key}' updated to ${toggled}`);
+      setMsg(`Config '${cfg.key}' updated to ${toggled}. Cache invalidated across BE & FE.`);
+      clientConfigCache.invalidate();
       await fetchConfigs();
+      await fetchCacheStats();
     } else {
       alert(res.error?.message || 'Update failed');
     }
@@ -84,29 +122,56 @@ export const ConfigView: React.FC = () => {
     const res = await apiClient.post('/api/config', {
       key: newKey,
       value: newValue,
-      description: newDesc
+      description: newDesc,
+      target: newTarget,
+      isEncrypted: newIsEncrypted
     });
     if (res.success) {
-      setMsg(`Config '${newKey}' added successfully!`);
+      setMsg(`Config '${newKey}' added successfully and cached!`);
       setNewKey('');
       setNewValue('');
       setNewDesc('');
+      setNewTarget('ALL');
+      setNewIsEncrypted(false);
+      clientConfigCache.invalidate();
       await fetchConfigs();
+      await fetchCacheStats();
     } else {
       alert(res.error?.message || 'Failed to save config');
     }
     setLoading(false);
   };
 
+  const handlePurgeBackendCache = async () => {
+    if (!isAdmin) return;
+    setLoading(true);
+    const res = await apiClient.post('/api/config/cache/invalidate', {});
+    if (res.success) {
+      setMsg('Backend in-memory configuration cache purged successfully.');
+      await fetchCacheStats();
+    }
+    setLoading(false);
+  };
+
+  const handleSyncFrontendCache = async () => {
+    setLoading(true);
+    clientConfigCache.invalidate();
+    await clientConfigCache.fetchConfigs(true);
+    setFeCacheStats(clientConfigCache.getStats());
+    setMsg('Frontend configuration cache synchronized with backend.');
+    setLoading(false);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header */}
       <div className="glass-panel" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
           <Settings size={22} color="var(--brand-primary)" />
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Runtime Configuration & Feature Flags</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Configuration Management & Multi-Tier Caching</h2>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-          Dynamic platform settings validated at runtime. Modifications are secured with role-based authorization (ADMIN required).
+          Database-backed configurations with high-performance in-memory caching on the Backend and local storage stale-while-revalidate caching on the Frontend.
         </p>
       </div>
 
@@ -116,6 +181,89 @@ export const ConfigView: React.FC = () => {
         </div>
       )}
 
+      {/* Caching Architecture Status Panels */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        {/* Backend Cache Card */}
+        <div className="glass-panel" style={{ padding: '20px', borderTop: '4px solid #6366f1' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Cpu size={18} color="#6366f1" />
+              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Backend Cache (In-Memory)</h3>
+            </div>
+            <span className="badge badge-info" style={{ fontSize: '0.75rem' }}>O(1) Memory</span>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+            Decorates Postgres repository with automatic TTL expiration, pre-warming on boot, and write-through cache invalidation.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.8rem', background: 'rgba(15, 23, 42, 0.4)', padding: '12px', borderRadius: 'var(--radius-md)', marginBottom: '12px' }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Cache Hits:</span>{' '}
+              <strong style={{ color: '#10b981' }}>{beCacheStats?.hits ?? 0}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Cache Misses:</span>{' '}
+              <strong style={{ color: '#f59e0b' }}>{beCacheStats?.misses ?? 0}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Hit Ratio:</span>{' '}
+              <strong>{beCacheStats ? `${(beCacheStats.hitRatio * 100).toFixed(1)}%` : 'N/A'}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Cached Keys:</span>{' '}
+              <strong style={{ color: '#6366f1' }}>{beCacheStats?.size ?? configs.length}</strong>
+            </div>
+          </div>
+          {isAdmin && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handlePurgeBackendCache}
+              disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem' }}
+            >
+              <Trash2 size={14} /> Purge BE In-Memory Cache
+            </button>
+          )}
+        </div>
+
+        {/* Frontend Cache Card */}
+        <div className="glass-panel" style={{ padding: '20px', borderTop: '4px solid #10b981' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Layers size={18} color="#10b981" />
+              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Frontend Cache (Client & LocalStorage)</h3>
+            </div>
+            <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>Zero-Latency</span>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+            Caches client-facing configs (FRONTEND & ALL) in memory and persistent storage using Stale-While-Revalidate.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.8rem', background: 'rgba(15, 23, 42, 0.4)', padding: '12px', borderRadius: 'var(--radius-md)', marginBottom: '12px' }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Cached Items:</span>{' '}
+              <strong style={{ color: '#10b981' }}>{feCacheStats.size}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Initialized:</span>{' '}
+              <strong>{feCacheStats.isInitialized ? 'Yes' : 'Pending'}</strong>
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Last Synced:</span>{' '}
+              <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                {feCacheStats.lastFetchedAt ? new Date(feCacheStats.lastFetchedAt).toLocaleTimeString() : 'Never'}
+              </span>
+            </div>
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleSyncFrontendCache}
+            disabled={loading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem' }}
+          >
+            <RefreshCw size={14} /> Sync FE Client Cache
+          </button>
+        </div>
+      </div>
+
       {/* Payment Gateway Adapter Switcher */}
       <div className="glass-panel" style={{ padding: '24px', borderLeft: '4px solid var(--brand-primary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
@@ -124,7 +272,7 @@ export const ConfigView: React.FC = () => {
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Payment Gateway Adapter Selection</h3>
           </div>
           <span className="badge badge-info" style={{ fontFamily: 'var(--font-mono)' }}>
-            DB FLAG: ACTIVE_PAYMENT_GATEWAY
+            CACHED FLAG: ACTIVE_PAYMENT_GATEWAY
           </span>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '20px' }}>
@@ -159,7 +307,7 @@ export const ConfigView: React.FC = () => {
                 </div>
                 {isSelected && (
                   <div style={{ marginTop: '8px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--status-success)' }}>
-                    ● ACTIVE IN DATABASE
+                    ● ACTIVE IN DB & CACHES
                   </div>
                 )}
               </div>
@@ -168,13 +316,17 @@ export const ConfigView: React.FC = () => {
         </div>
       </div>
 
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
         {/* Settings List */}
         <div className="glass-panel" style={{ padding: '24px' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px' }}>
-            Active Settings ({configs.length})
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+              Active Settings ({configs.length})
+            </h3>
+            <button className="btn btn-secondary btn-sm" onClick={fetchConfigs} disabled={loading}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {configs.map(cfg => (
               <div
@@ -186,11 +338,31 @@ export const ConfigView: React.FC = () => {
                   border: '1px solid var(--border-color)',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  gap: '12px'
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{cfg.key}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{cfg.key}</span>
+                    <span
+                      className="badge"
+                      style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 6px',
+                        background: cfg.target === 'FRONTEND' ? 'rgba(16, 185, 129, 0.2)' : cfg.target === 'BACKEND' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(99, 102, 241, 0.2)',
+                        color: cfg.target === 'FRONTEND' ? '#10b981' : cfg.target === 'BACKEND' ? '#f87171' : '#818cf8',
+                        border: '1px solid currentColor'
+                      }}
+                    >
+                      {cfg.target || 'ALL'}
+                    </span>
+                    {cfg.isEncrypted && (
+                      <span className="badge badge-warning" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                        ENCRYPTED
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{cfg.description || 'No description'}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                     Value: <strong style={{ color: 'var(--brand-accent)' }}>{cfg.value}</strong>
@@ -262,6 +434,35 @@ export const ConfigView: React.FC = () => {
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}
               />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                  Target / Scope
+                </label>
+                <select
+                  className="input-field"
+                  value={newTarget}
+                  onChange={e => setNewTarget(e.target.value as ConfigTarget)}
+                >
+                  <option value="ALL">ALL (BE & FE Cache)</option>
+                  <option value="FRONTEND">FRONTEND (Client Cache)</option>
+                  <option value="BACKEND">BACKEND (Server Only)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '22px' }}>
+                <input
+                  type="checkbox"
+                  id="isEncrypted"
+                  checked={newIsEncrypted}
+                  onChange={e => setNewIsEncrypted(e.target.checked)}
+                />
+                <label htmlFor="isEncrypted" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Is Encrypted
+                </label>
+              </div>
             </div>
 
             <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }} disabled={loading}>

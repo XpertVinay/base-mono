@@ -9,8 +9,16 @@ export interface UserProps {
   name: string;
   role: UserRole;
   isActive: boolean;
+  tenantId?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  mfaEnabled?: boolean;
+  mfaSecret?: string | null;
+  mfaBackupCodes?: string[];
+  mfaEnrolledAt?: Date | null;
+  mfaLastVerifiedAt?: Date | null;
+  ssoProvider?: string | null;
+  ssoSubjectId?: string | null;
 }
 
 export class User extends AggregateRoot<UserProps> {
@@ -34,6 +42,10 @@ export class User extends AggregateRoot<UserProps> {
     return this.props.role;
   }
 
+  get tenantId(): string | null {
+    return this.props.tenantId ?? null;
+  }
+
   get isActive(): boolean {
     return this.props.isActive;
   }
@@ -46,12 +58,92 @@ export class User extends AggregateRoot<UserProps> {
     return this.props.updatedAt;
   }
 
+  get mfaEnabled(): boolean {
+    return this.props.mfaEnabled ?? false;
+  }
+
+  get mfaSecret(): string | null {
+    return this.props.mfaSecret ?? null;
+  }
+
+  get mfaBackupCodes(): string[] {
+    return this.props.mfaBackupCodes ?? [];
+  }
+
+  get mfaEnrolledAt(): Date | null {
+    return this.props.mfaEnrolledAt ?? null;
+  }
+
+  get mfaLastVerifiedAt(): Date | null {
+    return this.props.mfaLastVerifiedAt ?? null;
+  }
+
+  get ssoProvider(): string | null {
+    return this.props.ssoProvider ?? null;
+  }
+
+  get ssoSubjectId(): string | null {
+    return this.props.ssoSubjectId ?? null;
+  }
+
+  public enableMfa(secret: string, backupCodes: string[]): void {
+    const now = new Date();
+    this.props.mfaEnabled = true;
+    this.props.mfaSecret = secret;
+    this.props.mfaBackupCodes = backupCodes;
+    this.props.mfaEnrolledAt = now;
+    this.props.mfaLastVerifiedAt = now;
+    this.props.updatedAt = now;
+  }
+
+  public disableMfa(): void {
+    this.props.mfaEnabled = false;
+    this.props.mfaSecret = null;
+    this.props.mfaBackupCodes = [];
+    this.props.mfaEnrolledAt = null;
+    this.props.mfaLastVerifiedAt = null;
+    this.props.updatedAt = new Date();
+  }
+
+  public recordMfaVerification(): void {
+    const now = new Date();
+    this.props.mfaLastVerifiedAt = now;
+    this.props.updatedAt = now;
+  }
+
+  public consumeBackupCode(codeHash: string): boolean {
+    const codes = this.props.mfaBackupCodes || [];
+    const index = codes.indexOf(codeHash);
+    if (index === -1) {
+      return false;
+    }
+    codes.splice(index, 1);
+    this.props.mfaBackupCodes = codes;
+    this.recordMfaVerification();
+    return true;
+  }
+
+  public setSso(provider: string, subjectId: string): void {
+    this.props.ssoProvider = provider;
+    this.props.ssoSubjectId = subjectId;
+    this.props.updatedAt = new Date();
+  }
+
+  public isMfaSessionValid(maxAgeMs: number = 24 * 3600 * 1000): boolean {
+    if (!this.props.mfaEnabled) return true;
+    if (!this.props.mfaLastVerifiedAt) return false;
+    return Date.now() - this.props.mfaLastVerifiedAt.getTime() <= maxAgeMs;
+  }
+
   public static create(
     email: string,
     password: Password,
     name: string,
     role: UserRole = 'USER',
-    id?: string
+    id?: string,
+    ssoProvider?: string | null,
+    ssoSubjectId?: string | null,
+    tenantId?: string | null
   ): User {
     const userId = id || uuidv4();
     const now = new Date();
@@ -62,8 +154,16 @@ export class User extends AggregateRoot<UserProps> {
       name,
       role,
       isActive: true,
+      tenantId: tenantId || null,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      mfaEnabled: false,
+      mfaSecret: null,
+      mfaBackupCodes: [],
+      mfaEnrolledAt: null,
+      mfaLastVerifiedAt: null,
+      ssoProvider: ssoProvider || null,
+      ssoSubjectId: ssoSubjectId || null
     });
 
     user.addDomainEvent({

@@ -12,6 +12,11 @@ export function registerRoutes(app: Express, registry: ModuleRegistryResult): vo
   // Business Modules API Prefixes
   const apiRouter = Router();
 
+  // Database-Configured In-Memory Cached MFA Re-verification Guard
+  if (registry.mfaMiddleware) {
+    apiRouter.use(registry.mfaMiddleware);
+  }
+
   apiRouter.use('/iam', routers.iam);
   apiRouter.use('/assets', routers.asset);
   apiRouter.use('/config', routers.config);

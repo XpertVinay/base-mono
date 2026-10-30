@@ -1420,3 +1420,30 @@ The product should be built around five foundations:
 5. **Sustainability:** Reliable local operations and a commercially viable recurring service model.
 
 The initial release should focus on delivering dependable property caretaking in a limited geographic area before expanding into a broader real estate marketplace or advanced automation platform.
+
+---
+
+## 25. Enterprise Multi-Tenant SaaS Architecture & Security Hardening
+
+### 25.1 Mandatory Multi-Tenant SaaS Foundation
+The platform must maintain a strict, end-to-end **multi-tenant architecture** across all layers (API, database, background workers, microfrontends, and mobile clients).
+* **Strategic Objective**: To onboard any enterprise organization (property management firms, real estate developers, facilities managers, or adjacent service industries) onto our SaaS platform.
+* **Unified SSO & Login Flow**: Organizations operate securely from the common platform utilizing our services without requiring bespoke login portals or duplicate authentication systems.
+* **Tenant Isolation**: Every request, audit log, configuration override, and domain entity is strictly segregated by `tenant_id` and `tenant_slug`. Tenant boundaries are verified on the backend and cannot be bypassed by client-supplied claims.
+
+### 25.2 Cryptographic Token Architecture: Asymmetric JWT (RS256)
+To support multi-tenancy and high performance at scale, the identity architecture transitions from purely symmetric secrets to **Asymmetric Cryptography (RS256 / JWKS)**:
+1. **Public Key Verification (Zero-Trust Services)**: Tenant microfrontends, mobile apps, third-party partner integrations, and backend services can verify user authenticity and tenant membership using published public keys (`/.well-known/jwks.json`), eliminating the risk of sharing master symmetric keys.
+2. **Federation & Enterprise SSO**: Compatible with standard OpenID Connect (OIDC) identity federation across Azure AD, Okta, and Google Workspace.
+3. **Tenant Context in Claims**: Asymmetric tokens carry `tenantId`, `role`, and anti-hijacking client fingerprint (`fgp`), allowing instant stateless verification across distributed nodes.
+
+### 25.3 Client-Side Hardening & Anti-Hijacking Protections
+* **Mobile (iOS & Android)**:
+  - Hardware-backed secure storage via iOS Keychain (Secure Enclave) and Android KeyStore (TEE/StrongBox).
+  - Automatic `X-Device-Fingerprint` and `X-Tenant-ID` injection on all API requests.
+  - Zero plain-text token leakage, cache hygiene on logout, and certificate pinning defenses.
+* **Web Client**:
+  - Device-bound fingerprinting headers (`X-Device-Fingerprint`) generated from client context.
+  - Multi-tenant tenant slug routing and support for hardened session storage (`httpOnly`, `Secure`, `SameSite=Strict` cookies).
+  - OWASP Top 10 compliance: Strict CSP headers, parameterized SQL, and Zod input validation to prevent token exfiltration.
+

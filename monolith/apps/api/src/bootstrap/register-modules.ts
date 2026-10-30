@@ -37,6 +37,7 @@ export interface ModuleRegistryResult {
     finance: Router;
   };
   gatewayController: any;
+  mfaMiddleware?: any;
 }
 
 export function registerAllModules(): ModuleRegistryResult {
@@ -96,6 +97,7 @@ export function registerAllModules(): ModuleRegistryResult {
       document: document.router,
       finance: finance.router
     },
-    gatewayController: gateway.controller
+    gatewayController: gateway.controller,
+    mfaMiddleware: iam.mfaMiddleware
   };
 }

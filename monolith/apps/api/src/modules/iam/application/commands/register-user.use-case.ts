@@ -35,7 +35,16 @@ export class RegisterUserUseCase implements IUseCase<RegisterRequestDto, UserDto
       const hashedVo = Password.fromHashed(passwordHash);
 
       // 3. Create domain entity
-      const user = User.create(input.email, hashedVo, input.name, input.role || 'USER');
+      const user = User.create(
+        input.email,
+        hashedVo,
+        input.name,
+        input.role || 'USER',
+        undefined,
+        null,
+        null,
+        input.tenantId
+      );
 
       // 4. Save through repository
       await this.userRepository.save(user);
@@ -58,7 +67,9 @@ export class RegisterUserUseCase implements IUseCase<RegisterRequestDto, UserDto
         email: user.email,
         name: user.name,
         role: user.role,
+        tenantId: user.tenantId || undefined,
         isActive: user.isActive,
+        mfaEnabled: user.mfaEnabled,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
       };

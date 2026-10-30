@@ -9,6 +9,7 @@ async function bootstrap() {
   const server = app.listen(env.PORT, env.HOST, () => {
     logger.info(`🚀 SOLID Modular Monolith API running at http://${env.HOST}:${env.PORT}`);
     logger.info(`📊 Health check: http://${env.HOST}:${env.PORT}/health`);
+    logger.info(`📚 Swagger UI API Docs: http://${env.HOST}:${env.PORT}/api-docs`);
     logger.info(`🛡️ Environment: ${env.NODE_ENV}`);
   });
 
