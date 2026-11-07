@@ -34,8 +34,8 @@ Development adheres to four foundational rules:
 | **Sprint 04** | **Dynamic RBAC & Scoped Auth** | Platform Foundation | `COMPLETED` | Tenant-scoped permissions, custom roles, `requirePermission` guard middleware, 18/18 tests passed |
 | **Sprint 05** | **Asset Management** | Reusable Capabilities | `COMPLETED` | Two-phase upload lifecycle, MIME validation, storage ports, 20/20 tests passed |
 | **Sprint 06** | **Storage Adapters** | Reusable Capabilities | `COMPLETED` | Cloud storage adapters (AWS S3, GCS), StorageProviderFactory, Docker storage volume, anti-traversal defense, 24/24 tests passed |
-| **Sprint 07** | **Inventory Management** | Reusable Capabilities | `ACTIVE` | Stock items, reservations, atomic release, multi-tenant inventory ledger |
-| **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `PLANNED` | Order lifecycle, pricing calculation |
+| **Sprint 07** | **Inventory Management** | Reusable Capabilities | `COMPLETED` | Multi-tenant stock items, optimistic concurrency control (`version`), two-phase reservations, 18/18 tests passed |
+| **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `ACTIVE` | Order lifecycle, multi-tenant pricing calculation, inventory reservation linkage |
 | **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `PLANNED` | Multi-gateway payment routing, webhooks |
 | **Sprint 10** | **Shared Services** | Reusable Capabilities | `PLANNED` | Notifications, scheduler, search index |
 | **Sprint 11** | **Property Domain Foundation** | Property Domain | `PLANNED` | Property registry, Address VO, emergency float limits |
@@ -55,6 +55,7 @@ Development adheres to four foundational rules:
 - `pnpm typecheck`: 0 errors across all workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
 - `pnpm test:arch`: 3/3 tests passed (`module-boundaries.test.ts`).
 - `pnpm test:security`: 5/5 tests passed (`security-controls.test.ts`).
+- `inventory-concurrency.test.ts`: 18/18 tests passed (Sprint 07).
 - `storage-adapters.test.ts`: 24/24 tests passed (Sprint 06).
 - `asset-management.test.ts`: 20/20 tests passed (Sprint 05).
 - `dynamic-rbac.test.ts`: 18/18 tests passed (Sprint 04).

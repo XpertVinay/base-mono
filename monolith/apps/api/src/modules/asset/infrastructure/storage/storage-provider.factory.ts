@@ -134,3 +134,4 @@ export class StorageProviderFactory {
     return StorageProviderFactory.create(baseOptions);
   }
 }
+

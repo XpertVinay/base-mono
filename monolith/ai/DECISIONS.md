@@ -82,3 +82,8 @@
 - **Decision:** Implement native Node.js crypto-based AWS Signature Version 4 (SigV4) in `S3StorageProvider` and Google Cloud V4 signed URL generator in `GcsStorageProvider`. Deliver `StorageProviderFactory` supporting dynamic runtime environment resolution, tenant-specific bucket overrides, container-mounted Docker volumes (`/data/storage/uploads`), and strict anti-directory traversal sanitization (`sanitizeStorageKey`).
 - **Consequences:** Zero external cloud SDK bloat, 100% offline unit and integration test execution, pluggable cloud migration, and multi-tenant path isolation.
 
+### Decision 010: Multi-Tenant Inventory Ledger & Optimistic Concurrency Control
+- **Context:** In maintenance operations and property caretaking, multiple caretakers, contractors, or staging coordinators may simultaneously attempt to reserve spare parts, lockbox keys, or emergency repair equipment. Race conditions lead to phantom allocations and overselling.
+- **Decision:** Implement strict optimistic concurrency control via a `version` column in `inventory.inventory_items`. Any stock reservation, release, commit, or quantity adjustment verifies the expected version and increments it atomically. Mutations failing version checks return a 409 Conflict error. Scope stock uniquely per tenant `(tenant_id, sku)`. Implement a two-phase reservation lifecycle (`RESERVE` -> `COMMIT` | `RELEASE`) ensuring `availableQuantity = totalQuantity - reservedQuantity >= 0` invariant is mathematically preserved.
+- **Consequences:** Eliminates distributed locking overhead while preventing overselling and lost updates under concurrent reservations.
+

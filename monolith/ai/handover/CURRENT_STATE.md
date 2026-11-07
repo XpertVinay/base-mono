@@ -87,6 +87,11 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - **Anti-Directory Traversal & Tenant Path Isolation (`storage-path.util.ts`)**: Strict path sanitization eliminating `../` traversal tokens and null bytes, enforcing multi-tenant directory partitioning (`tenants/${tenantId}/${category}/...`), and throwing `StoragePathValidationError` on boundary violations.
 - **Docker Persistent Volume Mount**: Configured `monolith_storage` volume mapped to `/data/storage/uploads` across root and infrastructure Compose definitions.
 
+### 10. Multi-Tenant Inventory Ledger & Optimistic Concurrency (`inventory`)
+- **Multi-Tenant Data Partitioning**: Scoped by `tenant_id` with compound unique index `(tenant_id, sku)`; Tenant B is strictly quarantined from viewing, reserving, or modifying Tenant A's stock.
+- **Optimistic Concurrency Control**: Entity versioning on `inventory.inventory_items` eliminating race conditions during simultaneous reservations; stale writes safely rejected with 409 Conflict.
+- **Two-Phase Reservation Lifecycle**: `RESERVE` decrements available and increments reserved; `RELEASE` returns quantity to available pool; `COMMIT` permanently debits reserved stock upon physical dispatch. Mathematical invariant `availableQuantity = totalQuantity - reservedQuantity >= 0` is guaranteed.
+
 ---
 
 ## 3. Latest Verification & Quality Gate Results
@@ -96,6 +101,8 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
   - No cross-module internal file imports.
   - Domain layer completely isolated from Express, pg, or HTTP dependencies.
   - All modules export a clean top-level `index.ts`.
+- **Inventory Concurrency & Isolation Suite (`inventory-concurrency.test.ts`)**: 18/18 tests passed.
+  - Stock mathematical equilibrium invariant, multi-tenant SKU isolation, optimistic locking version conflicts, two-phase reservation lifecycle, and public API.
 - **Cloud Storage Adapters Test Suite (`storage-adapters.test.ts`)**: 24/24 tests passed.
   - StorageProviderFactory dynamic resolution, validation, and tenant bucket overrides.
   - AWS S3 SigV4 presigned upload and download URLs, TTL expiration, and custom endpoints.
@@ -166,8 +173,9 @@ In strict adherence to the project's core engineering principles:
 - **Sprint 04 (Dynamic RBAC & Scoped Authorization)**: `COMPLETED & VERIFIED` (Dynamic roles, tenant-scoped permissions, `requirePermission` guard, 18/18 tests passing).
 - **Sprint 05 (Asset Management Foundation)**: `COMPLETED & VERIFIED` (Two-phase presigned upload lifecycle, MIME validation, storage ports, 20/20 tests passing).
 - **Sprint 06 (Cloud Storage Adapters: AWS S3 & GCS)**: `COMPLETED & VERIFIED` (AWS S3 SigV4, GCS V4, StorageProviderFactory, Docker volume, 24/24 tests passing).
-- **Sprint 07 (Property Portfolio Core Domain & Multi-Tenant Registry)**: `ACTIVE / READY FOR IMPLEMENTATION` (Detailed specification defined in `ai/sprints/SPRINT_07.md`).
+- **Sprint 07 (Multi-Tenant Inventory & Concurrency)**: `COMPLETED & VERIFIED` (Multi-tenant inventory, optimistic locking versioning, two-phase reservations, 18/18 tests passing).
+- **Sprint 08 (Orders & Fulfillment Core Domain)**: `ACTIVE / READY FOR IMPLEMENTATION` (Detailed specification defined in `ai/sprints/SPRINT_08.md`).
 
 ### Immediate Next Single Action:
-1. **Execute Sprint 07**: Extend the `property` module with multi-tenant organization context (`tenant_id`), emergency float limit validation, address value objects, and automated domain test coverage.
+1. **Execute Sprint 08**: Implement multi-tenant order lifecycle, pricing calculation, inventory integration, and automated test coverage.
 

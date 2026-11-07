@@ -5,6 +5,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.4.0] - 2026-11-07
+
+### Added
+- **Multi-Tenant Inventory Ledger & Optimistic Concurrency Control (Sprint 07)**:
+  - Database migration `009_inventory_multitenancy_and_concurrency.sql` adding `tenant_id`, `name`, `category`, and `version` columns to `inventory.inventory_items`, compound unique index on `(tenant_id, sku)`, and `inventory.inventory_reservations` audit table.
+  - Enhanced domain entity `InventoryItem` with optimistic concurrency version tracking, mathematical stock equilibrium invariant (`availableQuantity = totalQuantity - reservedQuantity >= 0`), and two-phase lifecycle methods (`reserve`, `release`, `commit`, `adjustStock`).
+  - Implemented application use cases: `CreateInventoryItemUseCase`, `GetInventoryItemQuery`, `ListInventoryQuery`, `ReserveStockUseCase`, `ReleaseStockUseCase`, and `CommitStockUseCase`.
+  - Presentation HTTP endpoints:
+    - `POST /api/inventory/items`: Create stock item with tenant scoping.
+    - `GET /api/inventory/items`: Paginated listing of tenant inventory.
+    - `GET /api/inventory/items/:productId`: Retrieve single stock item with tenant boundary checks.
+    - `POST /api/inventory/reserve`: Atomically reserve items with optimistic locking version check.
+    - `POST /api/inventory/release`: Release reserved items.
+    - `POST /api/inventory/commit`: Commit reserved items to consumed state.
+  - Dedicated automated test suite `apps/api/src/tests/unit/inventory-concurrency.test.ts` with 18/18 passing tests verifying invariants, multi-tenant SKU isolation, optimistic locking version conflicts, two-phase reservation lifecycle, and public API.
+
+---
+
 ## [1.3.0] - 2026-11-07
 
 ### Added
