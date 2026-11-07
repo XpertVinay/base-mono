@@ -2,6 +2,7 @@ import { NotificationChannel, NotificationProvider } from '@monolith/contracts';
 
 export interface SendNotificationInput {
   id: string;
+  tenantId?: string;
   recipient: string;
   channel: NotificationChannel;
   subject: string;
@@ -25,6 +26,7 @@ export interface SendNotificationOutput {
 
 export interface DryRunNotificationRecord {
   id: string;
+  tenantId?: string;
   notificationId: string;
   recipient: string;
   channel: NotificationChannel;

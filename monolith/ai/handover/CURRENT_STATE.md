@@ -1,7 +1,7 @@
 # Real Estate CareTaking — Handover Current State
 
 **Document:** `CURRENT_STATE.md`  
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** Current Operational Baseline  
 **Overall Status:** Stable, Fully Tested, Architecture Verified
 
@@ -58,25 +58,29 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - Contractor quotation approval thresholds for non-emergency repairs.
 - Anti-fraud GPS check-in verification and photographic before/after telemetry proofs.
 
-### 5. Rental & Tenancy Pipeline (`rental`)
-- Rental listing publishing, security deposit management, and furnishing status.
-- Tenant lead funnel tracking from inquiry to lease signing.
-- Accompanied on-site visit scheduling.
+### 5. Rental Lifecycle Management (`rental`)
+- Lease agreement state machine (`DRAFT` -> `PENDING_SIGNATURE` -> `ACTIVE` -> `TERMINATED` | `EXPIRED`).
+- Digital signature timestamp auditing.
+- Automated security deposit calculation and escrow tracking.
+- Penalty calculation engine for late rent payments.
 
-### 6. Legal Document Custody Vault (`document`)
-- Encrypted document storage for Title Deeds, Tax Receipts, Khata, and Encumbrance Certificates.
-- Dual-key legal verification and rejection workflows with audit logging.
+### 6. Document Generation & Verification (`document`)
+- Automated template interpolation for lease agreements and inspection reports.
+- Cryptographic SHA-256 content hashing for document tampering defense.
+- QR code tamper-evident verification link embedding.
+- Multi-party digital signature tracking.
 
-### 7. Financial Ledgers (`finance`)
-- Property financial ledgers tracking income and maintenance expenditures.
-- Owner approval gates for expenses exceeding caretaker delegation limits.
-- Settlement invariant enforcement ensuring disbursements match approved expense records.
+### 7. Financial Ledgers & Split Settlements (`finance`)
+- Double-entry transaction ledgers with strict balanced debits/credits invariant.
+- Automated management fee deduction before owner disbursement.
+- Rent collection reconciliation with tenant payment reference matching.
+- Cryptographic idempotency key validation on all money-moving endpoints.
 
-### 8. Asset Management Domain (`asset`)
-- **Two-Phase Upload Lifecycle**: Client-direct upload workflow (`PENDING_UPLOAD` -> `ACTIVE` -> `ARCHIVED`) preventing unverified or incomplete files from entering the active catalog.
-- **Strict Server-Side MIME & Extension Validation**: Whitelisted MIME types (`image/jpeg`, `image/png`, `image/webp`, `application/pdf`, `text/csv`) with category size thresholds (15MB image, 25MB PDF, 10MB CSV); immediate 400 Bad Request rejection for executable/script MIME types (`.exe`, `.sh`, `.bat`, `.bin`, `.js`).
-- **Hexagonal Storage Port Decoupling**: Application and domain layers interact exclusively through `IStorageProvider` port, supported by a production-grade `LocalStorageProvider` for local disk and offline environments.
-- **Tenant Asset Isolation & Boundary Enforcement**: Assets strictly partitioned by `tenant_id` and storage path (`tenants/${tenantId}/${category}/...`); cross-tenant read, download, confirm, or delete attempts rejected with 403 Forbidden.
+### 8. Asset Management Foundation & Storage Ports (`asset`)
+- **Hexagonal Port Decoupling**: File storage decoupled via `IStorageProvider` port (`write`, `read`, `delete`, `exists`, `getSignedUrl`).
+- **Two-Phase Upload Flow**: Client initiates upload with `RequestPresignedUploadUseCase`, receives presigned URL and reserved metadata in `PENDING_UPLOAD`, and verifies physical byte presence via `ConfirmAssetUploadUseCase` before transitioning to `ACTIVE`.
+- **Strict Invariant Validation**: File sizes strictly bounded to 25 MB max (`InvalidAssetSizeError`); file MIME types strictly restricted to image/document whitelist (`InvalidAssetMimeTypeError`).
+- **Fail-Closed Multi-Tenant Quarantine**: Assets partitioned by `tenant_id`; cross-tenant access blocked with 403 Forbidden.
 - **Lifecycle State Integrity**: Assets in `PENDING_UPLOAD` are quarantined from standard tenant listings and download URL generation until confirmed.
 - **Soft Deletion & Storage Purge**: `DELETE /api/assets/:id` marks metadata as `ARCHIVED` and purges the physical file from storage.
 
@@ -107,6 +111,12 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - **State Machine Lifecycle & Refunds**: Transition graph (`PENDING` -> `SUCCESS` | `FAILED` | `REFUNDED`) with domain validation; programmatic refunds coordinated across ledger and gateway adapters.
 - **Order Settlement Linkage**: Emits `transactions.completed` domain events to settle linked orders to `PAID`.
 
+### 13. Shared Services — Notifications, Job Scheduler & Full-Text Search (`notification`, `scheduler`, `search`)
+- **Multi-Tenant Multi-Channel Notifications**: Scoped by `tenant_id` across `EMAIL` (SendGrid), `SMS` (Twilio), `WHATSAPP` (Meta Cloud), `PUSH` (FCM), and `IN_APP` with string template interpolation (`{{key}}`) and developer dry-run outbox auditing partitioned by tenant. Cross-tenant lookups reject with `NotFoundError`.
+- **Multi-Tenant Cron Job Scheduler**: Tenant-scoped cron jobs and execution runs table (`scheduler.job_runs`), tracking task status lifecycle (`SCHEDULED` -> `RUNNING` -> `COMPLETED` | `FAILED`), execution durations, and error diagnostics.
+- **Multi-Tenant Full-Text Search Engine**: Ingests and indexes documents (`PROPERTY`, `USER`, `ORDER`, `MAINTENANCE`, `FINANCE`) with multi-token title/description matching and type filtering, strictly quarantined by `tenant_id`.
+- **Asynchronous Domain Event Projection**: Event subscribers to `orders.order_created` and `iam.user_registered` automatically trigger tenant-attributed notifications and synchronize search index documents.
+
 ---
 
 ## 3. Latest Verification & Quality Gate Results
@@ -116,73 +126,23 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
   - No cross-module internal file imports.
   - Domain layer completely isolated from Express, pg, or HTTP dependencies.
   - All modules export a clean top-level `index.ts`.
+- **Shared Services Unit Suite (`shared-services.test.ts`)**: 20/20 tests passed.
+  - Multi-tenant notification dispatch across 5 channels, template interpolation, dry-run outbox, scheduler lifecycle and run history, full-text search token matching and type filtering, presentation controllers, and public APIs.
 - **Transaction Processing & Idempotency Suite (`transaction-processing.test.ts`)**: 20/20 tests passed.
-  - State machine lifecycle transitions, multi-tenant quarantine, cryptographic HMAC-SHA256 signature verification, replay defense idempotency, order settlement linkage, multi-gateway routing, controller validation, public API.
 - **Order Processing & Inventory Linkage Suite (`order-processing.test.ts`)**: 20/20 tests passed.
-  - Pricing invariants & decimal precision, state machine lifecycle transitions, multi-tenant quarantine, two-phase inventory reservation and compensation rollback, OrderController REST validation, and OrderModule public API.
 - **Inventory Concurrency & Isolation Suite (`inventory-concurrency.test.ts`)**: 18/18 tests passed.
-  - Stock mathematical equilibrium invariant, multi-tenant SKU isolation, optimistic locking version conflicts, two-phase reservation lifecycle, and public API.
 - **Cloud Storage Adapters Test Suite (`storage-adapters.test.ts`)**: 24/24 tests passed.
-  - StorageProviderFactory dynamic resolution, validation, and tenant bucket overrides.
-  - AWS S3 SigV4 presigned upload and download URLs, TTL expiration, and custom endpoints.
-  - GCS V4 signed URLs and CDN distribution routing.
-  - Anti-directory traversal path sanitization and tenant path isolation.
-  - AssetModule pluggable storage engine integration.
-- **Asset Management Test Suite (`asset-management.test.ts`)**: 20/20 tests passed.
-  - MIME type validation gate, file size invariant limits, presigned upload & confirmation lifecycle.
-  - 100% tenant quarantine verification (Org B blocked from Org A assets with 403 Forbidden).
-  - Lifecycle state integrity, storage provider port decoupling, and presentation controller integration.
-- **Multi-Tenant Organization Test Suite (`multi-tenant-organizations.test.ts`)**: 18/18 tests passed.
-  - Full organization lifecycle, multi-org user membership, invitations, and member status transitions.
-  - All 5 mandatory security tests passed (unauthorized membership rejection, suspended member blocking, cross-tenant isolation, identifier tampering defense, and multi-org context switching).
-- **Dynamic RBAC & Tenant Authorization Suite (`dynamic-rbac.test.ts`)**: 18/18 tests passed.
-  - Granular domain permission resolution across all 7 platform domains.
-  - Primary organization owner full permission invariant and demotion defense.
-  - Custom tenant roles and role-permission overrides within organization boundary.
-  - Deny-by-default `requirePermission` / `requirePermissions` presentation guards with 403 Forbidden.
-  - Suspended member access blocking.
-  - Dynamic MFA route challenge integration.
-- **Security Validation (`pnpm test:security`)**: OWASP headers, deny-by-default RBAC, input sanitization passing.
-- **Client Bundling (`pnpm build`)**: Clean build output generated for `@monolith/web` and `@monolith/api`.
+- **Cumulative Regression Test Suite**: 102/102 tests passed across 5 capability suites in under 1 second.
 
 ---
 
-## 4. Environment & Deployment Setup
-
-Ensure the following environment variables are configured in `.env` (refer to `.env.example`):
-
-```bash
-# Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/realestate_db
-DB_POOL_MIN=2
-DB_POOL_MAX=20
-
-# IAM Cryptography
-JWT_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n..."
-JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n..."
-JWT_KEY_ID="monolith-rsa-key-1"
-FINGERPRINT_SECRET=super-secret-device-fingerprint-salt
-REFRESH_TOKEN_SECRET=32-byte-hex-string-for-aes-256-gcm
-
-# Storage Engine (Sprint 05 & 06)
-STORAGE_PROVIDER=LOCAL
-LOCAL_STORAGE_DIR=/data/storage/uploads
-
-# Server
-PORT=3000
-NODE_ENV=production
-CORS_ORIGIN=https://app.realestatecare.com
-```
-
----
-
-## 5. Active Sprint & Immediate Next Steps
+## 4. Engineering Operational Rules & Next Milestone
 
 In strict adherence to the project's core engineering principles:
 - **One Sprint, One Objective**: Focus is strictly quarantined to a single bounded domain per sprint.
 - **Repository as Memory**: Ground-truth status is maintained in-repo without chat dependency.
 - **Evidence-Based Progression**: Only code, migrations, and passing automated tests determine milestone completion.
-- **Just-In-Time Specifications**: Upfront speculative sprint specs (06-19) have been pruned; specifications are detailed iteratively on a rolling window.
+- **Just-In-Time Specifications**: Specifications are detailed iteratively on a rolling window.
 
 ### Current Milestone State:
 - **Sprint 00 (Architecture Baseline)**: `COMPLETED & VERIFIED` (AST boundary tests passing 3/3, 0 typecheck errors).
@@ -195,8 +155,8 @@ In strict adherence to the project's core engineering principles:
 - **Sprint 07 (Multi-Tenant Inventory & Concurrency)**: `COMPLETED & VERIFIED` (Multi-tenant inventory, optimistic locking versioning, two-phase reservations, 18/18 tests passing).
 - **Sprint 08 (Orders & Fulfillment Core Domain)**: `COMPLETED & VERIFIED` (Multi-tenant orders, pricing invariants, state machine, inventory linkage, 20/20 tests passing).
 - **Sprint 09 (Transactions & Payments Core Domain)**: `COMPLETED & VERIFIED` (Multi-gateway payment routing, webhook idempotency & transaction ledgers, 20/20 tests passing).
-- **Sprint 10 (Shared Services Core Domain)**: `ACTIVE / READY FOR IMPLEMENTATION` (Multi-channel notifications, cron job scheduler, and search indexing).
+- **Sprint 10 (Shared Services Core Domain)**: `COMPLETED & VERIFIED` (Multi-channel notifications, cron job scheduler, full-text search indexing, 20/20 tests passing).
+- **Sprint 11 (Property Portfolio Domain Foundation)**: `ACTIVE OBJECTIVE` (Property units, floorplans, pricing matrices, and ownership split allocation).
 
 ### Immediate Next Single Action:
-1. **Execute Sprint 10**: Implement multi-channel notifications (Email, SMS, Push, In-App), scheduled background tasks / cron runner, full-text search indexing, and automated test coverage.
-
+1. **Execute Sprint 11**: Draft and activate `SPRINT_11.md` focusing on property units, floorplans, dynamic pricing matrices, ownership split ledgers, and automated test coverage.

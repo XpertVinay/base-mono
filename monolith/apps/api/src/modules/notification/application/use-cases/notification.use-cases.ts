@@ -16,6 +16,14 @@ import { DynamicNotificationRouter } from '../../infrastructure/adapters/dynamic
 import { dryRunOutbox } from '../../infrastructure/adapters/dry-run-outbox.service.js';
 import { IEventBus } from '../../../../infrastructure/messaging/event-bus.js';
 import { logger } from '../../../../shared/infrastructure/logger.js';
+import { NotFoundError } from '../../../../shared/presentation/error-handler.middleware.js';
+
+function interpolate(text: string, data?: Record<string, unknown>): string {
+  if (!data) return text;
+  return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => {
+    return data[key] !== undefined ? String(data[key]) : `{{${key}}}`;
+  });
+}
 
 export class SendNotificationUseCase implements IUseCase<SendNotificationRequestDto, NotificationDto> {
   constructor(
@@ -26,12 +34,16 @@ export class SendNotificationUseCase implements IUseCase<SendNotificationRequest
 
   async execute(input: SendNotificationRequestDto): Promise<Result<NotificationDto, Error>> {
     try {
+      const effectiveSubject = interpolate(input.subject, input.templateData);
+      const effectiveBody = interpolate(input.body, input.templateData);
+
       const notification = Notification.create(
         input.recipient,
         input.channel,
-        input.subject,
-        input.body,
+        effectiveSubject,
+        effectiveBody,
         {
+          tenantId: input.tenantId,
           provider: input.provider,
           isDryRun: input.dryRun,
           metadata: input.metadata
@@ -41,10 +53,11 @@ export class SendNotificationUseCase implements IUseCase<SendNotificationRequest
       // Dispatch through the adapter router
       const dispatchResult = await this.router.dispatch({
         id: notification.id,
+        tenantId: input.tenantId,
         recipient: input.recipient,
         channel: input.channel,
-        subject: input.subject,
-        body: input.body,
+        subject: effectiveSubject,
+        body: effectiveBody,
         provider: input.provider,
         dryRun: input.dryRun,
         metadata: input.metadata,
@@ -111,6 +124,7 @@ export class SendNotificationUseCase implements IUseCase<SendNotificationRequest
   private mapToDto(notification: Notification): NotificationDto {
     return {
       id: notification.id,
+      tenantId: notification.tenantId,
       recipient: notification.recipient,
       channel: notification.channel,
       subject: notification.subject,
@@ -187,6 +201,7 @@ export class ListNotificationsQuery implements IQuery<NotificationFilter, Notifi
 
       return Result.ok(notifications.map(n => ({
         id: n.id,
+        tenantId: n.tenantId,
         recipient: n.recipient,
         channel: n.channel,
         subject: n.subject,
@@ -206,16 +221,17 @@ export class ListNotificationsQuery implements IQuery<NotificationFilter, Notifi
   }
 }
 
-export class GetNotificationByIdQuery implements IQuery<{ id: string }, NotificationDto | null> {
+export class GetNotificationByIdQuery implements IQuery<{ id: string; tenantId?: string }, NotificationDto> {
   constructor(private readonly repository: INotificationRepository) {}
 
-  async execute({ id }: { id: string }): Promise<Result<NotificationDto | null, Error>> {
+  async execute({ id, tenantId }: { id: string; tenantId?: string }): Promise<Result<NotificationDto, Error>> {
     try {
-      const notification = await this.repository.findById(id);
-      if (!notification) return Result.ok(null);
+      const notification = await this.repository.findById(id, tenantId);
+      if (!notification) return Result.fail(new NotFoundError(`Notification with id '${id}'`));
 
       return Result.ok({
         id: notification.id,
+        tenantId: notification.tenantId,
         recipient: notification.recipient,
         channel: notification.channel,
         subject: notification.subject,

@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface NotificationProps {
   recipient: string;
+  tenantId?: string;
   channel: NotificationChannel;
   subject: string;
   body: string;
@@ -23,6 +24,7 @@ export class Notification extends Entity<NotificationProps> {
   }
 
   get recipient(): string { return this.props.recipient; }
+  get tenantId(): string | undefined { return this.props.tenantId; }
   get channel(): NotificationChannel { return this.props.channel; }
   get subject(): string { return this.props.subject; }
   get body(): string { return this.props.body; }
@@ -59,16 +61,25 @@ export class Notification extends Entity<NotificationProps> {
     subject: string,
     body: string,
     options?: {
+      tenantId?: string;
       provider?: string;
       isDryRun?: boolean;
       metadata?: Record<string, unknown>;
       id?: string;
     }
   ): Notification {
+    if (!recipient || recipient.trim().length === 0) {
+      throw new Error('Notification recipient cannot be empty');
+    }
+    if (!body || body.trim().length === 0) {
+      throw new Error('Notification body cannot be empty');
+    }
+
     return new Notification(options?.id || uuidv4(), {
-      recipient,
+      recipient: recipient.trim(),
+      tenantId: options?.tenantId,
       channel,
-      subject,
+      subject: subject || 'No Subject',
       body,
       status: 'PENDING',
       provider: options?.provider,
@@ -79,6 +90,10 @@ export class Notification extends Entity<NotificationProps> {
   }
 
   public static reconstitute(id: string, props: NotificationProps): Notification {
-    return new Notification(id, props);
+    return new Notification(id, {
+      ...props,
+      sentAt: props.sentAt ? new Date(props.sentAt) : undefined,
+      createdAt: new Date(props.createdAt)
+    });
   }
 }

@@ -78,6 +78,7 @@ export class MetaWhatsAppAdapter implements INotificationAdapter {
       dryRunOutbox.record({
         id: uuidv4(),
         notificationId: input.id,
+        tenantId: input.tenantId,
         recipient: input.recipient,
         channel: 'WHATSAPP',
         provider: 'META_CLOUD',

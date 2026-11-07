@@ -2,5 +2,7 @@ import { SearchDocument } from '../entities/search-document.entity.js';
 
 export interface ISearchRepository {
   index(document: SearchDocument): Promise<void>;
-  search(query: string, type?: string, limit?: number): Promise<SearchDocument[]>;
+  search(query: string, type?: string, limit?: number, tenantId?: string): Promise<SearchDocument[]>;
+  findById(id: string, tenantId?: string): Promise<SearchDocument | null>;
+  delete(id: string, tenantId?: string): Promise<void>;
 }

@@ -77,6 +77,7 @@ export class SendGridEmailAdapter implements INotificationAdapter {
       dryRunOutbox.record({
         id: uuidv4(),
         notificationId: input.id,
+        tenantId: input.tenantId,
         recipient: input.recipient,
         channel: 'EMAIL',
         provider: 'SENDGRID',

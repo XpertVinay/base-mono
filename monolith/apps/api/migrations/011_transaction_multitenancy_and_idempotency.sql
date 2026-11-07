@@ -26,3 +26,4 @@ CREATE TABLE IF NOT EXISTS transactions.webhook_events (
 
 CREATE INDEX IF NOT EXISTS idx_webhook_events_tenant ON transactions.webhook_events(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_webhook_events_provider_event ON transactions.webhook_events(provider, event_id);
+

@@ -20,16 +20,21 @@ export class DryRunOutboxService {
     this.items.push(item);
   }
 
-  public getAll(): DryRunNotificationRecord[] {
-    return [...this.items].reverse();
+  public getAll(tenantId?: string): DryRunNotificationRecord[] {
+    const list = tenantId ? this.items.filter(i => i.tenantId === tenantId) : this.items;
+    return [...list].reverse();
   }
 
-  public getByRecipient(recipient: string): DryRunNotificationRecord[] {
-    return this.items.filter(i => i.recipient.toLowerCase() === recipient.toLowerCase()).reverse();
+  public getByRecipient(recipient: string, tenantId?: string): DryRunNotificationRecord[] {
+    return this.items
+      .filter(i => i.recipient.toLowerCase() === recipient.toLowerCase() && (!tenantId || i.tenantId === tenantId))
+      .reverse();
   }
 
-  public getByChannel(channel: NotificationChannel): DryRunNotificationRecord[] {
-    return this.items.filter(i => i.channel === channel).reverse();
+  public getByChannel(channel: NotificationChannel, tenantId?: string): DryRunNotificationRecord[] {
+    return this.items
+      .filter(i => i.channel === channel && (!tenantId || i.tenantId === tenantId))
+      .reverse();
   }
 
   public clear(): void {

@@ -11,7 +11,7 @@ import {
 import { logger } from '../../../../shared/infrastructure/logger.js';
 import { env } from '../../../../config/env.js';
 
-export type NotificationConfigResolver = (key: string, defaultValue?: string) => Promise<string>;
+export type NotificationConfigResolver = (key: string, defaultValue?: string, tenantId?: string) => Promise<string>;
 
 export class DynamicNotificationRouter {
   private adapters = new Map<string, INotificationAdapter>();
@@ -35,10 +35,10 @@ export class DynamicNotificationRouter {
     return Array.from(this.adapters.keys());
   }
 
-  public async isDryRunEnabled(): Promise<boolean> {
+  public async isDryRunEnabled(tenantId?: string): Promise<boolean> {
     if (this.configResolver) {
       try {
-        const val = await this.configResolver('NOTIFICATION_DRY_RUN', String(env.NOTIFICATION_DRY_RUN));
+        const val = await this.configResolver('NOTIFICATION_DRY_RUN', String(env.NOTIFICATION_DRY_RUN), tenantId);
         return val === 'true' || val === '1';
       } catch {
         // Fall back to environment variable
@@ -47,7 +47,7 @@ export class DynamicNotificationRouter {
     return Boolean(env.NOTIFICATION_DRY_RUN);
   }
 
-  public async getActiveProviderForChannel(channel: NotificationChannel): Promise<string> {
+  public async getActiveProviderForChannel(channel: NotificationChannel, tenantId?: string): Promise<string> {
     const envKeyMap: Record<NotificationChannel, { key: string; defaultVal: string }> = {
       EMAIL: { key: 'NOTIFICATION_EMAIL_PROVIDER', defaultVal: env.NOTIFICATION_EMAIL_PROVIDER || 'SENDGRID' },
       SMS: { key: 'NOTIFICATION_SMS_PROVIDER', defaultVal: env.NOTIFICATION_SMS_PROVIDER || 'TWILIO' },
@@ -60,7 +60,13 @@ export class DynamicNotificationRouter {
 
     if (this.configResolver) {
       try {
-        return (await this.configResolver(mapping.key, mapping.defaultVal)).toUpperCase().trim();
+        if (tenantId) {
+          const tenantVal = await this.configResolver(`${tenantId}_${mapping.key}`, '', tenantId);
+          if (tenantVal && tenantVal.trim().length > 0) {
+            return tenantVal.toUpperCase().trim();
+          }
+        }
+        return (await this.configResolver(mapping.key, mapping.defaultVal, tenantId)).toUpperCase().trim();
       } catch {
         return mapping.defaultVal.toUpperCase().trim();
       }
@@ -68,8 +74,8 @@ export class DynamicNotificationRouter {
     return mapping.defaultVal.toUpperCase().trim();
   }
 
-  public async getActiveAdapterForChannel(channel: NotificationChannel): Promise<INotificationAdapter> {
-    const providerName = await this.getActiveProviderForChannel(channel);
+  public async getActiveAdapterForChannel(channel: NotificationChannel, tenantId?: string): Promise<INotificationAdapter> {
+    const providerName = await this.getActiveProviderForChannel(channel, tenantId);
     const adapter = this.adapters.get(providerName);
 
     if (adapter && adapter.supportedChannels.includes(channel)) {
@@ -88,7 +94,7 @@ export class DynamicNotificationRouter {
   }
 
   public async dispatch(input: SendNotificationInput): Promise<SendNotificationOutput> {
-    const globalDryRun = await this.isDryRunEnabled();
+    const globalDryRun = await this.isDryRunEnabled(input.tenantId);
 
     let targetAdapter: INotificationAdapter;
 
@@ -101,22 +107,19 @@ export class DynamicNotificationRouter {
           channel: input.channel,
           requestedProvider: input.provider
         });
-        targetAdapter = await this.getActiveAdapterForChannel(input.channel);
+        targetAdapter = await this.getActiveAdapterForChannel(input.channel, input.tenantId);
       }
     } else {
-      targetAdapter = await this.getActiveAdapterForChannel(input.channel);
+      targetAdapter = await this.getActiveAdapterForChannel(input.channel, input.tenantId);
     }
 
     const isAdapterConfigured = targetAdapter.isConfigured();
-
-    // If caller explicitly specifies dryRun (true or false), honor their explicit intent.
-    // If not specified, default directly to the globalDryRun configuration (from .env or config table).
     const effectiveDryRun = input.dryRun !== undefined ? input.dryRun : globalDryRun;
 
     if (!isAdapterConfigured && !effectiveDryRun) {
       logger.warn(
         `Provider '${targetAdapter.providerName}' is not configured with production credentials. Attempting live dispatch as requested.`,
-        { channel: input.channel, recipient: input.recipient }
+        { channel: input.channel, recipient: input.recipient, tenantId: input.tenantId }
       );
     }
 
@@ -126,14 +129,14 @@ export class DynamicNotificationRouter {
     });
   }
 
-  public async getConfigSummary(): Promise<NotificationConfigDto> {
-    const globalDryRun = await this.isDryRunEnabled();
+  public async getConfigSummary(tenantId?: string): Promise<NotificationConfigDto> {
+    const globalDryRun = await this.isDryRunEnabled(tenantId);
     const channels: NotificationChannel[] = ['EMAIL', 'SMS', 'WHATSAPP', 'PUSH', 'IN_APP'];
 
     const channelConfigs: Record<NotificationChannel, ChannelProviderConfigDto> = {} as any;
 
     for (const ch of channels) {
-      const activeProvider = await this.getActiveProviderForChannel(ch);
+      const activeProvider = await this.getActiveProviderForChannel(ch, tenantId);
       const adapter = this.adapters.get(activeProvider);
       const isConfigured = adapter ? adapter.isConfigured() : false;
 

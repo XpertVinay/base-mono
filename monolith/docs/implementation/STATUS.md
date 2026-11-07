@@ -22,7 +22,8 @@ Development adheres to four foundational rules:
 - **Inventory Management (Sprint 07)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`inventory-concurrency.test.ts` 18/18 passing), multi-tenant SKU isolation, optimistic locking versioning.
 - **Orders & Fulfillment (Sprint 08)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`order-processing.test.ts` 20/20 passing), multi-tenant orders, pricing invariants, state machine, inventory linkage.
 - **Transactions & Payments (Sprint 09)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`transaction-processing.test.ts` 20/20 passing), multi-gateway payment routing, webhook idempotency, cryptographic signatures.
-- **Active Objective (Sprint 10)**: Shared Services Core Domain (Asynchronous multi-channel notifications, cron scheduler & search indexing).
+- **Shared Services (Sprint 10)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`shared-services.test.ts` 20/20 passing), multi-channel notifications (Email, SMS, WhatsApp, Push), cron scheduler & run history, full-text search engine.
+- **Active Objective (Sprint 11)**: Property Portfolio Domain Foundation (Property units, floorplans, dynamic pricing matrices, ownership split ledgers).
 - **Downstream Capabilities**: Maintained at high-level roadmap level; detailed specifications generated just-in-time.
 
 ---
@@ -41,8 +42,8 @@ Development adheres to four foundational rules:
 | **Sprint 07** | **Inventory Management** | Reusable Capabilities | `COMPLETED` | Multi-tenant stock items, optimistic concurrency control (`version`), two-phase reservations, 18/18 tests passed |
 | **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `COMPLETED` | Order lifecycle, multi-tenant pricing calculation, inventory reservation linkage, 20/20 tests passed |
 | **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `COMPLETED` | Multi-gateway payment routing, webhooks, transaction ledgers, 20/20 tests passed |
-| **Sprint 10** | **Shared Services** | Reusable Capabilities | `ACTIVE` | Multi-channel notifications, cron scheduler, search indexing |
-| **Sprint 11** | **Property Domain Foundation** | Property Domain | `PLANNED` | Property registry, Address VO, emergency float limits |
+| **Sprint 10** | **Shared Services** | Reusable Capabilities | `COMPLETED` | Multi-channel notifications, cron scheduler, search indexing, 20/20 tests passed |
+| **Sprint 11** | **Property Domain Foundation** | Property Domain | `ACTIVE` | Property units, floorplans, dynamic pricing matrices, ownership split ledgers |
 | **Sprint 12** | **Caretaker Assignments** | Property Domain | `PLANNED` | Caretaker profiles, assignments, granular scopes, instant revocation |
 | **Sprint 13** | **Vendor Management** | Property Domain | `PLANNED` | Vendor onboarding, trade categories, rate cards |
 | **Sprint 14** | **Maintenance Equilibrium** | Property Domain | `PLANNED` | Priority triage (P1-P4), emergency float escrow mobilization |

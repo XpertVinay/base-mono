@@ -4,6 +4,7 @@ export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'DELIVERED';
 
 export interface NotificationDto {
   id: string;
+  tenantId?: string;
   recipient: string;
   channel: NotificationChannel;
   subject: string;
@@ -19,6 +20,7 @@ export interface NotificationDto {
 }
 
 export interface SendNotificationRequestDto {
+  tenantId?: string;
   recipient: string;
   channel: NotificationChannel;
   subject: string;
@@ -40,6 +42,7 @@ export interface BatchNotificationItemResult {
 }
 
 export interface BatchNotificationRequestDto {
+  tenantId?: string;
   notifications: SendNotificationRequestDto[];
   dryRun?: boolean;
 }
@@ -53,6 +56,7 @@ export interface BatchNotificationResultDto {
 
 export interface NotificationDryRunOutboxItem {
   id: string;
+  tenantId?: string;
   notificationId: string;
   recipient: string;
   channel: NotificationChannel;
@@ -78,4 +82,3 @@ export interface NotificationConfigDto {
   environment: string;
   channels: Record<NotificationChannel, ChannelProviderConfigDto>;
 }
-

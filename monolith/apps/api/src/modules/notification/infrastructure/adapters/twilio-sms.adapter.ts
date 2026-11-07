@@ -61,6 +61,7 @@ export class TwilioSmsAdapter implements INotificationAdapter {
       dryRunOutbox.record({
         id: uuidv4(),
         notificationId: input.id,
+        tenantId: input.tenantId,
         recipient: input.recipient,
         channel: 'SMS',
         provider: 'TWILIO',

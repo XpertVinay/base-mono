@@ -7,6 +7,8 @@ export function createSchedulerRouter(controller: SchedulerController): Router {
   router.use(authenticate);
 
   router.get('/', controller.list);
+  router.get('/:id', controller.getById);
+  router.get('/:id/runs', controller.listRuns);
   router.post('/', requireRole('ADMIN'), controller.create);
   router.post('/:id/trigger', requireRole('ADMIN'), controller.trigger);
 

@@ -20,6 +20,7 @@ const sendNotificationSchema = z.object({
   body: z.string().min(1, 'Body is required'),
   provider: z.enum(['SENDGRID', 'TWILIO', 'META_CLOUD', 'FCM', 'MOCK']).optional(),
   dryRun: z.boolean().optional(),
+  tenantId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
   templateId: z.string().optional(),
   templateData: z.record(z.unknown()).optional()
@@ -29,6 +30,14 @@ const batchNotificationSchema = z.object({
   notifications: z.array(sendNotificationSchema).min(1, 'At least one notification is required').max(100, 'Maximum 100 notifications per batch'),
   dryRun: z.boolean().optional()
 });
+
+function extractTenantId(req: Request): string | undefined {
+  const tenantId = (req as any).tenantId || req.headers['x-tenant-id'];
+  if (typeof tenantId === 'string' && tenantId.trim().length > 0) {
+    return tenantId.trim();
+  }
+  return undefined;
+}
 
 export class NotificationController {
   constructor(
@@ -45,6 +54,7 @@ export class NotificationController {
   send = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = sendNotificationSchema.parse(req.body);
+      const tenantId = extractTenantId(req);
 
       // Support X-Dry-Run header override
       const headerDryRun = req.headers['x-dry-run'] === 'true' || req.headers['x-dry-run'] === '1';
@@ -52,6 +62,7 @@ export class NotificationController {
 
       const result = await this.sendUseCase.execute({
         ...validated,
+        tenantId,
         dryRun: effectiveDryRun
       });
 
@@ -70,11 +81,17 @@ export class NotificationController {
   sendBatch = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = batchNotificationSchema.parse(req.body);
+      const tenantId = extractTenantId(req);
       const headerDryRun = req.headers['x-dry-run'] === 'true' || req.headers['x-dry-run'] === '1';
       const effectiveDryRun = validated.dryRun !== undefined ? validated.dryRun : (headerDryRun ? true : undefined);
 
+      const notificationsWithTenant = validated.notifications.map(n => ({
+        ...n,
+        tenantId: n.tenantId || tenantId
+      }));
+
       const result = await this.sendBatchUseCase.execute({
-        notifications: validated.notifications,
+        notifications: notificationsWithTenant,
         dryRun: effectiveDryRun
       });
 
@@ -92,12 +109,13 @@ export class NotificationController {
 
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const tenantId = extractTenantId(req);
       const recipient = (req.query.recipient as string) || (req.user ? req.user.email : undefined);
       const channel = req.query.channel as NotificationChannel | undefined;
       const status = req.query.status as NotificationStatus | undefined;
       const limit = req.query.limit ? Number(req.query.limit) : 50;
 
-      const result = await this.listQuery.execute({ recipient, channel, status, limit });
+      const result = await this.listQuery.execute({ tenantId, recipient, channel, status, limit });
       if (result.isFailure) return next(result.getError());
 
       res.status(200).json({
@@ -113,7 +131,8 @@ export class NotificationController {
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = String(req.params.id);
-      const result = await this.getByIdQuery.execute({ id });
+      const tenantId = extractTenantId(req);
+      const result = await this.getByIdQuery.execute({ id, tenantId });
       if (result.isFailure) return next(result.getError());
 
       const data = result.getValue();

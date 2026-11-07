@@ -6,6 +6,7 @@ export interface SearchDocumentProps {
   title: string;
   description?: string;
   metadata?: Record<string, unknown>;
+  tenantId?: string;
   createdAt: Date;
 }
 
@@ -18,19 +19,28 @@ export class SearchDocument extends Entity<SearchDocumentProps> {
   get title(): string { return this.props.title; }
   get description(): string | undefined { return this.props.description; }
   get metadata(): Record<string, unknown> | undefined { return this.props.metadata; }
+  get tenantId(): string | undefined { return this.props.tenantId; }
   get createdAt(): Date { return this.props.createdAt; }
 
-  public static create(documentType: string, title: string, description?: string, metadata?: Record<string, unknown>, id?: string): SearchDocument {
+  public static create(
+    documentType: string,
+    title: string,
+    description?: string,
+    metadata?: Record<string, unknown>,
+    tenantId?: string,
+    id?: string
+  ): SearchDocument {
     return new SearchDocument(id || uuidv4(), {
       documentType,
       title,
       description,
       metadata,
+      tenantId,
       createdAt: new Date()
     });
   }
 
   public static reconstitute(id: string, props: SearchDocumentProps): SearchDocument {
-    return new SearchDocument(id, props);
+    return new SearchDocument(id, { ...props });
   }
 }

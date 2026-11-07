@@ -27,6 +27,7 @@ export class MockNotificationAdapter implements INotificationAdapter {
     const record = {
       id: uuidv4(),
       notificationId: input.id,
+      tenantId: input.tenantId,
       recipient: input.recipient,
       channel: input.channel,
       provider: 'MOCK',

@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.7.0] - 2026-11-07
+
+### Added
+- **Shared Services — Multi-Channel Notifications, Job Scheduler & Full-Text Search (Sprint 10)**:
+  - Database migration `012_shared_services_multitenancy.sql` adding `tenant_id` to `notification.notifications`, `scheduler.jobs`, `search.search_index`, and creating `scheduler.job_runs` execution history table.
+  - Multi-Channel Notifications (`apps/api/src/modules/notification`):
+    - Pluggable channel dispatch across `EMAIL` (SendGrid), `SMS` (Twilio), `WHATSAPP` (Meta Cloud), `PUSH` (FCM), and `IN_APP` with dynamic router configuration.
+    - Template data interpolation with `{{key}}` syntax for subjects and bodies.
+    - Tenant-partitioned dry-run Developer Outbox (`DryRunOutboxService`) capturing simulated payloads and headers.
+    - Fail-closed isolation: cross-tenant notification queries reject with `NotFoundError`.
+    - Asynchronous event integration: auto-dispatches tenant-scoped confirmation notifications on `orders.order_created` and `iam.user_registered`.
+  - Cron Job Scheduler (`apps/api/src/modules/scheduler`):
+    - Multi-tenant scheduled job management with cron expression parsing and state machine lifecycle (`SCHEDULED` -> `RUNNING` -> `COMPLETED` | `FAILED`).
+    - Task execution runner capturing start time, completion time, duration in milliseconds, and failure reasons.
+    - Persistent execution run history logging in `scheduler.job_runs`.
+    - Strict tenant partitioning: tenants cannot view, trigger, or monitor other tenants' jobs.
+  - Full-Text Search Engine (`apps/api/src/modules/search`):
+    - Multi-tenant document indexing supporting entity types (`PROPERTY`, `USER`, `ORDER`, `MAINTENANCE`, `FINANCE`).
+    - Token-based keyword search over titles and descriptions with entity type filtering and strict tenant scoping.
+    - Asynchronous event projection: automatic indexing of new orders (`orders.order_created`) and registered users (`iam.user_registered`).
+  - Dedicated automated test suite `apps/api/src/tests/unit/shared-services.test.ts` with 20/20 passing tests (102/102 cumulative regression pass rate).
+
+---
+
 ## [1.6.0] - 2026-11-07
 
 ### Added

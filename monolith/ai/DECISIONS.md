@@ -99,3 +99,10 @@
 
 
 
+### Decision 013: Shared Services Multi-Tenancy (Notifications, Job Scheduler & Full-Text Search)
+- **Context:** Enterprise property management requires reliable asynchronous capabilities: multi-channel notifications (tenant communications, lease reminders, payment receipts), recurring job scheduling (daily reconciliation, outbox flushing, SLA escalation), and fast full-text searching across property portfolios and maintenance records. These capabilities must be strictly isolated between tenant organizations to prevent data leakage and cross-tenant execution interference.
+- **Decision:**
+  1. **Notification Module (`apps/api/src/modules/notification`)**: Partition notification records by `tenant_id`. Route outbound notifications across channels (EMAIL, SMS, WHATSAPP, PUSH, IN_APP) via pluggable adapters (SendGrid, Twilio, Meta WhatsApp, FCM, Mock). Enforce string template interpolation (`{{key}}`) and record simulated dispatches in a tenant-aware Developer Outbox (`DryRunOutboxService`). Fail cross-tenant queries closed with `NotFoundError`.
+  2. **Scheduler Module (`apps/api/src/modules/scheduler`)**: Scope scheduled jobs (`scheduler.jobs`) and execution logs (`scheduler.job_runs`) by `tenant_id`. Support state machine lifecycle (`SCHEDULED` -> `RUNNING` -> `COMPLETED` | `FAILED`) with execution duration and failure reason capture. Prevent cross-tenant job querying, triggering, or log inspection.
+  3. **Search Module (`apps/api/src/modules/search`)**: Partition full-text search documents (`search.search_index`) by `tenant_id`. Enable multi-token keyword searching over titles and descriptions with document type filtering (`PROPERTY`, `USER`, `ORDER`, `MAINTENANCE`, `FINANCE`). Asynchronously synchronize domain events (`orders.order_created`, `iam.user_registered`) into tenant-scoped search index projections.
+- **Consequences:** Provides unified, battle-tested reusable infrastructure across the platform with zero cross-tenant leakage, zero cloud vendor lock-in, and reliable event-driven projections.

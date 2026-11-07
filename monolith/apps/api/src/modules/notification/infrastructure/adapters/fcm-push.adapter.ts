@@ -67,6 +67,7 @@ export class FcmPushAdapter implements INotificationAdapter {
       dryRunOutbox.record({
         id: uuidv4(),
         notificationId: input.id,
+        tenantId: input.tenantId,
         recipient: input.recipient,
         channel: 'PUSH',
         provider: 'FCM',
