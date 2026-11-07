@@ -18,7 +18,10 @@ Development adheres to four foundational rules:
 ### Current Verified Baseline:
 - **Platform Foundation (Sprints 00–04)**: Fully verified in codebase with automated test suites (`dynamic-rbac.test.ts` 18/18, `multi-tenant-organizations.test.ts` 18/18), clean typecheck, and AST architecture boundary gates.
 - **Asset Management (Sprint 05)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`asset-management.test.ts` 20/20 passing), MIME type validation gate, file size invariants, and `IStorageProvider` port.
-- **Active Objective (Sprint 06)**: Storage Adapters (AWS S3 & GCS cloud object storage adapters conforming to `IStorageProvider`).
+- **Storage Adapters (Sprint 06)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`storage-adapters.test.ts` 24/24 passing), AWS S3 SigV4, GCS V4, StorageProviderFactory, Docker persistent volume.
+- **Inventory Management (Sprint 07)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`inventory-concurrency.test.ts` 18/18 passing), multi-tenant SKU isolation, optimistic locking versioning.
+- **Orders & Fulfillment (Sprint 08)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`order-processing.test.ts` 20/20 passing), multi-tenant orders, pricing invariants, state machine, inventory linkage.
+- **Active Objective (Sprint 09)**: Transactions & Payments Core Domain (Multi-gateway payment routing, webhook idempotency & transaction ledgers).
 - **Downstream Capabilities**: Maintained at high-level roadmap level; detailed specifications generated just-in-time.
 
 ---
@@ -35,8 +38,8 @@ Development adheres to four foundational rules:
 | **Sprint 05** | **Asset Management** | Reusable Capabilities | `COMPLETED` | Two-phase upload lifecycle, MIME validation, storage ports, 20/20 tests passed |
 | **Sprint 06** | **Storage Adapters** | Reusable Capabilities | `COMPLETED` | Cloud storage adapters (AWS S3, GCS), StorageProviderFactory, Docker storage volume, anti-traversal defense, 24/24 tests passed |
 | **Sprint 07** | **Inventory Management** | Reusable Capabilities | `COMPLETED` | Multi-tenant stock items, optimistic concurrency control (`version`), two-phase reservations, 18/18 tests passed |
-| **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `ACTIVE` | Order lifecycle, multi-tenant pricing calculation, inventory reservation linkage |
-| **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `PLANNED` | Multi-gateway payment routing, webhooks |
+| **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `COMPLETED` | Order lifecycle, multi-tenant pricing calculation, inventory reservation linkage, 20/20 tests passed |
+| **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `ACTIVE` | Multi-gateway payment routing, webhooks, transaction ledgers |
 | **Sprint 10** | **Shared Services** | Reusable Capabilities | `PLANNED` | Notifications, scheduler, search index |
 | **Sprint 11** | **Property Domain Foundation** | Property Domain | `PLANNED` | Property registry, Address VO, emergency float limits |
 | **Sprint 12** | **Caretaker Assignments** | Property Domain | `PLANNED` | Caretaker profiles, assignments, granular scopes, instant revocation |
@@ -55,6 +58,7 @@ Development adheres to four foundational rules:
 - `pnpm typecheck`: 0 errors across all workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
 - `pnpm test:arch`: 3/3 tests passed (`module-boundaries.test.ts`).
 - `pnpm test:security`: 5/5 tests passed (`security-controls.test.ts`).
+- `order-processing.test.ts`: 20/20 tests passed (Sprint 08).
 - `inventory-concurrency.test.ts`: 18/18 tests passed (Sprint 07).
 - `storage-adapters.test.ts`: 24/24 tests passed (Sprint 06).
 - `asset-management.test.ts`: 20/20 tests passed (Sprint 05).

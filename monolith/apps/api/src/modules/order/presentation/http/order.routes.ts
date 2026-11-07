@@ -8,8 +8,11 @@ export function createOrderRouter(controller: OrderController): Router {
 
   router.post('/', controller.create);
   router.get('/my', controller.listMyOrders);
+  router.get('/tenant', controller.listTenantOrders);
+  router.get('/', controller.listTenantOrders);
   router.get('/:id', controller.getById);
   router.post('/:id/cancel', controller.cancel);
+  router.post('/:id/fulfill', controller.fulfill);
 
   return router;
 }

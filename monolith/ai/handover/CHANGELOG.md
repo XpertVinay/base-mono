@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.5.0] - 2026-11-07
+
+### Added
+- **Multi-Tenant Order Processing, Pricing Invariants & Inventory Reservation Linkage (Sprint 08)**:
+  - Database migration `010_order_multitenancy_and_lifecycle.sql` adding `tenant_id` to `orders.orders` and `orders.order_items`, with compound performance indexes on `(tenant_id, created_at)` and `(tenant_id, user_id)`.
+  - Contracts in `@monolith/contracts/order`: updated `OrderDto`, `CreateOrderRequestDto`, `OrderItemDto`, and domain integration events (`OrderCreatedEvent`, `OrderPaidEvent`, `OrderFulfilledEvent`, `OrderCancelledEvent`) with `tenantId`.
+  - Enhanced domain entity `Order`:
+    - Strict monetary pricing calculation invariants (rounding to 2 decimals, rejecting negative quantities/prices, non-empty order guarantee).
+    - Formalized state machine transitions: `PENDING` -> `RESERVED` -> `PAID` -> `FULFILLED` / `CANCELLED` with explicit `InvalidStateTransitionError` on illegal mutations.
+  - Implemented application use cases:
+    - `CreateOrderUseCase`: atomic two-phase inventory reservation with compensation rollback on partial stock failures, transitioning order to `RESERVED`.
+    - `CancelOrderUseCase`: coordinates automatic inventory stock release.
+    - `FulfillOrderUseCase`: coordinates automatic permanent inventory stock commitment.
+    - `GetOrderByIdQuery`, `ListMyOrdersQuery`, `ListTenantOrdersQuery`: fail-closed multi-tenant quarantine.
+  - Presentation HTTP endpoints under `/api/orders`:
+    - `POST /api/orders`: Create order and trigger atomic inventory reservations.
+    - `GET /api/orders`: Paginated list of tenant orders.
+    - `GET /api/orders/:id`: Detailed order lookup with tenant boundary enforcement.
+    - `POST /api/orders/:id/cancel`: Cancel order and release reserved stock.
+    - `POST /api/orders/:id/fulfill`: Fulfill order and commit stock permanently.
+  - Cross-module integration & public API in `OrderModule`:
+    - Subscribes to `transactions.completed` integration events to automatically transition orders to `PAID`.
+    - Exposes `IOrderModulePublicApi` (`getOrder`, `markOrderPaid`, `fulfillOrder`, `cancelOrder`, `getRepository`).
+  - Dedicated automated test suite `apps/api/src/tests/unit/order-processing.test.ts` with 20/20 passing tests.
+
+---
+
 ## [1.4.0] - 2026-11-07
 
 ### Added

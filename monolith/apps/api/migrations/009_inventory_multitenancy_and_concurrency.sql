@@ -29,3 +29,4 @@ CREATE TABLE IF NOT EXISTS inventory.inventory_reservations (
 
 CREATE INDEX IF NOT EXISTS idx_inventory_reservations_tenant_product ON inventory.inventory_reservations(tenant_id, product_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_reservations_order ON inventory.inventory_reservations(order_id);
+

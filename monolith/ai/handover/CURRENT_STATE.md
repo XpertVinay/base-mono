@@ -92,6 +92,13 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - **Optimistic Concurrency Control**: Entity versioning on `inventory.inventory_items` eliminating race conditions during simultaneous reservations; stale writes safely rejected with 409 Conflict.
 - **Two-Phase Reservation Lifecycle**: `RESERVE` decrements available and increments reserved; `RELEASE` returns quantity to available pool; `COMMIT` permanently debits reserved stock upon physical dispatch. Mathematical invariant `availableQuantity = totalQuantity - reservedQuantity >= 0` is guaranteed.
 
+### 11. Multi-Tenant Order Processing & Inventory Reservation Linkage (`order`)
+- **Multi-Tenant Scoping**: Isolated by `tenant_id` across `orders.orders` and `orders.order_items`, with fail-closed quarantine (404/403) across tenant boundaries.
+- **Mathematical Pricing Invariants**: Rigorous price calculations rounding to 2 decimal places, rejecting zero/negative quantities, negative unit prices, or empty item lists.
+- **State Machine Lifecycle Transitions**: Strict validation of order lifecycle states (`PENDING` -> `RESERVED` -> `PAID` -> `FULFILLED` / `CANCELLED`), rejecting invalid state regressions.
+- **Two-Phase Inventory Reservation Linkage**: Atomic stock reservation upon order creation with automatic compensation rollback of previously reserved items if any item fails; stock release upon cancellation; permanent stock commitment upon fulfillment.
+- **Event-Driven Payment Settlement**: Asynchronous integration event consumer for `transactions.completed` automatically marking paid orders.
+
 ---
 
 ## 3. Latest Verification & Quality Gate Results
@@ -101,6 +108,8 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
   - No cross-module internal file imports.
   - Domain layer completely isolated from Express, pg, or HTTP dependencies.
   - All modules export a clean top-level `index.ts`.
+- **Order Processing & Inventory Linkage Suite (`order-processing.test.ts`)**: 20/20 tests passed.
+  - Pricing invariants & decimal precision, state machine lifecycle transitions, multi-tenant quarantine, two-phase inventory reservation and compensation rollback, OrderController REST validation, and OrderModule public API.
 - **Inventory Concurrency & Isolation Suite (`inventory-concurrency.test.ts`)**: 18/18 tests passed.
   - Stock mathematical equilibrium invariant, multi-tenant SKU isolation, optimistic locking version conflicts, two-phase reservation lifecycle, and public API.
 - **Cloud Storage Adapters Test Suite (`storage-adapters.test.ts`)**: 24/24 tests passed.
@@ -174,8 +183,9 @@ In strict adherence to the project's core engineering principles:
 - **Sprint 05 (Asset Management Foundation)**: `COMPLETED & VERIFIED` (Two-phase presigned upload lifecycle, MIME validation, storage ports, 20/20 tests passing).
 - **Sprint 06 (Cloud Storage Adapters: AWS S3 & GCS)**: `COMPLETED & VERIFIED` (AWS S3 SigV4, GCS V4, StorageProviderFactory, Docker volume, 24/24 tests passing).
 - **Sprint 07 (Multi-Tenant Inventory & Concurrency)**: `COMPLETED & VERIFIED` (Multi-tenant inventory, optimistic locking versioning, two-phase reservations, 18/18 tests passing).
-- **Sprint 08 (Orders & Fulfillment Core Domain)**: `ACTIVE / READY FOR IMPLEMENTATION` (Detailed specification defined in `ai/sprints/SPRINT_08.md`).
+- **Sprint 08 (Orders & Fulfillment Core Domain)**: `COMPLETED & VERIFIED` (Multi-tenant orders, pricing invariants, state machine, inventory linkage, 20/20 tests passing).
+- **Sprint 09 (Transactions & Payments Core Domain)**: `ACTIVE / READY FOR IMPLEMENTATION` (Multi-gateway payment routing, webhook idempotency & transaction ledgers).
 
 ### Immediate Next Single Action:
-1. **Execute Sprint 08**: Implement multi-tenant order lifecycle, pricing calculation, inventory integration, and automated test coverage.
+1. **Execute Sprint 09**: Implement multi-tenant transaction ledgers, payment gateway routing (Stripe/Razorpay), idempotent webhook processing, and automated test coverage.
 
