@@ -8,16 +8,19 @@ import {
   WebhookProcessingResult
 } from '../../application/ports/payment-gateway.port.js';
 import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'crypto';
 import { logger } from '../../../../shared/infrastructure/logger.js';
 
 export class RazorpayPaymentGatewayAdapter implements IPaymentGatewayAdapter {
   readonly providerName = 'RAZORPAY' as const;
   private readonly keyId?: string;
   private readonly keySecret?: string;
+  private readonly webhookSecret?: string;
 
-  constructor(keyId?: string, keySecret?: string) {
+  constructor(keyId?: string, keySecret?: string, webhookSecret?: string) {
     this.keyId = keyId || process.env.RAZORPAY_KEY_ID;
     this.keySecret = keySecret || process.env.RAZORPAY_KEY_SECRET;
+    this.webhookSecret = webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET;
   }
 
   async initiate(input: PaymentInitiationInput): Promise<PaymentInitiationResult> {
@@ -93,11 +96,29 @@ export class RazorpayPaymentGatewayAdapter implements IPaymentGatewayAdapter {
     };
   }
 
-  async processWebhook(payload: WebhookPayload): Promise<WebhookProcessingResult> {
-    const event = payload.body;
-    const eventType = event?.event || event?.type || 'payment.captured';
+  verifyWebhookSignature(rawBody: string, signature: string, secret?: string): boolean {
+    const webhookSecret = secret || this.webhookSecret || this.keySecret || process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) return true; // zero-config fallback
+    if (!signature) return false;
 
-    logger.info(`Razorpay webhook received event: ${eventType}`, { eventType });
+    try {
+      const expected = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(rawBody)
+        .digest('hex');
+
+      return crypto.timingSafeEqual(Buffer.from(signature, 'utf-8'), Buffer.from(expected, 'utf-8'));
+    } catch {
+      return false;
+    }
+  }
+
+  async processWebhook(payload: WebhookPayload): Promise<WebhookProcessingResult> {
+    const event = payload.body || {};
+    const eventType = event?.event || event?.type || 'payment.captured';
+    const eventId = event?.id || (payload.headers['x-razorpay-event-id'] as string) || `evt_rzp_${uuidv4().substring(0, 10)}`;
+
+    logger.info(`Razorpay webhook received event: ${eventType} (${eventId})`, { eventType, eventId });
 
     if (eventType === 'payment.captured' || eventType === 'order.paid' || eventType === 'payment_link.paid') {
       const payment = event.payload?.payment?.entity || event.payload?.payment_link?.entity || event;
@@ -110,6 +131,8 @@ export class RazorpayPaymentGatewayAdapter implements IPaymentGatewayAdapter {
         status: 'SUCCESS',
         transactionId,
         providerTransactionId,
+        eventId,
+        eventType,
         amount,
         currency: payment.currency || 'INR',
         rawEvent: event
@@ -121,14 +144,16 @@ export class RazorpayPaymentGatewayAdapter implements IPaymentGatewayAdapter {
       return {
         handled: true,
         status: 'FAILED',
-        transactionId: payment.notes?.transactionId || payment.reference_id || payment.transactionId,
+        transactionId: payment.notes?.transactionId || payment.reference_id,
         providerTransactionId: payment.id,
-        failureReason: payment.error_description || 'Payment rejected by bank or user',
+        eventId,
+        eventType,
+        failureReason: payment.error_description || 'Payment failed via Razorpay',
         rawEvent: event
       };
     }
 
-    return { handled: false, status: 'IGNORED', rawEvent: event };
+    return { handled: false, status: 'IGNORED', eventId, eventType, rawEvent: event };
   }
 
   async verifyPayment(providerTransactionId: string): Promise<PaymentChargeResult> {
@@ -136,7 +161,7 @@ export class RazorpayPaymentGatewayAdapter implements IPaymentGatewayAdapter {
       provider: 'RAZORPAY',
       providerTransactionId,
       status: 'SUCCESS',
-      rawDetails: { verifiedVia: 'Razorpay Payments API' }
+      rawDetails: { verifiedVia: 'Razorpay Payment Fetch' }
     };
   }
 
@@ -145,7 +170,7 @@ export class RazorpayPaymentGatewayAdapter implements IPaymentGatewayAdapter {
       provider: 'RAZORPAY',
       providerTransactionId: `rfnd_${uuidv4().replace(/-/g, '').substring(0, 14)}`,
       status: 'SUCCESS',
-      rawDetails: { paymentId: providerTransactionId, amount }
+      rawDetails: { payment_id: providerTransactionId, amount }
     };
   }
 }

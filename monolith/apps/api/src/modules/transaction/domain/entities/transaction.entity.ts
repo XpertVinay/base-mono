@@ -2,9 +2,24 @@ import { AggregateRoot } from '../../../../shared/domain/aggregate-root.js';
 import { TransactionType, TransactionStatus } from '@monolith/contracts';
 import { v4 as uuidv4 } from 'uuid';
 
+export class InvalidTransactionStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidTransactionStateError';
+  }
+}
+
+export class InvalidTransactionAmountError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidTransactionAmountError';
+  }
+}
+
 export interface TransactionProps {
   referenceId: string;
   userId: string;
+  tenantId?: string;
   type: TransactionType;
   status: TransactionStatus;
   amount: number;
@@ -26,6 +41,7 @@ export class Transaction extends AggregateRoot<TransactionProps> {
 
   get referenceId(): string { return this.props.referenceId; }
   get userId(): string { return this.props.userId; }
+  get tenantId(): string | undefined { return this.props.tenantId; }
   get type(): TransactionType { return this.props.type; }
   get status(): TransactionStatus { return this.props.status; }
   get amount(): number { return this.props.amount; }
@@ -49,7 +65,7 @@ export class Transaction extends AggregateRoot<TransactionProps> {
 
   public complete(providerTransactionId?: string): void {
     if (this.props.status !== 'PENDING') {
-      throw new Error(`Cannot complete transaction in '${this.props.status}' status`);
+      throw new InvalidTransactionStateError(`Cannot complete transaction in '${this.props.status}' status`);
     }
     this.props.status = 'SUCCESS';
     if (providerTransactionId) {
@@ -67,6 +83,7 @@ export class Transaction extends AggregateRoot<TransactionProps> {
         transactionId: this.id,
         referenceId: this.referenceId,
         userId: this.userId,
+        tenantId: this.tenantId,
         status: 'SUCCESS',
         amount: this.amount,
         currency: this.currency
@@ -75,6 +92,9 @@ export class Transaction extends AggregateRoot<TransactionProps> {
   }
 
   public fail(reason: string, providerTransactionId?: string): void {
+    if (this.props.status !== 'PENDING') {
+      throw new InvalidTransactionStateError(`Cannot fail transaction in '${this.props.status}' status`);
+    }
     this.props.status = 'FAILED';
     this.props.failureReason = reason;
     if (providerTransactionId) {
@@ -92,8 +112,51 @@ export class Transaction extends AggregateRoot<TransactionProps> {
         transactionId: this.id,
         referenceId: this.referenceId,
         userId: this.userId,
+        tenantId: this.tenantId,
         status: 'FAILED',
         amount: this.amount,
+        currency: this.currency,
+        reason
+      }
+    });
+  }
+
+  public refund(reason?: string, refundAmount?: number, providerTransactionId?: string): void {
+    if (this.props.status !== 'SUCCESS') {
+      throw new InvalidTransactionStateError(
+        `Cannot refund transaction in '${this.props.status}' status. Only SUCCESS transactions can be refunded.`
+      );
+    }
+
+    const effectiveRefund = refundAmount !== undefined ? refundAmount : this.props.amount;
+    if (effectiveRefund <= 0) {
+      throw new InvalidTransactionAmountError('Refund amount must be greater than zero');
+    }
+    if (effectiveRefund > this.props.amount) {
+      throw new InvalidTransactionAmountError(
+        `Refund amount (${effectiveRefund}) cannot exceed original transaction amount (${this.props.amount})`
+      );
+    }
+
+    this.props.status = 'REFUNDED';
+    this.props.failureReason = reason;
+    if (providerTransactionId) {
+      this.props.providerTransactionId = providerTransactionId;
+    }
+    this.props.updatedAt = new Date();
+
+    this.addDomainEvent({
+      id: uuidv4(),
+      eventName: 'transactions.refunded',
+      aggregateId: this.id,
+      occurredAt: new Date(),
+      version: 1,
+      payload: {
+        transactionId: this.id,
+        referenceId: this.referenceId,
+        userId: this.userId,
+        tenantId: this.tenantId,
+        amount: effectiveRefund,
         currency: this.currency,
         reason
       }
@@ -107,20 +170,26 @@ export class Transaction extends AggregateRoot<TransactionProps> {
     paymentMethod: string,
     currency = 'USD',
     type: TransactionType = 'PAYMENT',
-    id?: string
+    id?: string,
+    tenantId?: string
   ): Transaction {
-    if (amount <= 0) throw new Error('Transaction amount must be greater than zero');
+    if (amount <= 0 || isNaN(amount)) {
+      throw new InvalidTransactionAmountError('Transaction amount must be greater than zero');
+    }
 
+    // Mathematical invariant: rounded to 2 decimal places to avoid floating point drift
+    const normalizedAmount = Math.round(amount * 100) / 100;
     const transactionId = id || uuidv4();
     const now = new Date();
 
     return new Transaction(transactionId, {
       referenceId,
       userId,
+      tenantId,
       type,
       status: 'PENDING',
-      amount,
-      currency,
+      amount: normalizedAmount,
+      currency: currency.toUpperCase(),
       paymentMethod,
       createdAt: now,
       updatedAt: now
@@ -128,6 +197,11 @@ export class Transaction extends AggregateRoot<TransactionProps> {
   }
 
   public static reconstitute(id: string, props: TransactionProps): Transaction {
-    return new Transaction(id, props);
+    return new Transaction(id, {
+      ...props,
+      amount: Math.round(props.amount * 100) / 100,
+      createdAt: new Date(props.createdAt),
+      updatedAt: new Date(props.updatedAt)
+    });
   }
 }

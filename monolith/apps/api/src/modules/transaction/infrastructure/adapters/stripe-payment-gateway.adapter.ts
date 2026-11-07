@@ -8,13 +8,17 @@ import {
   WebhookProcessingResult
 } from '../../application/ports/payment-gateway.port.js';
 import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'crypto';
 import { logger } from '../../../../shared/infrastructure/logger.js';
 
 export class StripePaymentGatewayAdapter implements IPaymentGatewayAdapter {
   readonly providerName = 'STRIPE' as const;
   private readonly secretKey?: string;
-  constructor(secretKey?: string, _webhookSecret?: string) {
+  private readonly webhookSecret?: string;
+
+  constructor(secretKey?: string, webhookSecret?: string) {
     this.secretKey = secretKey || process.env.STRIPE_SECRET_KEY;
+    this.webhookSecret = webhookSecret || process.env.STRIPE_WEBHOOK_SECRET;
   }
 
   async initiate(input: PaymentInitiationInput): Promise<PaymentInitiationResult> {
@@ -89,23 +93,56 @@ export class StripePaymentGatewayAdapter implements IPaymentGatewayAdapter {
     };
   }
 
-  async processWebhook(payload: WebhookPayload): Promise<WebhookProcessingResult> {
-    const event = payload.body;
-    const eventType = event?.type || event?.event || 'checkout.session.completed';
+  verifyWebhookSignature(rawBody: string, signatureHeader: string, secret?: string): boolean {
+    const webhookSecret = secret || this.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) return true; // zero-config local testing fallback if secret not configured
+    if (!signatureHeader) return false;
 
-    logger.info(`Stripe webhook received event: ${eventType}`, { eventType });
+    try {
+      const parts = signatureHeader.split(',');
+      const timestamp = parts.find(p => p.startsWith('t='))?.slice(2);
+      const signatures = parts.filter(p => p.startsWith('v1=')).map(p => p.slice(3));
+
+      if (!timestamp || signatures.length === 0) return false;
+
+      const signedPayload = `${timestamp}.${rawBody}`;
+      const expectedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(signedPayload)
+        .digest('hex');
+
+      return signatures.some(sig => {
+        try {
+          return crypto.timingSafeEqual(Buffer.from(sig, 'utf-8'), Buffer.from(expectedSignature, 'utf-8'));
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  async processWebhook(payload: WebhookPayload): Promise<WebhookProcessingResult> {
+    const event = payload.body || {};
+    const eventType = event?.type || event?.event || 'checkout.session.completed';
+    const eventId = event?.id || (payload.headers['stripe-event-id'] as string) || `evt_stripe_${uuidv4().substring(0, 12)}`;
+
+    logger.info(`Stripe webhook received event: ${eventType} (${eventId})`, { eventType, eventId });
 
     if (eventType === 'checkout.session.completed' || eventType === 'payment_intent.succeeded') {
       const session = event.data?.object || event;
       const transactionId = session.client_reference_id || session.transactionId;
       const providerTransactionId = session.payment_intent || session.id || `pi_${uuidv4().replace(/-/g, '').substring(0, 16)}`;
-      const amount = session.amount_total ? session.amount_total / 100 : Number(session.amount);
+      const amount = session.amount_total ? session.amount_total / 100 : Number(session.amount || 0);
 
       return {
         handled: true,
         status: 'SUCCESS',
         transactionId,
         providerTransactionId,
+        eventId,
+        eventType,
         amount,
         currency: session.currency || 'USD',
         rawEvent: event
@@ -119,12 +156,14 @@ export class StripePaymentGatewayAdapter implements IPaymentGatewayAdapter {
         status: 'FAILED',
         transactionId: session.client_reference_id || session.transactionId,
         providerTransactionId: session.id,
+        eventId,
+        eventType,
         failureReason: session.last_payment_error?.message || 'Payment card was declined by Stripe',
         rawEvent: event
       };
     }
 
-    return { handled: false, status: 'IGNORED', rawEvent: event };
+    return { handled: false, status: 'IGNORED', eventId, eventType, rawEvent: event };
   }
 
   async verifyPayment(providerTransactionId: string): Promise<PaymentChargeResult> {

@@ -2,6 +2,7 @@ export interface PaymentInitiationInput {
   transactionId: string;
   referenceId: string;
   userId: string;
+  tenantId?: string;
   amount: number;
   currency: string;
   customerEmail?: string;
@@ -20,6 +21,7 @@ export interface PaymentInitiationResult {
 export interface PaymentChargeInput {
   referenceId: string;
   userId: string;
+  tenantId?: string;
   amount: number;
   currency: string;
   paymentMethod: string;
@@ -40,6 +42,7 @@ export interface WebhookPayload {
   body: any;
   headers: Record<string, string | string[] | undefined>;
   query?: Record<string, string | string[] | undefined>;
+  rawBody?: string;
 }
 
 export interface WebhookProcessingResult {
@@ -47,7 +50,9 @@ export interface WebhookProcessingResult {
   transactionId?: string;
   referenceId?: string;
   providerTransactionId?: string;
-  status: 'SUCCESS' | 'FAILED' | 'IGNORED';
+  eventId?: string;
+  eventType?: string;
+  status: 'SUCCESS' | 'FAILED' | 'IGNORED' | 'ALREADY_PROCESSED';
   failureReason?: string;
   amount?: number;
   currency?: string;
@@ -59,6 +64,7 @@ export interface IPaymentGatewayAdapter {
   initiate(input: PaymentInitiationInput): Promise<PaymentInitiationResult>;
   charge(input: PaymentChargeInput): Promise<PaymentChargeResult>;
   processWebhook(payload: WebhookPayload): Promise<WebhookProcessingResult>;
+  verifyWebhookSignature?(rawBody: string, signature: string, secret?: string): boolean;
   verifyPayment(providerTransactionId: string): Promise<PaymentChargeResult>;
   refund(providerTransactionId: string, amount: number): Promise<PaymentChargeResult>;
 }

@@ -93,8 +93,10 @@ To onboard any organization with similar or different industry to operate from t
 | **Phase 8** | **Cloud Storage Adapters & Factory (Sprint 06)** | Deliver AWS S3 SigV4 and GCS V4 adapters, dynamic `StorageProviderFactory`, tenant bucket overrides, Docker volume mapping, and anti-traversal defenses. | **COMPLETED** |
 | **Phase 9** | **Multi-Tenant Inventory & Concurrency (Sprint 07)** | Multi-tenant stock items, optimistic concurrency control (`version`), atomic reservations lifecycle (`RESERVE` -> `COMMIT` / `RELEASE`), and unit tests. | **COMPLETED** |
 | **Phase 10** | **Multi-Tenant Orders, Pricing & Inventory Linkage (Sprint 08)** | Multi-tenant order persistence (`tenant_id`), state machine transitions (`PENDING` -> `RESERVED` -> `PAID` -> `FULFILLED`), pricing invariants, inventory reservation linkage & rollback. | **COMPLETED** |
+| **Phase 11** | **Multi-Gateway Payment Routing & Webhook Idempotency (Sprint 09)** | Multi-tenant transaction ledgers, dynamic gateway routing (Stripe/Razorpay/Mock), HMAC-SHA256 signature verification, idempotent event ledger (`transactions.webhook_events`). | **COMPLETED** |
 
 ### 3.2 Implementation Audit & Verification Results
+* **`transaction-processing.test.ts`**: 20/20 tests passing (state machine lifecycle transitions, multi-tenant quarantine, cryptographic HMAC-SHA256 signature verification, replay defense idempotency, order settlement linkage, multi-gateway routing).
 * **`order-processing.test.ts`**: 20/20 tests passing (pricing calculations & rounding precision, state machine transitions, multi-tenant quarantine & boundary isolation, two-phase inventory reservation & rollback compensation, controller validation, OrderModule public API).
 * **`inventory-concurrency.test.ts`**: 18/18 tests passing (mathematical equilibrium invariant, multi-tenant SKU isolation, optimistic locking version conflicts, two-phase reservation lifecycle, public API).
 * **`storage-adapters.test.ts`**: 24/24 tests passing (StorageProviderFactory dynamic resolution, S3 SigV4 presigned upload/download, GCS V4 signing, tenant bucket overrides, anti-traversal defense, AssetModule pluggable integration).

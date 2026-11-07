@@ -4,15 +4,33 @@ import {
   ProcessPaymentUseCase,
   InitiatePaymentUseCase,
   HandlePaymentWebhookUseCase,
+  RefundTransactionUseCase,
+  GetTransactionByIdQuery,
+  ListTenantTransactionsQuery,
   ListMyTransactionsQuery
 } from '../../application/use-cases/transaction.use-cases.js';
 import { DynamicPaymentGatewayRouter } from '../../infrastructure/adapters/dynamic-payment-gateway.router.js';
-import { ITransactionRepository } from '../../domain/repositories/transaction-repository.interface.js';
 import { getCurrentRequestId } from '../../../../shared/presentation/request-context.js';
+import {
+  BadRequestError,
+  NotFoundError,
+  ForbiddenError
+} from '../../../../shared/presentation/error-handler.middleware.js';
+
+function extractTenantId(req: Request, required = false): string | undefined {
+  const tenantId = (req as any).tenantId || req.headers['x-tenant-id'];
+  if (typeof tenantId === 'string' && tenantId.trim().length > 0) {
+    return tenantId.trim();
+  }
+  if (required) {
+    throw new BadRequestError('Tenant context is required (missing X-Tenant-ID header)');
+  }
+  return undefined;
+}
 
 const initiatePaymentSchema = z.object({
-  referenceId: z.string().min(1),
-  amount: z.number().positive(),
+  referenceId: z.string().min(1, 'Reference ID is required'),
+  amount: z.number().positive('Amount must be greater than zero'),
   currency: z.string().optional().default('USD'),
   paymentMethod: z.string().optional(),
   returnUrl: z.string().optional(),
@@ -20,10 +38,15 @@ const initiatePaymentSchema = z.object({
 });
 
 const processPaymentSchema = z.object({
-  referenceId: z.string().min(1),
-  amount: z.number().positive(),
-  currency: z.string().optional(),
+  referenceId: z.string().min(1, 'Reference ID is required'),
+  amount: z.number().positive('Amount must be greater than zero'),
+  currency: z.string().optional().default('USD'),
   paymentMethod: z.string().optional().default('CREDIT_CARD')
+});
+
+const refundSchema = z.object({
+  reason: z.string().optional(),
+  amount: z.number().positive('Refund amount must be positive').optional()
 });
 
 export class TransactionController {
@@ -31,19 +54,23 @@ export class TransactionController {
     private readonly initiatePaymentUseCase: InitiatePaymentUseCase,
     private readonly handlePaymentWebhookUseCase: HandlePaymentWebhookUseCase,
     private readonly processPaymentUseCase: ProcessPaymentUseCase,
+    private readonly refundTransactionUseCase: RefundTransactionUseCase,
+    private readonly getTransactionByIdQuery: GetTransactionByIdQuery,
+    private readonly listTenantTransactionsQuery: ListTenantTransactionsQuery,
     private readonly listMyTransactionsQuery: ListMyTransactionsQuery,
-    private readonly gatewayRouter: DynamicPaymentGatewayRouter,
-    private readonly transactionRepository: ITransactionRepository
+    private readonly gatewayRouter: DynamicPaymentGatewayRouter
   ) {}
 
   initiate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = initiatePaymentSchema.parse(req.body);
+      const tenantId = extractTenantId(req, false);
       const userId = req.user!.id;
       const customerEmail = req.user!.email;
 
       const result = await this.initiatePaymentUseCase.execute({
         ...validated,
+        tenantId,
         userId,
         customerEmail
       });
@@ -63,8 +90,14 @@ export class TransactionController {
   pay = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = processPaymentSchema.parse(req.body);
+      const tenantId = extractTenantId(req, false);
       const userId = req.user!.id;
-      const result = await this.processPaymentUseCase.execute({ ...validated, userId });
+
+      const result = await this.processPaymentUseCase.execute({
+        ...validated,
+        tenantId,
+        userId
+      });
 
       if (result.isFailure) return next(result.getError());
 
@@ -82,13 +115,30 @@ export class TransactionController {
     try {
       const rawProv = req.params.provider;
       const provider = (Array.isArray(rawProv) ? rawProv[0] : rawProv || 'STRIPE')!.toUpperCase();
+      const tenantId = extractTenantId(req, false);
+
+      const signature =
+        (req.headers['stripe-signature'] as string) ||
+        (req.headers['x-razorpay-signature'] as string) ||
+        (req.headers['signature'] as string) ||
+        (req.headers['x-signature'] as string);
+
+      const rawBody = (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+
       const payload = {
         body: req.body,
         headers: req.headers as Record<string, string | string[] | undefined>,
-        query: req.query as Record<string, string | string[] | undefined>
+        query: req.query as Record<string, string | string[] | undefined>,
+        rawBody
       };
 
-      const result = await this.handlePaymentWebhookUseCase.execute({ provider, payload });
+      const result = await this.handlePaymentWebhookUseCase.execute({
+        provider,
+        payload,
+        rawBody,
+        signature,
+        tenantId
+      });
 
       if (result.isFailure) return next(result.getError());
 
@@ -102,15 +152,135 @@ export class TransactionController {
     }
   };
 
+  getTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const tenantId = extractTenantId(req, false);
+      const userId = req.user!.id;
+      const userRole = (req.user as any)?.role || '';
+
+      const result = await this.getTransactionByIdQuery.execute({ id, tenantId });
+      if (result.isFailure) return next(result.getError());
+
+      const transaction = result.getValue();
+      if (!transaction) {
+        throw new NotFoundError(`Transaction ${id} not found`);
+      }
+
+      // Isolation check: if user is not admin/owner, they must own the transaction
+      const isPrivileged = ['ADMIN', 'ORGANIZATION_OWNER', 'FINANCE_CONTROLLER'].includes(userRole);
+      if (!isPrivileged && transaction.userId !== userId) {
+        throw new ForbiddenError('You are not authorized to view this transaction');
+      }
+
+      res.status(200).json({
+        success: true,
+        data: transaction,
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  listTenantTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const tenantId = extractTenantId(req, true)!;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+      const result = await this.listTenantTransactionsQuery.execute({ tenantId, limit, offset });
+      if (result.isFailure) return next(result.getError());
+
+      res.status(200).json({
+        success: true,
+        data: result.getValue().transactions,
+        meta: {
+          total: result.getValue().total,
+          limit,
+          offset,
+          requestId: getCurrentRequestId(),
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  listMyTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const tenantId = extractTenantId(req, false);
+
+      const result = await this.listMyTransactionsQuery.execute({ userId, tenantId });
+      if (result.isFailure) return next(result.getError());
+
+      res.status(200).json({
+        success: true,
+        data: result.getValue(),
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  refund = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const tenantId = extractTenantId(req, false);
+      const userId = req.user!.id;
+      const validated = refundSchema.parse(req.body);
+
+      const result = await this.refundTransactionUseCase.execute({
+        transactionId: id,
+        tenantId,
+        userId,
+        reason: validated.reason,
+        amount: validated.amount
+      });
+
+      if (result.isFailure) return next(result.getError());
+
+      res.status(200).json({
+        success: true,
+        data: result.getValue(),
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getGateways = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const tenantId = extractTenantId(req, false);
+      const activeAdapter = await this.gatewayRouter.getActiveAdapter(tenantId);
+      const availableGateways = this.gatewayRouter.getAvailableGateways();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          activeGateway: activeAdapter.providerName,
+          availableGateways
+        },
+        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   renderGatewaySimulator = (req: Request, res: Response): void => {
     const { sessionId, provider, amount, currency, referenceId, transactionId, returnUrl, cancelUrl } = req.query;
     const provName = String(provider || 'STRIPE').toUpperCase();
 
-    const providerThemes: Record<string, { color: string; label: string; logoText: string }> = {
-      STRIPE: { color: '#635BFF', label: 'Stripe Checkout', logoText: 'stripe' },
-      PAYPAL: { color: '#0070BA', label: 'PayPal Checkout', logoText: 'PayPal' },
-      RAZORPAY: { color: '#0C2340', label: 'Razorpay Standard', logoText: 'Razorpay' },
-      MOCK: { color: '#10B981', label: 'Monolith Mock Payment', logoText: 'SANDBOX' }
+    const providerThemes: Record<string, { color: string; label: string }> = {
+      STRIPE: { color: '#635BFF', label: 'Stripe Checkout' },
+      PAYPAL: { color: '#0070BA', label: 'PayPal Checkout' },
+      RAZORPAY: { color: '#0C2340', label: 'Razorpay Standard' },
+      MOCK: { color: '#10B981', label: 'Monolith Mock Payment' }
     };
 
     const theme = providerThemes[provName] ?? providerThemes['MOCK']!;
@@ -199,132 +369,37 @@ export class TransactionController {
     document.addEventListener('DOMContentLoaded', function() {
       var payBtn = document.getElementById('payBtn');
       var cancelBtn = document.getElementById('cancelBtn');
-      if (payBtn) {
-        payBtn.addEventListener('click', function() { completePayment(true); });
-      }
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', function() { completePayment(false); });
-      }
-    });
 
-    async function completePayment(success) {
-      var payBtn = document.getElementById('payBtn');
-      var cancelBtn = document.getElementById('cancelBtn');
-      if (payBtn) {
+      payBtn.addEventListener('click', function() {
         payBtn.disabled = true;
-        payBtn.innerText = success ? 'Processing Webhook...' : 'Cancelling...';
-      }
-      if (cancelBtn) {
-        cancelBtn.disabled = true;
-      }
+        payBtn.innerText = 'Processing simulated webhook...';
 
-      const webhookUrl = '/api/transactions/webhooks/${provName.toLowerCase()}';
-      const webhookPayload = {
-        type: success ? 'checkout.session.completed' : 'payment_intent.payment_failed',
-        event: success ? 'payment.captured' : 'payment.failed',
-        event_type: success ? 'PAYMENT.CAPTURE.COMPLETED' : 'PAYMENT.CAPTURE.DENIED',
-        transactionId: '${String(transactionId || '')}',
-        reference_id: '${String(referenceId || '')}',
-        amount: ${Number(amount || 0)},
-        currency: '${String(currency || 'USD')}',
-        providerTransactionId: '${provName}_TXN_' + Math.random().toString(36).substring(2, 10).toUpperCase(),
-        data: {
-          object: {
-            client_reference_id: '${String(transactionId || '')}',
-            amount_total: ${Math.round(Number(amount || 0) * 100)},
-            currency: '${String(currency || 'USD').toLowerCase()}'
-          }
-        }
-      };
-
-      try {
-        await fetch(webhookUrl, {
+        fetch('/api/transactions/webhooks/${provName.toLowerCase()}', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload)
+          body: JSON.stringify({
+            event: 'payment.captured',
+            type: 'checkout.session.completed',
+            id: 'sim_evt_' + Date.now(),
+            client_reference_id: '${encodeURIComponent(String(transactionId || ''))}',
+            transactionId: '${encodeURIComponent(String(transactionId || ''))}',
+            amount_total: ${Math.round(Number(amount || 0) * 100)},
+            currency: '${String(currency || 'USD')}',
+            status: 'SUCCESS'
+          })
+        }).then(function() {
+          window.location.href = '${String(returnUrl || '/')}';
+        }).catch(function() {
+          window.location.href = '${String(returnUrl || '/')}';
         });
-      } catch (err) {
-        console.error('Webhook post error', err);
-      }
+      });
 
-      // Redirect back to app return/cancel URL
-      const targetUrl = success ? '${String(returnUrl || '')}' : '${String(cancelUrl || '')}';
-      if (targetUrl) {
-        window.location.href = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 'transactionId=${String(transactionId || '')}&status=' + (success ? 'success' : 'cancelled');
-      } else {
-        alert(success ? 'Payment Approved!' : 'Payment Cancelled!');
-      }
-    }
+      cancelBtn.addEventListener('click', function() {
+        window.location.href = '${String(cancelUrl || '/')}';
+      });
+    });
   </script>
 </body>
 </html>`);
-  };
-
-  getTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const rawId = req.params.id;
-      const id = Array.isArray(rawId) ? rawId[0]! : (rawId || '');
-      const transaction = await this.transactionRepository.findById(id);
-      if (!transaction) {
-        res.status(404).json({ success: false, error: { message: 'Transaction not found' } });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        data: {
-          id: transaction.id,
-          referenceId: transaction.referenceId,
-          userId: transaction.userId,
-          status: transaction.status,
-          amount: transaction.amount,
-          currency: transaction.currency,
-          paymentMethod: transaction.paymentMethod,
-          provider: transaction.provider,
-          redirectUrl: transaction.redirectUrl,
-          failureReason: transaction.failureReason,
-          createdAt: transaction.createdAt.toISOString(),
-          updatedAt: transaction.updatedAt.toISOString()
-        },
-        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
-      });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  listMyTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = req.user!.id;
-      const result = await this.listMyTransactionsQuery.execute({ userId });
-
-      if (result.isFailure) return next(result.getError());
-
-      res.status(200).json({
-        success: true,
-        data: result.getValue(),
-        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
-      });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  getGateways = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const activeAdapter = await this.gatewayRouter.getActiveAdapter();
-      const availableGateways = this.gatewayRouter.getAvailableGateways();
-
-      res.status(200).json({
-        success: true,
-        data: {
-          activeGateway: activeAdapter.providerName,
-          availableGateways
-        },
-        meta: { requestId: getCurrentRequestId(), timestamp: new Date().toISOString() }
-      });
-    } catch (err) {
-      next(err);
-    }
   };
 }

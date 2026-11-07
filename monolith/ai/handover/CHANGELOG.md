@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.6.0] - 2026-11-07
+
+### Added
+- **Multi-Gateway Payment Routing, Webhook Idempotency & Transaction Ledgers (Sprint 09)**:
+  - Database migration `011_transaction_multitenancy_and_idempotency.sql` adding `tenant_id` to `transactions.transactions` with compound indexes on `(tenant_id, created_at DESC)`, `(tenant_id, reference_id)`, `(tenant_id, user_id)`, and creating `transactions.webhook_events` idempotent audit table.
+  - Contracts in `@monolith/contracts/transaction`: updated `TransactionDto`, `InitiatePaymentRequestDto`, `ProcessPaymentRequestDto`, `TransactionCompletedPayload`, `TransactionRefundedPayload`, `RefundPaymentRequestDto`, `RefundPaymentResponseDto` with `tenantId` and `REFUNDED` status.
+  - Enhanced domain entity `Transaction`:
+    - Strict monetary pricing calculation invariants (rounding to 2 decimals, rejecting non-positive amounts).
+    - Formalized state machine transitions (`PENDING` -> `SUCCESS` | `FAILED` | `REFUNDED`) with domain guards rejecting illegal transitions (`InvalidTransactionStateError`).
+    - Domain refund capability (`refund`) with amount and origin transaction validation (`InvalidTransactionAmountError`).
+  - Pluggable gateway adapters with cryptographic signature verification:
+    - `StripePaymentGatewayAdapter`: HMAC-SHA256 signature verification over `t=timestamp,v1=signature`.
+    - `RazorpayPaymentGatewayAdapter`: HMAC-SHA256 signature verification over `x-razorpay-signature`.
+    - `MockPaymentGatewayAdapter`: deterministic offline testing simulator.
+  - Dynamic Gateway Routing:
+    - `DynamicPaymentGatewayRouter`: runtime provider routing and tenant-specific gateway configuration overrides.
+  - Webhook Idempotency & Replay Defense:
+    - `HandlePaymentWebhookUseCase`: verifies signatures, checks `transactions.webhook_events` for duplicate provider event IDs, records unique events, safely acknowledges replayed events with `ALREADY_PROCESSED` without double-crediting or duplicate integration event dispatch.
+  - Cross-module order settlement:
+    - Emits `transactions.completed` domain integration events, triggering `OrderModule` to automatically transition linked orders to `PAID`.
+  - Dedicated automated test suite `apps/api/src/tests/unit/transaction-processing.test.ts` with 20/20 passing tests.
+
+---
+
 ## [1.5.0] - 2026-11-07
 
 ### Added

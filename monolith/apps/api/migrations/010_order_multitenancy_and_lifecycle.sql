@@ -10,3 +10,4 @@ ALTER TABLE orders.order_items
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_user ON orders.orders(tenant_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_status ON orders.orders(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_order_items_tenant ON orders.order_items(tenant_id);
+

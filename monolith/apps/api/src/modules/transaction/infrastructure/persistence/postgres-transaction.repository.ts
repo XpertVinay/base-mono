@@ -6,79 +6,182 @@ import { logger } from '../../../../shared/infrastructure/logger.js';
 export class PostgresTransactionRepository implements ITransactionRepository {
   private fallbackStore: Map<string, Transaction> = new Map();
 
-  async findById(id: string): Promise<Transaction | null> {
+  private clone(t: Transaction): Transaction {
+    return Transaction.reconstitute(t.id, {
+      referenceId: t.referenceId,
+      userId: t.userId,
+      tenantId: t.tenantId,
+      type: t.type,
+      status: t.status,
+      amount: t.amount,
+      currency: t.currency,
+      paymentMethod: t.paymentMethod,
+      provider: t.provider,
+      providerSessionId: t.providerSessionId,
+      providerTransactionId: t.providerTransactionId,
+      redirectUrl: t.redirectUrl,
+      failureReason: t.failureReason,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt
+    });
+  }
+
+  async findById(id: string, tenantId?: string): Promise<Transaction | null> {
     try {
-      const res = await dbPool.query(
-        `SELECT id, reference_id, user_id, type, status, amount, currency, payment_method, 
-                provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
-         FROM transactions.transactions WHERE id = $1`,
-        [id]
-      );
-      if (res.rows.length === 0) return this.fallbackStore.get(id) || null;
+      let query = `
+        SELECT id, tenant_id, reference_id, user_id, type, status, amount, currency, payment_method, 
+               provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
+        FROM transactions.transactions 
+        WHERE id = $1
+      `;
+      const params: any[] = [id];
+
+      if (tenantId) {
+        query += ` AND tenant_id = $2`;
+        params.push(tenantId);
+      }
+
+      const res = await dbPool.query(query, params);
+      if (res.rows.length === 0) {
+        return this.getFromFallback(id, tenantId);
+      }
       return this.mapToDomain(res.rows[0]);
     } catch {
-      return this.fallbackStore.get(id) || null;
+      return this.getFromFallback(id, tenantId);
     }
+  }
+
+  private getFromFallback(id: string, tenantId?: string): Transaction | null {
+    const item = this.fallbackStore.get(id);
+    if (!item) return null;
+    if (tenantId && item.tenantId !== tenantId) return null;
+    return this.clone(item);
   }
 
   async findBySessionId(sessionId: string): Promise<Transaction | null> {
     try {
       const res = await dbPool.query(
-        `SELECT id, reference_id, user_id, type, status, amount, currency, payment_method, 
+        `SELECT id, tenant_id, reference_id, user_id, type, status, amount, currency, payment_method, 
                 provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
-         FROM transactions.transactions WHERE provider_session_id = $1 OR id = $1`,
+         FROM transactions.transactions 
+         WHERE provider_session_id = $1 OR id = $1`,
         [sessionId]
       );
       if (res.rows.length === 0) {
-        return Array.from(this.fallbackStore.values()).find(t => t.providerSessionId === sessionId || t.id === sessionId) || null;
+        const found = Array.from(this.fallbackStore.values()).find(
+          t => t.providerSessionId === sessionId || t.id === sessionId
+        );
+        return found ? this.clone(found) : null;
       }
       return this.mapToDomain(res.rows[0]);
     } catch {
-      return Array.from(this.fallbackStore.values()).find(t => t.providerSessionId === sessionId || t.id === sessionId) || null;
+      const found = Array.from(this.fallbackStore.values()).find(
+        t => t.providerSessionId === sessionId || t.id === sessionId
+      );
+      return found ? this.clone(found) : null;
     }
   }
 
-  async findByReferenceId(referenceId: string): Promise<Transaction[]> {
+  async findByReferenceId(referenceId: string, tenantId?: string): Promise<Transaction[]> {
     try {
-      const res = await dbPool.query(
-        `SELECT id, reference_id, user_id, type, status, amount, currency, payment_method, 
-                provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
-         FROM transactions.transactions WHERE reference_id = $1 ORDER BY created_at DESC`,
-        [referenceId]
-      );
-      if (res.rows.length === 0) {
-        return Array.from(this.fallbackStore.values()).filter(t => t.referenceId === referenceId);
+      let query = `
+        SELECT id, tenant_id, reference_id, user_id, type, status, amount, currency, payment_method, 
+               provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
+        FROM transactions.transactions 
+        WHERE reference_id = $1
+      `;
+      const params: any[] = [referenceId];
+
+      if (tenantId) {
+        query += ` AND tenant_id = $2`;
+        params.push(tenantId);
       }
-      return res.rows.map(this.mapToDomain);
+      query += ` ORDER BY created_at DESC`;
+
+      const res = await dbPool.query(query, params);
+      if (res.rows.length === 0) {
+        return Array.from(this.fallbackStore.values())
+          .filter(t => t.referenceId === referenceId && (!tenantId || t.tenantId === tenantId))
+          .map(t => this.clone(t));
+      }
+      return res.rows.map(r => this.mapToDomain(r));
     } catch {
-      return Array.from(this.fallbackStore.values()).filter(t => t.referenceId === referenceId);
+      return Array.from(this.fallbackStore.values())
+        .filter(t => t.referenceId === referenceId && (!tenantId || t.tenantId === tenantId))
+        .map(t => this.clone(t));
     }
   }
 
-  async findByUserId(userId: string): Promise<Transaction[]> {
+  async findByUserId(userId: string, tenantId?: string): Promise<Transaction[]> {
     try {
-      const res = await dbPool.query(
-        `SELECT id, reference_id, user_id, type, status, amount, currency, payment_method, 
-                provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
-         FROM transactions.transactions WHERE user_id = $1 ORDER BY created_at DESC`,
-        [userId]
-      );
-      if (res.rows.length === 0) {
-        return Array.from(this.fallbackStore.values()).filter(t => t.userId === userId);
+      let query = `
+        SELECT id, tenant_id, reference_id, user_id, type, status, amount, currency, payment_method, 
+               provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
+        FROM transactions.transactions 
+        WHERE user_id = $1
+      `;
+      const params: any[] = [userId];
+
+      if (tenantId) {
+        query += ` AND tenant_id = $2`;
+        params.push(tenantId);
       }
-      return res.rows.map(this.mapToDomain);
+      query += ` ORDER BY created_at DESC`;
+
+      const res = await dbPool.query(query, params);
+      if (res.rows.length === 0) {
+        return Array.from(this.fallbackStore.values())
+          .filter(t => t.userId === userId && (!tenantId || t.tenantId === tenantId))
+          .map(t => this.clone(t));
+      }
+      return res.rows.map(r => this.mapToDomain(r));
     } catch {
-      return Array.from(this.fallbackStore.values()).filter(t => t.userId === userId);
+      return Array.from(this.fallbackStore.values())
+        .filter(t => t.userId === userId && (!tenantId || t.tenantId === tenantId))
+        .map(t => this.clone(t));
+    }
+  }
+
+  async findByTenantId(
+    tenantId: string,
+    limit = 50,
+    offset = 0
+  ): Promise<{ transactions: Transaction[]; total: number }> {
+    try {
+      const countRes = await dbPool.query(
+        `SELECT COUNT(*) as count FROM transactions.transactions WHERE tenant_id = $1`,
+        [tenantId]
+      );
+      const total = parseInt(countRes.rows[0]?.count || '0', 10);
+
+      const res = await dbPool.query(
+        `SELECT id, tenant_id, reference_id, user_id, type, status, amount, currency, payment_method, 
+                provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at 
+         FROM transactions.transactions 
+         WHERE tenant_id = $1 
+         ORDER BY created_at DESC 
+         LIMIT $2 OFFSET $3`,
+        [tenantId, limit, offset]
+      );
+
+      return {
+        transactions: res.rows.map(r => this.mapToDomain(r)),
+        total
+      };
+    } catch {
+      const all = Array.from(this.fallbackStore.values()).filter(t => t.tenantId === tenantId);
+      const paged = all.slice(offset, offset + limit).map(t => this.clone(t));
+      return { transactions: paged, total: all.length };
     }
   }
 
   async save(transaction: Transaction): Promise<void> {
-    this.fallbackStore.set(transaction.id, transaction);
+    this.fallbackStore.set(transaction.id, this.clone(transaction));
     try {
       await dbPool.query(
         `INSERT INTO transactions.transactions 
-         (id, reference_id, user_id, type, status, amount, currency, payment_method, provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         (id, tenant_id, reference_id, user_id, type, status, amount, currency, payment_method, provider, provider_session_id, provider_transaction_id, redirect_url, failure_reason, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          ON CONFLICT (id) DO UPDATE SET
            status = EXCLUDED.status,
            payment_method = EXCLUDED.payment_method,
@@ -90,6 +193,7 @@ export class PostgresTransactionRepository implements ITransactionRepository {
            updated_at = EXCLUDED.updated_at`,
         [
           transaction.id,
+          transaction.tenantId || null,
           transaction.referenceId,
           transaction.userId,
           transaction.type,
@@ -107,7 +211,11 @@ export class PostgresTransactionRepository implements ITransactionRepository {
         ]
       );
     } catch (err) {
-      logger.warn('Failed to persist transaction in DB, saved in fallback store', { id: transaction.id, error: (err as any)?.message });
+      logger.warn('Failed to persist transaction in DB, saved in fallback store', {
+        id: transaction.id,
+        tenantId: transaction.tenantId,
+        error: (err as any)?.message
+      });
     }
   }
 
@@ -119,6 +227,7 @@ export class PostgresTransactionRepository implements ITransactionRepository {
     return Transaction.reconstitute(row.id, {
       referenceId: row.reference_id,
       userId: row.user_id,
+      tenantId: row.tenant_id || undefined,
       type: row.type,
       status: row.status,
       amount: Number(row.amount),

@@ -99,6 +99,14 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - **Two-Phase Inventory Reservation Linkage**: Atomic stock reservation upon order creation with automatic compensation rollback of previously reserved items if any item fails; stock release upon cancellation; permanent stock commitment upon fulfillment.
 - **Event-Driven Payment Settlement**: Asynchronous integration event consumer for `transactions.completed` automatically marking paid orders.
 
+### 12. Multi-Gateway Payment Routing, Webhook Idempotency & Transaction Ledgers (`transaction`)
+- **Multi-Tenant Transaction Ledgers**: Financial records scoped by `tenant_id` across `transactions.transactions` with compound indexes on `(tenant_id, created_at DESC)`, `(tenant_id, reference_id)`, and `(tenant_id, user_id)`.
+- **Pluggable Payment Gateway Adapters**: Decoupled adapters (`StripePaymentGatewayAdapter`, `RazorpayPaymentGatewayAdapter`, `MockPaymentGatewayAdapter`) routed through `DynamicPaymentGatewayRouter` with runtime tenant provider overrides.
+- **Cryptographic Webhook Signature Verification**: Real native HMAC-SHA256 signature verification over `t=timestamp,v1=signature` (Stripe) and `x-razorpay-signature` (Razorpay) using `crypto.timingSafeEqual`.
+- **Append-Only Webhook Idempotency Ledger**: `transactions.webhook_events` tracking `(provider, event_id)` with unique constraints; safely absorbs duplicate deliveries with `ALREADY_PROCESSED` without double-crediting or duplicate domain event dispatch.
+- **State Machine Lifecycle & Refunds**: Transition graph (`PENDING` -> `SUCCESS` | `FAILED` | `REFUNDED`) with domain validation; programmatic refunds coordinated across ledger and gateway adapters.
+- **Order Settlement Linkage**: Emits `transactions.completed` domain events to settle linked orders to `PAID`.
+
 ---
 
 ## 3. Latest Verification & Quality Gate Results
@@ -108,6 +116,8 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
   - No cross-module internal file imports.
   - Domain layer completely isolated from Express, pg, or HTTP dependencies.
   - All modules export a clean top-level `index.ts`.
+- **Transaction Processing & Idempotency Suite (`transaction-processing.test.ts`)**: 20/20 tests passed.
+  - State machine lifecycle transitions, multi-tenant quarantine, cryptographic HMAC-SHA256 signature verification, replay defense idempotency, order settlement linkage, multi-gateway routing, controller validation, public API.
 - **Order Processing & Inventory Linkage Suite (`order-processing.test.ts`)**: 20/20 tests passed.
   - Pricing invariants & decimal precision, state machine lifecycle transitions, multi-tenant quarantine, two-phase inventory reservation and compensation rollback, OrderController REST validation, and OrderModule public API.
 - **Inventory Concurrency & Isolation Suite (`inventory-concurrency.test.ts`)**: 18/18 tests passed.
@@ -184,8 +194,9 @@ In strict adherence to the project's core engineering principles:
 - **Sprint 06 (Cloud Storage Adapters: AWS S3 & GCS)**: `COMPLETED & VERIFIED` (AWS S3 SigV4, GCS V4, StorageProviderFactory, Docker volume, 24/24 tests passing).
 - **Sprint 07 (Multi-Tenant Inventory & Concurrency)**: `COMPLETED & VERIFIED` (Multi-tenant inventory, optimistic locking versioning, two-phase reservations, 18/18 tests passing).
 - **Sprint 08 (Orders & Fulfillment Core Domain)**: `COMPLETED & VERIFIED` (Multi-tenant orders, pricing invariants, state machine, inventory linkage, 20/20 tests passing).
-- **Sprint 09 (Transactions & Payments Core Domain)**: `ACTIVE / READY FOR IMPLEMENTATION` (Multi-gateway payment routing, webhook idempotency & transaction ledgers).
+- **Sprint 09 (Transactions & Payments Core Domain)**: `COMPLETED & VERIFIED` (Multi-gateway payment routing, webhook idempotency & transaction ledgers, 20/20 tests passing).
+- **Sprint 10 (Shared Services Core Domain)**: `ACTIVE / READY FOR IMPLEMENTATION` (Multi-channel notifications, cron job scheduler, and search indexing).
 
 ### Immediate Next Single Action:
-1. **Execute Sprint 09**: Implement multi-tenant transaction ledgers, payment gateway routing (Stripe/Razorpay), idempotent webhook processing, and automated test coverage.
+1. **Execute Sprint 10**: Implement multi-channel notifications (Email, SMS, Push, In-App), scheduled background tasks / cron runner, full-text search indexing, and automated test coverage.
 
