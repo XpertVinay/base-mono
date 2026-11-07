@@ -49,10 +49,11 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - **State Machine Lifecycle**: Transitions graph (`VACANT` -> `RENTED` -> `UNDER_MAINTENANCE` -> `LISTED_FOR_RENT` | `LISTED_FOR_SALE`).
 
 ### 3. Caretaking & Assignment Domain (`caretaking`)
-- Caretaker onboarding with KYC and police verification states.
-- Property assignment aggregate with granular permission scopes.
-- Spending threshold limit enforcement for minor repairs.
-- Instant permission revocation upon assignment termination (`FR-ASG-010`).
+- **Multi-Tenant Caretaker Profiles (`caretaking.profiles`)**: Caretaker onboarding, contact info, skills matrix, service cities, and KYC verification states (`PENDING`, `VERIFIED`, `REJECTED`, `SUSPENDED`).
+- **Assignment State Machine Lifecycle (`caretaking.assignments`)**: Formalized progression (`PENDING_ACCEPTANCE` -> `ACTIVE` -> `TERMINATED` | `REJECTED`), enforcing a single active assignment per property within tenant boundaries.
+- **Granular Service Scopes & Owner Spending Limits**: Dynamic permission checking (`VIEW_PROPERTY`, `KEY_ACCESS`, `INSPECT_PREMISES`, `SOLICIT_QUOTES`, `AUTHORIZE_REPAIRS_WITHIN_LIMIT`, `CONDUCT_VISITS`, `COLLECT_RENT_PROOF`) coupled with owner-defined single purchase authorization caps.
+- **Instant Revocation Invariant (`FR-ASG-010`)**: Atomic, immediate revocation of all permission scopes and zeroing of spending limits upon assignment termination, accompanied by `caretaking.terminated` domain integration event emission.
+- **Fail-Closed Multi-Tenant Quarantine**: Cross-tenant lookups, acceptances, permission updates, and terminations strictly rejected (404/403). Verified with 28/28 passing unit tests.
 
 ### 4. Maintenance Equilibrium Engine (`maintenance`)
 - Priority triage matrix (P1 Emergency, P2 Urgent, P3 Standard, P4 Routine).

@@ -33,10 +33,10 @@
 
 | Requirement ID | Description | Priority | Module | Status | Source / Contracts | Tests | Security & Invariants |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `FR-CARE-001` | Caretaker profile onboarding, skills, service zones, verification status | P0 | `caretaking` | `TESTED` | `packages/contracts/src/caretaking/`, `apps/api/src/modules/caretaking/` | `tests/unit/real-estate-core.test.ts` | KYC verification check |
-| `FR-ASG-001` | Property owner requesting caretaker assignment | P0 | `caretaking` | `TESTED` | `modules/caretaking/application/` | `tests/unit/real-estate-core.test.ts` | Assignment authorization |
-| `FR-ASG-004` | Assignment lifecycle: Scope, duration, fee schedule, accepted state | P0 | `caretaking` | `TESTED` | `modules/caretaking/domain/` | `tests/unit/real-estate-core.test.ts` | Caretaker must accept before operational |
-| `FR-ASG-010` | Revocation of access immediately upon assignment termination | P0 | `caretaking` | `TESTED` | `modules/caretaking/domain/` | `tests/unit/real-estate-core.test.ts` | Revocation invariant enforced |
+| `FR-CARE-001` | Caretaker profile onboarding, skills, service zones, verification status | P0 | `caretaking` | `VERIFIED` | `packages/contracts/src/caretaking/`, `apps/api/src/modules/caretaking/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | Multi-tenant isolation & KYC verification states |
+| `FR-ASG-001` | Property owner requesting caretaker assignment | P0 | `caretaking` | `VERIFIED` | `modules/caretaking/application/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | One active caretaker assignment per property |
+| `FR-ASG-004` | Assignment lifecycle: Scope, duration, fee schedule, accepted state | P0 | `caretaking` | `VERIFIED` | `modules/caretaking/domain/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | State machine: PENDING_ACCEPTANCE -> ACTIVE -> TERMINATED |
+| `FR-ASG-010` | Revocation of access immediately upon assignment termination | P0 | `caretaking` | `VERIFIED` | `modules/caretaking/domain/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | Instant Revocation Invariant: all permissions cleared, spending limit 0 |
 
 ---
 
@@ -44,9 +44,9 @@
 
 | Requirement ID | Description | Priority | Module | Status | Source / Contracts | Tests | Security & Invariants |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `FR-PERM-001` | Granular property-level permissions (e.g. view, key_access, repair_quote, inspect) | P0 | `caretaking` | `TESTED` | `modules/caretaking/domain/` | `tests/unit/real-estate-core.test.ts` | No access merely by propertyId |
-| `FR-PERM-002` | Financial spending threshold & Zero-spend-without-approval default | P0 | `caretaking` | `TESTED` | `modules/caretaking/domain/` | `tests/unit/real-estate-core.test.ts` | Server-side threshold enforcement |
-| `FR-PERM-006` | Owner ability to revoke specific permission without terminating assignment | P1 | `caretaking` | `TESTED` | `modules/caretaking/application/` | `tests/unit/real-estate-core.test.ts` | Granular permission revocation |
+| `FR-PERM-001` | Granular property-level permissions (e.g. view, key_access, repair_quote, inspect) | P0 | `caretaking` | `VERIFIED` | `modules/caretaking/domain/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | Fail-closed permission checking, no access by propertyId |
+| `FR-PERM-002` | Financial spending threshold & Zero-spend-without-approval default | P0 | `caretaking` | `VERIFIED` | `modules/caretaking/domain/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | Server-side spending cap enforcement |
+| `FR-PERM-006` | Owner ability to revoke specific permission without terminating assignment | P1 | `caretaking` | `VERIFIED` | `modules/caretaking/application/` | `tests/unit/caretaking-assignments.test.ts`, `tests/unit/real-estate-core.test.ts` | Dynamic permission scope updates by owner |
 
 ---
 

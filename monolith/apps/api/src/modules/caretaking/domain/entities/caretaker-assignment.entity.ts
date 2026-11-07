@@ -1,6 +1,20 @@
 import crypto from 'crypto';
 import { AssignmentStatus, PermissionScope } from '@monolith/contracts';
 
+export class InvalidAssignmentTransitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAssignmentTransitionError';
+  }
+}
+
+export class CaretakerQuarantineError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CaretakerQuarantineError';
+  }
+}
+
 export class CaretakerAssignment {
   private constructor(
     public readonly id: string,
@@ -16,7 +30,8 @@ export class CaretakerAssignment {
     public acceptedAt: Date | null,
     public terminatedAt: Date | null,
     public readonly createdAt: Date,
-    public updatedAt: Date
+    public updatedAt: Date,
+    public readonly tenantId?: string
   ) {}
 
   public static create(
@@ -27,7 +42,8 @@ export class CaretakerAssignment {
     allowedPermissions: PermissionScope[] = ['VIEW_PROPERTY', 'INSPECT_PREMISES'],
     spendingThresholdLimit: number = 0,
     startDate: Date = new Date(),
-    endDate: Date | null = null
+    endDate: Date | null = null,
+    tenantId?: string
   ): CaretakerAssignment {
     if (monthlyFee < 0) {
       throw new Error('Monthly fee cannot be negative');
@@ -51,7 +67,8 @@ export class CaretakerAssignment {
       null,
       null,
       now,
-      now
+      now,
+      tenantId?.trim() || undefined
     );
   }
 
@@ -70,6 +87,7 @@ export class CaretakerAssignment {
     terminatedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
+    tenantId?: string;
   }): CaretakerAssignment {
     return new CaretakerAssignment(
       props.id,
@@ -85,7 +103,8 @@ export class CaretakerAssignment {
       props.acceptedAt,
       props.terminatedAt,
       props.createdAt,
-      props.updatedAt
+      props.updatedAt,
+      props.tenantId
     );
   }
 
@@ -99,10 +118,20 @@ export class CaretakerAssignment {
 
   public accept(_caretakerUserId?: string): void {
     if (this._status !== 'PENDING_ACCEPTANCE') {
-      throw new Error(`Cannot accept assignment in ${this._status} status`);
+      throw new InvalidAssignmentTransitionError(`Cannot accept assignment in ${this._status} status`);
     }
     this._status = 'ACTIVE';
     this.acceptedAt = new Date();
+    this.updatedAt = new Date();
+  }
+
+  public reject(_reason?: string): void {
+    if (this._status !== 'PENDING_ACCEPTANCE') {
+      throw new InvalidAssignmentTransitionError(`Cannot reject assignment in ${this._status} status`);
+    }
+    this._status = 'REJECTED';
+    this._allowedPermissions.clear();
+    this.spendingThresholdLimit = 0;
     this.updatedAt = new Date();
   }
 
@@ -113,7 +142,10 @@ export class CaretakerAssignment {
 
   public updatePermissions(permissions: PermissionScope[], spendingLimit?: number): void {
     if (this._status === 'TERMINATED') {
-      throw new Error('Cannot update permissions on a terminated assignment');
+      throw new InvalidAssignmentTransitionError('Cannot update permissions on a terminated assignment');
+    }
+    if (this._status === 'REJECTED') {
+      throw new InvalidAssignmentTransitionError('Cannot update permissions on a rejected assignment');
     }
     this._allowedPermissions = new Set(permissions);
     if (spendingLimit !== undefined) {
@@ -123,10 +155,12 @@ export class CaretakerAssignment {
     this.updatedAt = new Date();
   }
 
-  public terminate(): void {
+  public terminate(_reason?: string): void {
     if (this._status === 'TERMINATED') return;
     this._status = 'TERMINATED';
-    this._allowedPermissions.clear(); // Immediate permission revocation invariant (FR-ASG-010)
+    // Immediate permission revocation invariant (FR-ASG-010)
+    this._allowedPermissions.clear();
+    this.spendingThresholdLimit = 0;
     this.terminatedAt = new Date();
     this.updatedAt = new Date();
   }

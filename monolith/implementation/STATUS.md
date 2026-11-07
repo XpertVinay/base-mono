@@ -24,7 +24,8 @@ Development adheres to four foundational rules:
 - **Transactions & Payments (Sprint 09)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`transaction-processing.test.ts` 20/20 passing), multi-gateway payment routing, webhook idempotency, cryptographic signatures.
 - **Shared Services (Sprint 10)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`shared-services.test.ts` 20/20 passing), multi-channel notifications (Email, SMS, WhatsApp, Push), cron scheduler & run history, full-text search engine.
 - **Property Portfolio Domain Foundation (Sprint 11)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`property-portfolio.test.ts` 18/18 passing), property units, occupancy lifecycle, 100% ownership splits.
-- **Active Objective (Sprint 12)**: Caretaker Assignments, Service Scopes & Instant Revocation (`caretaking` domain).
+- **Caretaker Assignments & Service Scopes (Sprint 12)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`caretaking-assignments.test.ts` 28/28 passing), multi-tenant caretaker profiles, KYC lifecycle, property assignments, owner spending caps, FR-ASG-010 instant revocation, and fail-closed tenant quarantine.
+- **Active Objective (Sprint 13)**: Vendor Management, Trade Categories & Rate Cards (`vendor` domain).
 - **Downstream Capabilities**: Maintained at high-level roadmap level; detailed specifications generated just-in-time.
 
 ---
@@ -45,8 +46,8 @@ Development adheres to four foundational rules:
 | **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `COMPLETED` | Multi-gateway payment routing, webhooks, transaction ledgers, 20/20 tests passed |
 | **Sprint 10** | **Shared Services** | Reusable Capabilities | `COMPLETED` | Multi-channel notifications, cron scheduler, search indexing, 20/20 tests passed |
 | **Sprint 11** | **Property Domain Foundation** | Property Domain | `COMPLETED` | Property units, floorplans, dynamic pricing matrices, ownership split ledgers, 18/18 tests passed |
-| **Sprint 12** | **Caretaker Assignments** | Property Domain | `ACTIVE` | Caretaker profiles, assignments, granular scopes, instant revocation |
-| **Sprint 13** | **Vendor Management** | Property Domain | `PLANNED` | Vendor onboarding, trade categories, rate cards |
+| **Sprint 12** | **Caretaker Assignments** | Property Domain | `COMPLETED` | Caretaker profiles, assignments, granular scopes, instant revocation, 28/28 tests passed |
+| **Sprint 13** | **Vendor Management** | Property Domain | `ACTIVE` | Vendor onboarding, trade categories, rate cards, service work orders |
 | **Sprint 14** | **Maintenance Equilibrium** | Property Domain | `PLANNED` | Priority triage (P1-P4), emergency float escrow mobilization |
 | **Sprint 15** | **Service Workflows & Telemetry**| Property Domain | `PLANNED` | Quotations review, anti-fraud GPS & photo telemetry proofs |
 | **Sprint 16** | **Bulk Property Onboarding** | Property Domain | `PLANNED` | CSV streaming parser, row-level validation |
@@ -61,6 +62,9 @@ Development adheres to four foundational rules:
 - `pnpm typecheck`: 0 errors across all workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
 - `pnpm test:arch`: 3/3 tests passed (`module-boundaries.test.ts`).
 - `pnpm test:security`: 5/5 tests passed (`security-controls.test.ts`).
+- `caretaking-assignments.test.ts`: 28/28 tests passed (Sprint 12).
+- `property-portfolio.test.ts`: 18/18 tests passed (Sprint 11).
+- `shared-services.test.ts`: 20/20 tests passed (Sprint 10).
 - `transaction-processing.test.ts`: 20/20 tests passed (Sprint 09).
 - `order-processing.test.ts`: 20/20 tests passed (Sprint 08).
 - `inventory-concurrency.test.ts`: 18/18 tests passed (Sprint 07).

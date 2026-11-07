@@ -6,7 +6,8 @@ export type AssignmentStatus =
   | 'PENDING_ACCEPTANCE' 
   | 'ACTIVE' 
   | 'SUSPENDED' 
-  | 'TERMINATED';
+  | 'TERMINATED'
+  | 'REJECTED';
 
 export type PermissionScope = 
   | 'VIEW_PROPERTY' 
@@ -19,6 +20,7 @@ export type PermissionScope =
 
 export interface CaretakerProfileDto {
   id: string;
+  tenantId?: string;
   userId: string;
   name: string;
   phone: string;
@@ -30,10 +32,12 @@ export interface CaretakerProfileDto {
   completedTasksCount: number;
   isAvailable: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CaretakerAssignmentDto {
   id: string;
+  tenantId?: string;
   propertyId: string;
   caretakerId: string;
   ownerId: string;
@@ -46,6 +50,7 @@ export interface CaretakerAssignmentDto {
   acceptedAt?: string;
   terminatedAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CreateCaretakerProfileRequestDto {
@@ -53,6 +58,7 @@ export interface CreateCaretakerProfileRequestDto {
   experienceYears: number;
   serviceCities: string[];
   skills: string[];
+  tenantId?: string;
 }
 
 export interface AssignCaretakerRequestDto {
@@ -61,17 +67,25 @@ export interface AssignCaretakerRequestDto {
   monthlyFee: number;
   allowedPermissions: PermissionScope[];
   spendingThresholdLimit?: number;
-  startDate: string;
+  startDate?: string;
   endDate?: string;
+  tenantId?: string;
 }
 
-export interface UpdatePermissionsRequestDto {
+export interface UpdateAssignmentPermissionsDto {
   allowedPermissions: PermissionScope[];
   spendingThresholdLimit?: number;
 }
 
+export type UpdatePermissionsRequestDto = UpdateAssignmentPermissionsDto;
+
+export interface TerminateAssignmentRequestDto {
+  reason?: string;
+}
+
 export interface CaretakerAssignedPayload {
   assignmentId: string;
+  tenantId?: string;
   propertyId: string;
   caretakerId: string;
   ownerId: string;
@@ -79,13 +93,29 @@ export interface CaretakerAssignedPayload {
   allowedPermissions: PermissionScope[];
 }
 
-export type CaretakerAssignedIntegrationEvent = DomainIntegrationEvent<CaretakerAssignedPayload>;
+export type CaretakerAssignedEvent = DomainIntegrationEvent<CaretakerAssignedPayload>;
+export type CaretakerAssignedIntegrationEvent = CaretakerAssignedEvent;
 
 export interface CaretakerAssignmentAcceptedPayload {
   assignmentId: string;
+  tenantId?: string;
   propertyId: string;
   caretakerId: string;
   acceptedAt: string;
 }
 
-export type CaretakerAssignmentAcceptedIntegrationEvent = DomainIntegrationEvent<CaretakerAssignmentAcceptedPayload>;
+export type CaretakerAssignmentAcceptedEvent = DomainIntegrationEvent<CaretakerAssignmentAcceptedPayload>;
+export type CaretakerAssignmentAcceptedIntegrationEvent = CaretakerAssignmentAcceptedEvent;
+
+export interface AssignmentTerminatedPayload {
+  assignmentId: string;
+  tenantId?: string;
+  propertyId: string;
+  caretakerId: string;
+  ownerId: string;
+  terminatedAt: string;
+  reason?: string;
+}
+
+export type AssignmentTerminatedEvent = DomainIntegrationEvent<AssignmentTerminatedPayload>;
+export type AssignmentTerminatedIntegrationEvent = AssignmentTerminatedEvent;

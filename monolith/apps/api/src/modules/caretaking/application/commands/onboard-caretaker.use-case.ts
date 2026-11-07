@@ -7,6 +7,7 @@ import { CreateCaretakerProfileRequestDto, CaretakerProfileDto } from '@monolith
 export interface OnboardCaretakerInput extends CreateCaretakerProfileRequestDto {
   userId: string;
   name?: string;
+  tenantId?: string;
 }
 
 export class OnboardCaretakerUseCase implements IUseCase<OnboardCaretakerInput, CaretakerProfileDto> {
@@ -14,7 +15,7 @@ export class OnboardCaretakerUseCase implements IUseCase<OnboardCaretakerInput, 
 
   async execute(input: OnboardCaretakerInput): Promise<Result<CaretakerProfileDto, Error>> {
     try {
-      const existing = await this.caretakingRepository.findProfileByUserId(input.userId);
+      const existing = await this.caretakingRepository.findProfileByUserId(input.userId, input.tenantId);
       if (existing) {
         return Result.fail(new Error('Caretaker profile already exists for this user'));
       }
@@ -24,13 +25,15 @@ export class OnboardCaretakerUseCase implements IUseCase<OnboardCaretakerInput, 
         input.phone,
         input.experienceYears,
         input.serviceCities,
-        input.skills
+        input.skills,
+        input.tenantId
       );
 
       await this.caretakingRepository.saveProfile(profile);
 
       return Result.ok({
         id: profile.id,
+        tenantId: profile.tenantId,
         userId: profile.userId,
         name: input.name || 'Caretaker',
         phone: profile.phone,
@@ -41,7 +44,8 @@ export class OnboardCaretakerUseCase implements IUseCase<OnboardCaretakerInput, 
         ratingAverage: profile.ratingAverage,
         completedTasksCount: profile.completedTasksCount,
         isAvailable: profile.isAvailable,
-        createdAt: profile.createdAt.toISOString()
+        createdAt: profile.createdAt.toISOString(),
+        updatedAt: profile.updatedAt.toISOString()
       });
     } catch (err: any) {
       return Result.fail(err);

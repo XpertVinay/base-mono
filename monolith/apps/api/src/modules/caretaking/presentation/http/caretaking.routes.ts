@@ -23,8 +23,15 @@ export function createCaretakingRouter(controller: CaretakingController): Router
   // Update permissions & spending threshold (Owners only)
   router.patch('/assignments/:id/permissions', requireRole('OWNER', 'ADMIN'), controller.updatePermissions);
 
+  // Terminate assignment (FR-ASG-010 Instant Revocation)
+  router.post('/assignments/:id/terminate', controller.terminateAssignment);
+  router.delete('/assignments/:id', controller.terminateAssignment);
+
   // List assignments
   router.get('/assignments', controller.listAssignments);
+
+  // Get single assignment
+  router.get('/assignments/:id', controller.getAssignment);
 
   return router;
 }

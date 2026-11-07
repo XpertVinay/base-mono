@@ -3,14 +3,30 @@ import { Result } from '../../../../shared/domain/result.js';
 import { ICaretakingRepository } from '../../domain/repositories/caretaking-repository.interface.js';
 import { CaretakerProfileDto } from '@monolith/contracts';
 
-export class ListCaretakersQuery implements IUseCase<void, CaretakerProfileDto[]> {
+export interface ListCaretakersInput {
+  tenantId?: string;
+  serviceCity?: string;
+  isAvailable?: boolean;
+}
+
+export class ListCaretakersQuery implements IUseCase<ListCaretakersInput | void, CaretakerProfileDto[]> {
   constructor(private readonly caretakingRepository: ICaretakingRepository) {}
 
-  async execute(): Promise<Result<CaretakerProfileDto[], Error>> {
+  async execute(input?: ListCaretakersInput | void): Promise<Result<CaretakerProfileDto[], Error>> {
     try {
-      const profiles = await this.caretakingRepository.findAllProfiles();
+      const tenantId = input?.tenantId;
+      let profiles = await this.caretakingRepository.findAllProfiles(tenantId);
+
+      if (input?.serviceCity) {
+        profiles = profiles.filter(p => p.serviceCities.includes(input.serviceCity!));
+      }
+      if (input?.isAvailable !== undefined) {
+        profiles = profiles.filter(p => p.isAvailable === input.isAvailable);
+      }
+
       const dtos: CaretakerProfileDto[] = profiles.map(p => ({
         id: p.id,
+        tenantId: p.tenantId,
         userId: p.userId,
         name: 'Verified Caretaker',
         phone: p.phone,
@@ -21,7 +37,8 @@ export class ListCaretakersQuery implements IUseCase<void, CaretakerProfileDto[]
         ratingAverage: p.ratingAverage,
         completedTasksCount: p.completedTasksCount,
         isAvailable: p.isAvailable,
-        createdAt: p.createdAt.toISOString()
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString()
       }));
 
       return Result.ok(dtos);

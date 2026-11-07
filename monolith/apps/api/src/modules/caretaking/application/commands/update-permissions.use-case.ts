@@ -8,6 +8,7 @@ export interface UpdatePermissionsInput {
   ownerId: string;
   allowedPermissions: PermissionScope[];
   spendingThresholdLimit?: number;
+  tenantId?: string;
 }
 
 export class UpdatePermissionsUseCase implements IUseCase<UpdatePermissionsInput, CaretakerAssignmentDto> {
@@ -15,9 +16,13 @@ export class UpdatePermissionsUseCase implements IUseCase<UpdatePermissionsInput
 
   async execute(input: UpdatePermissionsInput): Promise<Result<CaretakerAssignmentDto, Error>> {
     try {
-      const assignment = await this.caretakingRepository.findAssignmentById(input.assignmentId);
+      const assignment = await this.caretakingRepository.findAssignmentById(input.assignmentId, input.tenantId);
       if (!assignment) {
         return Result.fail(new Error(`Assignment ${input.assignmentId} not found`));
+      }
+
+      if (input.tenantId && assignment.tenantId && assignment.tenantId !== input.tenantId) {
+        return Result.fail(new Error('Cross-tenant assignment access denied'));
       }
 
       if (assignment.ownerId !== input.ownerId) {
@@ -29,6 +34,7 @@ export class UpdatePermissionsUseCase implements IUseCase<UpdatePermissionsInput
 
       return Result.ok({
         id: assignment.id,
+        tenantId: assignment.tenantId,
         propertyId: assignment.propertyId,
         caretakerId: assignment.caretakerId,
         ownerId: assignment.ownerId,
@@ -38,7 +44,10 @@ export class UpdatePermissionsUseCase implements IUseCase<UpdatePermissionsInput
         monthlyFee: assignment.monthlyFee,
         allowedPermissions: assignment.allowedPermissions,
         spendingThresholdLimit: assignment.spendingThresholdLimit,
-        createdAt: assignment.createdAt.toISOString()
+        acceptedAt: assignment.acceptedAt ? assignment.acceptedAt.toISOString() : undefined,
+        terminatedAt: assignment.terminatedAt ? assignment.terminatedAt.toISOString() : undefined,
+        createdAt: assignment.createdAt.toISOString(),
+        updatedAt: assignment.updatedAt.toISOString()
       });
     } catch (err: any) {
       return Result.fail(err);

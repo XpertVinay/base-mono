@@ -1,6 +1,13 @@
 import crypto from 'crypto';
 import { KycStatus } from '@monolith/contracts';
 
+export class InvalidCaretakerProfileError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidCaretakerProfileError';
+  }
+}
+
 export class CaretakerProfile {
   private constructor(
     public readonly id: string,
@@ -14,7 +21,8 @@ export class CaretakerProfile {
     public completedTasksCount: number,
     public isAvailable: boolean,
     public readonly createdAt: Date,
-    public updatedAt: Date
+    public updatedAt: Date,
+    public readonly tenantId?: string
   ) {}
 
   public static create(
@@ -22,13 +30,14 @@ export class CaretakerProfile {
     phone: string,
     experienceYears: number,
     serviceCities: string[],
-    skills: string[]
+    skills: string[],
+    tenantId?: string
   ): CaretakerProfile {
     if (!phone || phone.trim().length < 6) {
-      throw new Error('Valid phone number is required for caretaker profile');
+      throw new InvalidCaretakerProfileError('Valid phone number is required for caretaker profile');
     }
     if (experienceYears < 0) {
-      throw new Error('Experience years cannot be negative');
+      throw new InvalidCaretakerProfileError('Experience years cannot be negative');
     }
 
     const now = new Date();
@@ -44,7 +53,8 @@ export class CaretakerProfile {
       0,
       true,
       now,
-      now
+      now,
+      tenantId?.trim() || undefined
     );
   }
 
@@ -61,6 +71,7 @@ export class CaretakerProfile {
     isAvailable: boolean;
     createdAt: Date;
     updatedAt: Date;
+    tenantId?: string;
   }): CaretakerProfile {
     return new CaretakerProfile(
       props.id,
@@ -74,12 +85,19 @@ export class CaretakerProfile {
       props.completedTasksCount,
       props.isAvailable,
       props.createdAt,
-      props.updatedAt
+      props.updatedAt,
+      props.tenantId
     );
   }
 
   public verifyKyc(): void {
     this.kycStatus = 'VERIFIED';
+    this.updatedAt = new Date();
+  }
+
+  public rejectKyc(_reason?: string): void {
+    this.kycStatus = 'REJECTED';
+    this.isAvailable = false;
     this.updatedAt = new Date();
   }
 
