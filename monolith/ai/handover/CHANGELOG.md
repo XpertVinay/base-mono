@@ -5,6 +5,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.8.0] - 2026-11-07
+
+### Added
+- **Property Portfolio Domain Foundation — Units, Floorplans, Pricing Matrices & Ownership Splits (Sprint 11)**:
+  - Database migration `013_property_portfolio_multitenancy.sql` adding `tenant_id` to `property.properties`, and creating `property.units`, `property.floorplans`, `property.pricing_matrices`, and `property.ownership_splits`.
+  - Contracts in `@monolith/contracts/property`: added `tenantId` to `PropertyDto`, and created `PropertyUnitDto`, `CreatePropertyUnitRequestDto`, `UpdateUnitStatusRequestDto`, `FloorplanDto`, `PricingMatrixDto`, `OwnershipSplitDto`, `SetOwnershipSplitsRequestDto`, and integration event payloads (`UnitStatusChangedPayload`, `OwnershipSplitsUpdatedPayload`).
+  - Domain Layer enhancements:
+    - `Property` aggregate: multi-tenant isolation, address validation, emergency float limit updates, state transitions, and `validateOwnershipSplits` enforcing the mathematical invariant that ownership shares must sum exactly to 100.00% (`InvalidOwnershipSplitError`).
+    - `PropertyUnit` aggregate: individual rentable units with occupancy lifecycle (`VACANT` -> `RESERVED` -> `OCCUPIED` -> `VACANT` / `UNDER_MAINTENANCE`) and `InvalidUnitTransitionError`.
+    - `OwnershipSplit` aggregate: fractional equity distribution with percentage validation.
+  - Application & Persistence:
+    - `PostgresPropertyRepository`: multi-tenant SQL queries, in-memory fallback stores with snapshot cloning.
+    - Application use cases: `CreatePropertyUnitUseCase`, `ListPropertyUnitsQuery`, `UpdateUnitStatusUseCase`, `SetOwnershipSplitsUseCase`, `GetOwnershipSplitsQuery`.
+  - Presentation HTTP endpoints under `/api/properties`:
+    - Units: `POST /api/properties/:id/units`, `GET /api/properties/:id/units`, `PATCH /api/properties/units/:unitId/status`.
+    - Ownership splits: `POST /api/properties/:id/ownership-splits`, `GET /api/properties/:id/ownership-splits`.
+  - Cross-module event projection: emits `property.registered` integration event.
+  - Dedicated automated test suite `apps/api/src/tests/unit/property-portfolio.test.ts` with 18/18 passing tests (120/120 cumulative regression pass rate).
+
+---
+
 ## [1.7.0] - 2026-11-07
 
 ### Added

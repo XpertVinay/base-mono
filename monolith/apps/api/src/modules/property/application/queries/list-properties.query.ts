@@ -6,19 +6,21 @@ import { PropertyDto } from '@monolith/contracts';
 export interface ListPropertiesInput {
   ownerId?: string;
   role?: string;
+  tenantId?: string;
 }
 
 export class ListPropertiesQuery implements IUseCase<ListPropertiesInput, PropertyDto[]> {
   constructor(private readonly propertyRepository: IPropertyRepository) {}
 
-  async execute(input: ListPropertiesInput): Promise<Result<PropertyDto[], Error>> {
+  async execute(input?: ListPropertiesInput): Promise<Result<PropertyDto[], Error>> {
     try {
-      const properties = input.ownerId
-        ? await this.propertyRepository.findByOwnerId(input.ownerId)
-        : await this.propertyRepository.findAll();
+      const properties = input?.ownerId
+        ? await this.propertyRepository.findByOwnerId(input.ownerId, input.tenantId)
+        : await this.propertyRepository.findAll(input?.tenantId);
 
       const dtos: PropertyDto[] = properties.map(property => ({
         id: property.id,
+        tenantId: property.tenantId,
         ownerId: property.ownerId,
         title: property.title,
         description: property.description,

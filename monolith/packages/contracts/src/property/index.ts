@@ -18,6 +18,12 @@ export type PropertyStatus =
   | 'LISTED_FOR_RENT' 
   | 'LISTED_FOR_SALE';
 
+export type UnitStatus = 
+  | 'VACANT' 
+  | 'OCCUPIED' 
+  | 'UNDER_MAINTENANCE' 
+  | 'RESERVED';
+
 export interface AddressDto {
   street: string;
   city: string;
@@ -30,6 +36,7 @@ export interface AddressDto {
 
 export interface PropertyDto {
   id: string;
+  tenantId?: string;
   ownerId: string;
   title: string;
   description: string;
@@ -50,6 +57,7 @@ export interface PropertyDto {
 }
 
 export interface CreatePropertyRequestDto {
+  tenantId?: string;
   title: string;
   description: string;
   category: PropertyCategory;
@@ -70,8 +78,95 @@ export interface UpdatePropertyStatusRequestDto {
   reason?: string;
 }
 
+export interface PropertyUnitDto {
+  id: string;
+  propertyId: string;
+  tenantId?: string;
+  unitNumber: string;
+  floor: number;
+  status: UnitStatus;
+  rentAmount: number;
+  depositAmount: number;
+  areaSqFt: number;
+  createdAt: string;
+}
+
+export interface CreatePropertyUnitRequestDto {
+  tenantId?: string;
+  unitNumber: string;
+  floor?: number;
+  rentAmount: number;
+  depositAmount?: number;
+  areaSqFt: number;
+}
+
+export interface UpdateUnitStatusRequestDto {
+  status: UnitStatus;
+  reason?: string;
+}
+
+export interface FloorplanDto {
+  id: string;
+  propertyId: string;
+  tenantId?: string;
+  name: string;
+  bedrooms: number;
+  bathrooms: number;
+  areaSqFt: number;
+  baseRent: number;
+  createdAt: string;
+}
+
+export interface CreateFloorplanRequestDto {
+  tenantId?: string;
+  name: string;
+  bedrooms: number;
+  bathrooms: number;
+  areaSqFt: number;
+  baseRent: number;
+}
+
+export interface PricingMatrixDto {
+  id: string;
+  propertyId: string;
+  tenantId?: string;
+  seasonName: string;
+  multiplier: number;
+  effectiveFrom: string;
+  effectiveTo: string;
+  createdAt: string;
+}
+
+export interface CreatePricingMatrixRequestDto {
+  tenantId?: string;
+  seasonName: string;
+  multiplier: number;
+  effectiveFrom: string;
+  effectiveTo: string;
+}
+
+export interface OwnershipSplitDto {
+  id: string;
+  propertyId: string;
+  tenantId?: string;
+  ownerId: string;
+  sharePercentage: number;
+  disbursementAccount?: string;
+  createdAt: string;
+}
+
+export interface SetOwnershipSplitsRequestDto {
+  tenantId?: string;
+  splits: Array<{
+    ownerId: string;
+    sharePercentage: number;
+    disbursementAccount?: string;
+  }>;
+}
+
 export interface PropertyCreatedPayload {
   propertyId: string;
+  tenantId?: string;
   ownerId: string;
   title: string;
   category: PropertyCategory;
@@ -83,6 +178,7 @@ export type PropertyCreatedIntegrationEvent = DomainIntegrationEvent<PropertyCre
 
 export interface PropertyStatusChangedPayload {
   propertyId: string;
+  tenantId?: string;
   previousStatus: PropertyStatus;
   newStatus: PropertyStatus;
   updatedBy: string;
@@ -90,3 +186,25 @@ export interface PropertyStatusChangedPayload {
 }
 
 export type PropertyStatusChangedIntegrationEvent = DomainIntegrationEvent<PropertyStatusChangedPayload>;
+
+export interface UnitStatusChangedPayload {
+  unitId: string;
+  propertyId: string;
+  tenantId?: string;
+  previousStatus: UnitStatus;
+  newStatus: UnitStatus;
+  reason?: string;
+}
+
+export type UnitStatusChangedIntegrationEvent = DomainIntegrationEvent<UnitStatusChangedPayload>;
+
+export interface OwnershipSplitsUpdatedPayload {
+  propertyId: string;
+  tenantId?: string;
+  splits: Array<{
+    ownerId: string;
+    sharePercentage: number;
+  }>;
+}
+
+export type OwnershipSplitsUpdatedIntegrationEvent = DomainIntegrationEvent<OwnershipSplitsUpdatedPayload>;

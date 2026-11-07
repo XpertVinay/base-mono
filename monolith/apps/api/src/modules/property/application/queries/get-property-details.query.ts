@@ -2,9 +2,11 @@ import { IUseCase } from '../../../../shared/application/use-case.interface.js';
 import { Result } from '../../../../shared/domain/result.js';
 import { IPropertyRepository } from '../../domain/repositories/property-repository.interface.js';
 import { PropertyDto } from '@monolith/contracts';
+import { NotFoundError } from '../../../../shared/presentation/error-handler.middleware.js';
 
 export interface GetPropertyDetailsInput {
   propertyId: string;
+  tenantId?: string;
 }
 
 export class GetPropertyDetailsQuery implements IUseCase<GetPropertyDetailsInput, PropertyDto> {
@@ -12,13 +14,14 @@ export class GetPropertyDetailsQuery implements IUseCase<GetPropertyDetailsInput
 
   async execute(input: GetPropertyDetailsInput): Promise<Result<PropertyDto, Error>> {
     try {
-      const property = await this.propertyRepository.findById(input.propertyId);
+      const property = await this.propertyRepository.findById(input.propertyId, input.tenantId);
       if (!property) {
-        return Result.fail(new Error(`Property with id ${input.propertyId} not found`));
+        return Result.fail(new NotFoundError(`Property with id '${input.propertyId}'`));
       }
 
       return Result.ok({
         id: property.id,
+        tenantId: property.tenantId,
         ownerId: property.ownerId,
         title: property.title,
         description: property.description,

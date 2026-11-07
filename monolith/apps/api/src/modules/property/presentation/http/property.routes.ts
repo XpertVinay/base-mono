@@ -20,5 +20,14 @@ export function createPropertyRouter(controller: PropertyController): Router {
   // Update property status - Owners and Admins only
   router.patch('/:id/status', requireRole('OWNER', 'ADMIN'), controller.updateStatus);
 
+  // Units
+  router.post('/:id/units', requireRole('OWNER', 'ADMIN'), controller.createUnit);
+  router.get('/:id/units', controller.listUnits);
+  router.patch('/units/:unitId/status', requireRole('OWNER', 'ADMIN'), controller.updateUnitStatus);
+
+  // Ownership Splits
+  router.post('/:id/ownership-splits', requireRole('OWNER', 'ADMIN'), controller.setOwnershipSplits);
+  router.get('/:id/ownership-splits', controller.getOwnershipSplits);
+
   return router;
 }

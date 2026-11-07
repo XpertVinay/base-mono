@@ -1,6 +1,20 @@
 import crypto from 'crypto';
 import { PropertyCategory, PropertyType, PropertyStatus, AddressDto } from '@monolith/contracts';
 
+export class InvalidOwnershipSplitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidOwnershipSplitError';
+  }
+}
+
+export class InvalidPropertyTransitionError extends Error {
+  constructor(from: PropertyStatus, to: PropertyStatus) {
+    super(`Invalid property status transition from ${from} to ${to}`);
+    this.name = 'InvalidPropertyTransitionError';
+  }
+}
+
 export class Property {
   private constructor(
     public readonly id: string,
@@ -20,7 +34,8 @@ export class Property {
     },
     public emergencyFloatLimit: number,
     public readonly createdAt: Date,
-    public updatedAt: Date
+    public updatedAt: Date,
+    public readonly tenantId?: string
   ) {}
 
   public static create(
@@ -37,7 +52,9 @@ export class Property {
       relationship: string;
     },
     amenities: string[] = [],
-    emergencyFloatLimit: number = 5000
+    emergencyFloatLimit: number = 5000,
+    tenantId?: string,
+    id?: string
   ): Property {
     if (!title || title.trim().length < 3) {
       throw new Error('Property title must be at least 3 characters long');
@@ -54,7 +71,7 @@ export class Property {
 
     const now = new Date();
     return new Property(
-      crypto.randomUUID(),
+      id || crypto.randomUUID(),
       ownerId,
       title.trim(),
       description.trim(),
@@ -67,7 +84,8 @@ export class Property {
       emergencyContact,
       Math.max(0, emergencyFloatLimit),
       now,
-      now
+      now,
+      tenantId
     );
   }
 
@@ -90,6 +108,7 @@ export class Property {
     emergencyFloatLimit: number;
     createdAt: Date;
     updatedAt: Date;
+    tenantId?: string;
   }): Property {
     return new Property(
       props.id,
@@ -105,7 +124,8 @@ export class Property {
       props.emergencyContact,
       props.emergencyFloatLimit,
       props.createdAt,
-      props.updatedAt
+      props.updatedAt,
+      props.tenantId
     );
   }
 
@@ -126,7 +146,7 @@ export class Property {
     };
 
     if (!validTransitions[this._status]?.includes(newStatus)) {
-      throw new Error(`Invalid property status transition from ${this._status} to ${newStatus}`);
+      throw new InvalidPropertyTransitionError(this._status, newStatus);
     }
 
     this._status = newStatus;
@@ -139,5 +159,31 @@ export class Property {
     }
     this.emergencyFloatLimit = limit;
     this.updatedAt = new Date();
+  }
+
+  /**
+   * Domain Invariant: Total ownership split percentages across all stakeholders must sum to exactly 100.00%
+   */
+  public static validateOwnershipSplits(splits: Array<{ sharePercentage: number }>): void {
+    if (!splits || splits.length === 0) {
+      throw new InvalidOwnershipSplitError('At least one ownership split stakeholder is required');
+    }
+
+    const total = splits.reduce((sum, item) => sum + Number(item.sharePercentage), 0);
+    const roundedTotal = Math.round(total * 100) / 100;
+
+    if (Math.abs(roundedTotal - 100.00) > 0.01) {
+      throw new InvalidOwnershipSplitError(
+        `Total ownership split across all stakeholders must equal exactly 100% (received: ${roundedTotal.toFixed(2)}%)`
+      );
+    }
+
+    for (const split of splits) {
+      if (split.sharePercentage <= 0 || split.sharePercentage > 100) {
+        throw new InvalidOwnershipSplitError(
+          `Stakeholder share percentage must be greater than 0 and less than or equal to 100 (received: ${split.sharePercentage}%)`
+        );
+      }
+    }
   }
 }

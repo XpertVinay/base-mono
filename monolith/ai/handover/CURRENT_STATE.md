@@ -1,7 +1,7 @@
 # Real Estate CareTaking — Handover Current State
 
 **Document:** `CURRENT_STATE.md`  
-**Version:** 1.1  
+**Version:** 1.2  
 **Date:** Current Operational Baseline  
 **Overall Status:** Stable, Fully Tested, Architecture Verified
 
@@ -41,9 +41,12 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - **Immutable Audit Trail**: Append-only security audit log in `iam.audit_logs`.
 
 ### 2. Property Portfolio Domain (`property`)
-- Property asset registration with Address Value Objects and category validation.
-- Emergency float limit configuration for automated emergency triage.
-- State machine lifecycle (`DRAFT` -> `UNDER_VERIFICATION` -> `VERIFIED` -> `ACTIVE` -> `INACTIVE`).
+- **Multi-Tenant Property Portfolio**: Scoped by `tenant_id` across `property.properties` with compound indexes on `(tenant_id, created_at DESC)` and `(tenant_id, status)`. Fail-closed quarantine (404/403) across tenant boundaries.
+- **Rentable Unit Inventory (`property.units`)**: Decoupled unit management with unique numbering per property `(property_id, unit_number)`, and dedicated occupancy state machine (`VACANT` -> `RESERVED` -> `OCCUPIED` -> `VACANT` / `UNDER_MAINTENANCE`).
+- **Architectural Floorplans & Dynamic Pricing Matrices**: Floorplan specs and seasonal rate multipliers with mathematical precision.
+- **Multi-Owner Equity Split Ledgers (`property.ownership_splits`)**: Enforces strict mathematical invariant where stakeholder shares per property must sum to exactly 100.00% ($\sum \text{shares} = 100.00\%$), rejecting any configuration with $< 100\%$ or $> 100\%$ with `InvalidOwnershipSplitError`.
+- **Event-Driven Search Integration**: Emits `property.registered` domain integration event upon property creation.
+- **State Machine Lifecycle**: Transitions graph (`VACANT` -> `RENTED` -> `UNDER_MAINTENANCE` -> `LISTED_FOR_RENT` | `LISTED_FOR_SALE`).
 
 ### 3. Caretaking & Assignment Domain (`caretaking`)
 - Caretaker onboarding with KYC and police verification states.
@@ -126,13 +129,15 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
   - No cross-module internal file imports.
   - Domain layer completely isolated from Express, pg, or HTTP dependencies.
   - All modules export a clean top-level `index.ts`.
+- **Property Portfolio Unit Suite (`property-portfolio.test.ts`)**: 18/18 tests passed.
+  - Multi-tenant property registration with address validation, emergency float configuration, state machine transitions, rentable unit creation & occupancy lifecycle, multi-owner equity split 100.00% invariant, presentation controller boundary, and public API facades.
 - **Shared Services Unit Suite (`shared-services.test.ts`)**: 20/20 tests passed.
   - Multi-tenant notification dispatch across 5 channels, template interpolation, dry-run outbox, scheduler lifecycle and run history, full-text search token matching and type filtering, presentation controllers, and public APIs.
 - **Transaction Processing & Idempotency Suite (`transaction-processing.test.ts`)**: 20/20 tests passed.
 - **Order Processing & Inventory Linkage Suite (`order-processing.test.ts`)**: 20/20 tests passed.
 - **Inventory Concurrency & Isolation Suite (`inventory-concurrency.test.ts`)**: 18/18 tests passed.
 - **Cloud Storage Adapters Test Suite (`storage-adapters.test.ts`)**: 24/24 tests passed.
-- **Cumulative Regression Test Suite**: 102/102 tests passed across 5 capability suites in under 1 second.
+- **Cumulative Regression Test Suite**: 120/120 tests passed across 6 capability suites in ~1 second.
 
 ---
 
@@ -156,7 +161,8 @@ In strict adherence to the project's core engineering principles:
 - **Sprint 08 (Orders & Fulfillment Core Domain)**: `COMPLETED & VERIFIED` (Multi-tenant orders, pricing invariants, state machine, inventory linkage, 20/20 tests passing).
 - **Sprint 09 (Transactions & Payments Core Domain)**: `COMPLETED & VERIFIED` (Multi-gateway payment routing, webhook idempotency & transaction ledgers, 20/20 tests passing).
 - **Sprint 10 (Shared Services Core Domain)**: `COMPLETED & VERIFIED` (Multi-channel notifications, cron job scheduler, full-text search indexing, 20/20 tests passing).
-- **Sprint 11 (Property Portfolio Domain Foundation)**: `ACTIVE OBJECTIVE` (Property units, floorplans, pricing matrices, and ownership split allocation).
+- **Sprint 11 (Property Portfolio Domain Foundation)**: `COMPLETED & VERIFIED` (Property units, floorplans, dynamic pricing matrices, ownership split ledgers, 18/18 tests passing).
+- **Sprint 12 (Caretaker Assignments, Service Scopes & Instant Revocation)**: `ACTIVE OBJECTIVE` (Caretaker profiles, KYC verification, assignment aggregates, spending threshold limits, instant permission revocation).
 
 ### Immediate Next Single Action:
-1. **Execute Sprint 11**: Draft and activate `SPRINT_11.md` focusing on property units, floorplans, dynamic pricing matrices, ownership split ledgers, and automated test coverage.
+1. **Execute Sprint 12**: Draft and activate `SPRINT_12.md` focusing on caretaker assignment aggregates, spending thresholds, service scopes, instant revocation, and automated tests.
