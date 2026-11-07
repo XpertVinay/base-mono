@@ -140,3 +140,8 @@ desktop.ini
 tmp/
 temp/
 scratch/
+/storage/
+monolith/apps/api/storage/
+**/storage/uploads/
+
+

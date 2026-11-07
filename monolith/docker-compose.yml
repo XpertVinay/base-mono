@@ -43,6 +43,10 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: monolith_db
       JWT_SECRET: super-secret-development-jwt-key-replace-in-production-min-32-chars
+      STORAGE_PROVIDER: LOCAL
+      LOCAL_STORAGE_DIR: /data/storage/uploads
+    volumes:
+      - monolith_storage:/data/storage/uploads
     ports:
       - "${API_PORT:-4001}:4000"
     healthcheck:
@@ -79,4 +83,6 @@ networks:
 
 volumes:
   monolith_pgdata:
+    driver: local
+  monolith_storage:
     driver: local

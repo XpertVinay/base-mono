@@ -48,12 +48,14 @@ export function requireTenantMembership(validateTenantContextQuery: ValidateTena
     }
 
     const orgId = (
-      req.params.orgId ||
-      req.params.organizationId ||
-      req.params.id ||
       req.headers['x-tenant-id'] ||
       req.headers['x-organization-id'] ||
-      req.body?.organizationId
+      req.params.orgId ||
+      req.params.organizationId ||
+      req.body?.organizationId ||
+      req.body?.tenantId ||
+      req.user?.tenantId ||
+      req.params.id
     ) as string;
 
     if (!orgId) {

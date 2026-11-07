@@ -5,6 +5,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [1.3.0] - 2026-11-07
+
+### Added
+- **Cloud Storage Adapters (AWS S3 & GCS) & Dynamic Storage Provider Factory (Sprint 06)**:
+  - Implemented `S3StorageProvider` with native Node.js crypto AWS Signature Version 4 (SigV4) presigned `PUT` upload and `GET` download URL generation, zero external AWS SDK dependency bloat, and custom S3/MinIO endpoint support.
+  - Implemented `GcsStorageProvider` with Google Cloud Storage V4 signed URL generator (`GOOG4-RSA-SHA256`), PEM RSA private key signing, and fallback test signing.
+  - Delivered `StorageProviderFactory` supporting dynamic runtime resolution (`STORAGE_PROVIDER=LOCAL|S3|GCS`), configuration validation (`InvalidStorageConfigurationError`), and tenant-specific bucket/CDN overrides via `createForTenant`.
+  - Implemented `storage-path.util.ts` domain utilities: `sanitizeStorageKey` (anti-directory traversal preventing `../` exploits and normalizing paths), `validateTenantPathIsolation` (enforces `tenants/<tenantId>/...` directory partitioning), and `buildTenantStoragePath`.
+  - Configured container-mounted Docker persistent volume `monolith_storage` (`/data/storage/uploads`) in root and infrastructure `docker-compose.yml`.
+  - Updated shared contracts in `@monolith/contracts/asset` with `StorageProviderType` and `StorageConfigDto`.
+  - Updated `AssetModule.init()` to dynamically resolve storage engine via `StorageProviderFactory.createFromEnv()`.
+  - Dedicated automated test suite `apps/api/src/tests/unit/storage-adapters.test.ts` with 24/24 passing tests verifying factory resolution, AWS S3 SigV4 signing, GCS V4 signing, CDN distribution, tenant path isolation, anti-traversal defense, and AssetModule integration.
+
+---
+
+## [1.2.0] - 2026-10-30
+
+### Added
+- **Asset Management Foundation & Storage Provider Abstraction (Sprint 05)**:
+  - Database migration `008_asset_lifecycle_and_multitenancy.sql` introducing multi-tenancy (`tenant_id`), categorization (`category`), upload lifecycle state (`status`), and cryptographic checksum (`checksum`) to `asset.assets`.
+  - Defined shared contracts in `@monolith/contracts/asset`: `AssetCategory`, `AssetStatus`, `AssetDto`, `PresignUploadRequestDto`, `PresignUploadResponseDto`, `ConfirmUploadRequestDto`, `CreateAssetRequestDto`.
+  - Introduced hexagonal storage provider port `IStorageProvider` in `modules/asset/domain/services/storage-provider.interface.ts`.
+  - Delivered production-grade `LocalStorageProvider` supporting direct disk I/O, directory traversal prevention, fallback in-memory cache, and URL signing simulation.
+  - Implemented `AssetValidationService` enforcing strict MIME type whitelists (`image/jpeg`, `image/png`, `image/webp`, `application/pdf`, `text/csv`), category file size thresholds (15MB image, 25MB PDF, 10MB CSV), extension matching, and rejection of dangerous/executable extensions.
+  - Application layer use cases: `RequestPresignedUploadUseCase`, `ConfirmAssetUploadUseCase`, `GetAssetDownloadUrlQuery`, `ListTenantAssetsQuery`, `DeleteAssetUseCase`, `CreateAssetUseCase`, and `ListAssetsQuery`.
+  - Presentation HTTP endpoints:
+    - `POST /api/assets/presign-upload`: Presigns upload URL and reserves record in `PENDING_UPLOAD`.
+    - `POST /api/assets/:id/confirm`: Verifies physical storage presence and transitions state to `ACTIVE`.
+    - `GET /api/assets/:id`: Secure time-bounded download URL generation with tenant boundary checks.
+    - `GET /api/assets`: Paginated listing of active tenant assets with category filtering.
+    - `DELETE /api/assets/:id`: Archives asset and purges file from storage provider.
+    - `PUT /api/assets/local-upload/*`: Direct streaming/raw upload simulation endpoint.
+  - Dedicated automated test suite `apps/api/src/tests/unit/asset-management.test.ts` with 20/20 passing tests verifying all 7 acceptance criteria: MIME validation, file size limits, two-phase upload lifecycle, tenant quarantine (403 Forbidden), state integrity, storage provider decoupling, and controller integration.
+
+---
+
 ## [1.1.0] - 2026-10-30
 
 ### Added

@@ -66,3 +66,19 @@
   - `SESSION_24H`: Re-verifies once every 24 hours.
   - `EVERY_TIME`: Requires immediate step-up MFA challenge on every invocation.
 
+### Decision 007: Single-Identity Multi-Tenancy & Dynamic RBAC
+- **Context:** Enterprise users need to operate across multiple real estate organizations with different roles and permissions without repeated logins.
+- **Decision:** Associate a single user record with multiple organizations via `iam.organization_memberships`. Enforce dynamic RBAC permissions conforming to `<domain>:<action>` evaluated against tenant custom roles and system roles, with primary organization owner protection.
+
+### Decision 008: Hexagonal Storage Provider Abstraction & Two-Phase Upload Lifecycle
+- **Context:** Real estate platforms manage media and sensitive documents across different cloud and on-premises environments without tight vendor lock-in. Direct file streaming through API nodes creates bottlenecks and security risks.
+- **Decision:** Introduce the `IStorageProvider` hexagonal port. Implement a two-phase upload flow:
+  1. `RequestPresignedUploadUseCase` validates strict MIME type whitelists, extensions, and file size limits, returning a signed upload URL and reserving an asset record in `PENDING_UPLOAD`.
+  2. `ConfirmAssetUploadUseCase` verifies physical presence in storage before transitioning the asset to `ACTIVE`.
+  Assets in `PENDING_UPLOAD` are strictly quarantined from standard tenant asset listings. Storage keys enforce tenant-partitioned paths (`tenants/${tenantId}/${category}/...`).
+
+### Decision 009: Cloud Storage Adapters (AWS S3 & GCS) with Zero-Bloat Native Signing & Dynamic Factory
+- **Context:** Production environments require scalable object stores (AWS S3 and Google Cloud Storage) with client-direct presigned uploads and CDN distribution, while local development and testing require zero-configuration offline execution. Bundling heavy AWS and GCP SDKs adds hundreds of megabytes of binary bloat.
+- **Decision:** Implement native Node.js crypto-based AWS Signature Version 4 (SigV4) in `S3StorageProvider` and Google Cloud V4 signed URL generator in `GcsStorageProvider`. Deliver `StorageProviderFactory` supporting dynamic runtime environment resolution, tenant-specific bucket overrides, container-mounted Docker volumes (`/data/storage/uploads`), and strict anti-directory traversal sanitization (`sanitizeStorageKey`).
+- **Consequences:** Zero external cloud SDK bloat, 100% offline unit and integration test execution, pluggable cloud migration, and multi-tenant path isolation.
+

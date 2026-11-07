@@ -17,7 +17,8 @@ Development adheres to four foundational rules:
 
 ### Current Verified Baseline:
 - **Platform Foundation (Sprints 00–04)**: Fully verified in codebase with automated test suites (`dynamic-rbac.test.ts` 18/18, `multi-tenant-organizations.test.ts` 18/18), clean typecheck, and AST architecture boundary gates.
-- **Active Objective (Sprint 05)**: Asset Management (Metadata, MIME validation, storage ports, presigned upload lifecycle).
+- **Asset Management (Sprint 05)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`asset-management.test.ts` 20/20 passing), MIME type validation gate, file size invariants, and `IStorageProvider` port.
+- **Active Objective (Sprint 06)**: Storage Adapters (AWS S3 & GCS cloud object storage adapters conforming to `IStorageProvider`).
 - **Downstream Capabilities**: Maintained at high-level roadmap level; detailed specifications generated just-in-time.
 
 ---
@@ -31,9 +32,9 @@ Development adheres to four foundational rules:
 | **Sprint 02** | **Identity & Authentication** | Platform Foundation | `COMPLETED` | RS256 asymmetric JWT, public JWKS endpoint (`/.well-known/jwks.json`), AES-GCM refresh tokens, device fingerprint anti-hijacking |
 | **Sprint 03** | **Multi-Tenancy** | Platform Foundation | `COMPLETED` | Organizations, onboarding, memberships, invitations, tenant context middleware, 18/18 tests passed |
 | **Sprint 04** | **Dynamic RBAC & Scoped Auth** | Platform Foundation | `COMPLETED` | Tenant-scoped permissions, custom roles, `requirePermission` guard middleware, 18/18 tests passed |
-| **Sprint 05** | **Asset Management** | Reusable Capabilities | `ACTIVE` | Metadata, MIME validation, storage ports (spec generated upon Sprint 04 completion) |
-| **Sprint 06** | **Storage Adapters** | Reusable Capabilities | `PLANNED` | Cloud storage adapters (S3, GCS) |
-| **Sprint 07** | **Inventory Management** | Reusable Capabilities | `PLANNED` | Stock items, reservations, atomic release |
+| **Sprint 05** | **Asset Management** | Reusable Capabilities | `COMPLETED` | Two-phase upload lifecycle, MIME validation, storage ports, 20/20 tests passed |
+| **Sprint 06** | **Storage Adapters** | Reusable Capabilities | `COMPLETED` | Cloud storage adapters (AWS S3, GCS), StorageProviderFactory, Docker storage volume, anti-traversal defense, 24/24 tests passed |
+| **Sprint 07** | **Inventory Management** | Reusable Capabilities | `ACTIVE` | Stock items, reservations, atomic release, multi-tenant inventory ledger |
 | **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `PLANNED` | Order lifecycle, pricing calculation |
 | **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `PLANNED` | Multi-gateway payment routing, webhooks |
 | **Sprint 10** | **Shared Services** | Reusable Capabilities | `PLANNED` | Notifications, scheduler, search index |
@@ -51,9 +52,11 @@ Development adheres to four foundational rules:
 
 ## 3. Latest Verification & Quality Gate Results
 
-- `pnpm typecheck`: 0 errors across all 5 workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
+- `pnpm typecheck`: 0 errors across all workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
 - `pnpm test:arch`: 3/3 tests passed (`module-boundaries.test.ts`).
 - `pnpm test:security`: 5/5 tests passed (`security-controls.test.ts`).
+- `storage-adapters.test.ts`: 24/24 tests passed (Sprint 06).
+- `asset-management.test.ts`: 20/20 tests passed (Sprint 05).
 - `dynamic-rbac.test.ts`: 18/18 tests passed (Sprint 04).
 - `multi-tenant-organizations.test.ts`: 18/18 tests passed (Sprint 03).
 - `pnpm build`: Clean production bundle output across `@monolith/contracts`, `@monolith/api`, and `@monolith/web`.
@@ -65,7 +68,6 @@ Development adheres to four foundational rules:
 
 ## 4. Immediate Recommended Tasks
 
-1. **Sprint 05**: Implement Asset Management foundation, metadata models, MIME validation, and abstract storage provider ports (`ai/sprints/SPRINT_05.md`).
-2. **Sprint 06**: Implement concrete AWS S3 presigned URL upload adapter in `modules/asset`.
-3. **Sprint 16**: Implement CSV streaming parser and validation pipe for bulk property imports.
-4. **Sprint 19**: Mount Swagger UI at `/api/docs` and expose Prometheus `/metrics` endpoint.
+1. **Sprint 06**: Implement concrete AWS S3 and GCS storage adapters conforming to `IStorageProvider` and StorageProviderFactory (`ai/sprints/SPRINT_06.md`).
+2. **Sprint 16**: Implement CSV streaming parser and validation pipe for bulk property imports.
+3. **Sprint 19**: Mount Swagger UI at `/api/docs` and expose Prometheus `/metrics` endpoint.

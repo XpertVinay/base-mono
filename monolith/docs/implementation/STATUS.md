@@ -7,52 +7,58 @@
 
 ---
 
-## 1. Summary of Execution State
+## 1. Summary of Execution State & Operating Governance
 
-- **Sprint Roadmap Governance Established:**
-  - 20 independently verifiable sprints defined and calibrated based on comprehensive repository assessment.
-  - Sprint documentation active under `ai/sprints/` (`SPRINT_00.md` through `SPRINT_19.md`).
-  - Canonical governance files active under `ai/` (`PROJECT_CONTEXT.md`, `ARCHITECTURE.md`, `MODULE_MAP.md`, `DEVELOPMENT_RULES.md`, `DATA_MODEL.md`, `API_CONVENTIONS.md`, `DECISIONS.md`, `SECURITY_MODEL.md`).
-- **Pillars State:**
-  - **Platform Foundation (Sprints 00–04)**: Complete and verified across repository discovery, application foundation, RS256/JWKS authentication, multi-tenant config caching, and dynamic RBAC.
-  - **Reusable Business Capabilities (Sprints 05–10)**: Core modules active and verified for Asset management, Inventory tracking, Orders fulfillment, Multi-gateway Transactions, and Shared services (Notifications, Scheduler, Search, Audit logs). Cloud storage adapters (Sprint 06) currently verified on local Docker volume with S3 scheduled.
-  - **Property Management Domain (Sprints 11–16)**: Full domain delivered across Property registry, Caretaker assignments with instant revocation (`FR-ASG-010`), Maintenance Equilibrium Engine with P1 float escrow & anti-fraud GPS telemetry, Service quotations & ledgers. Bulk onboarding (Sprint 16) scheduled.
-  - **Infrastructure & Production Readiness (Sprints 17–19)**: Terraform multi-cloud modules verified in `boilerplate/infra`; OWASP security & AST architecture gates 100% passing; health probes and operational runbooks established.
+Development adheres to four foundational rules:
+1. **One Sprint, One Objective**: Strict domain isolation. Sprints never mix disparate domains (e.g. Identity, RBAC, Assets, Property Management).
+2. **Repository as Memory**: Chat history is never treated as project memory. All context, contracts, schemas, and decisions are persisted in repository files (`ai/`, `STATUS.md`, `CURRENT_STATE.md`, `CHANGELOG.md`).
+3. **Evidence-Based Progression**: A sprint is complete only when its code, migrations, tests, and acceptance criteria have been verified with observed terminal output.
+4. **Just-In-Time Specifications**: Upfront generation of 20 speculative sprint specification files is avoided. Sprints are anchored at Sprint 00, and detailed specifications are generated on a rolling window based on actual codebase findings.
+
+### Current Verified Baseline:
+- **Platform Foundation (Sprints 00–04)**: Fully verified in codebase with automated test suites (`dynamic-rbac.test.ts` 18/18, `multi-tenant-organizations.test.ts` 18/18), clean typecheck, and AST architecture boundary gates.
+- **Asset Management (Sprint 05)**: `COMPLETED & VERIFIED` with dedicated automated test suite (`asset-management.test.ts` 20/20 passing), MIME type validation gate, file size invariants, and `IStorageProvider` port.
+- **Active Objective (Sprint 06)**: Storage Adapters (AWS S3 & GCS cloud object storage adapters conforming to `IStorageProvider`).
+- **Downstream Capabilities**: Maintained at high-level roadmap level; detailed specifications generated just-in-time.
 
 ---
 
-## 2. 20-Sprint Master Execution Matrix
+## 2. Sprint Roadmap Status Matrix
 
 | Sprint | Theme / Milestone | Category | Status | Primary Deliverables & Verifiable Gate |
 | :--- | :--- | :--- | :--- | :--- |
-| **Sprint 00** | **Repository Discovery** | Platform Foundation | `COMPLETED` | Codebase inspection, stack assessment, `ai/` instruction files, AST boundary tests |
+| **Sprint 00** | **Repository Discovery & Architecture** | Platform Foundation | `COMPLETED` | Codebase inspection, stack assessment, `ai/` instruction files, AST boundary tests (3/3 passing) |
 | **Sprint 01** | **Application Foundation** | Platform Foundation | `COMPLETED` | 4-tier Clean Architecture, `pg.Pool`, SQL migrator, logger, error middleware, outbox table |
 | **Sprint 02** | **Identity & Authentication** | Platform Foundation | `COMPLETED` | RS256 asymmetric JWT, public JWKS endpoint (`/.well-known/jwks.json`), AES-GCM refresh tokens, device fingerprint anti-hijacking |
 | **Sprint 03** | **Multi-Tenancy** | Platform Foundation | `COMPLETED` | Organizations, onboarding, memberships, invitations, tenant context middleware, 18/18 tests passed |
-| **Sprint 04** | **Dynamic RBAC** | Platform Foundation | `COMPLETED` | 8 domain roles, deny-by-default guards, `iam.mfa_protected_routes` (`SESSION_24H` vs `EVERY_TIME`), granular caretaking scopes |
-| **Sprint 05** | **Asset Management** | Reusable Capabilities | `COMPLETED` | `asset.assets` schema, `Asset` entity, MIME validation, owner-scoped queries |
-| **Sprint 06** | **Storage Adapters** | Reusable Capabilities | `IN_PROGRESS` | Local Docker volume storage verified; AWS S3 / GCP cloud adapters scheduled |
-| **Sprint 07** | **Inventory** | Reusable Capabilities | `COMPLETED` | `inventory.inventory_items`, stock reservation, atomic release, invariant checks |
-| **Sprint 08** | **Orders** | Reusable Capabilities | `COMPLETED` | `orders.orders` & `order_items`, order lifecycle state machine, pricing calculations |
-| **Sprint 09** | **Transactions** | Reusable Capabilities | `COMPLETED` | `transactions.transactions`, multi-gateway router (Mock, Stripe, Razorpay, PayPal), webhooks |
-| **Sprint 10** | **Shared Services** | Reusable Capabilities | `COMPLETED` | `notification` (Email, SMS, Push, WhatsApp), `scheduler.jobs`, `search.search_index`, `iam.audit_logs` |
-| **Sprint 11** | **Property Domain Foundation** | Property Domain | `COMPLETED` | `property.properties`, Address VO, categories (`RESIDENTIAL`, `COMMERCIAL`, `INDUSTRIAL`), float limit |
-| **Sprint 12** | **Ownership & Relationships** | Property Domain | `COMPLETED` | Caretaker profiles, assignments, granular scopes, instant revocation (`FR-ASG-010`) |
-| **Sprint 13** | **Vendor Management** | Property Domain | `COMPLETED` | Vendor contracts, trade service categories, directory lookup, quotation integration |
-| **Sprint 14** | **Maintenance Management** | Property Domain | `COMPLETED` | Equilibrium Engine, dynamic triage (P1-P4), automated SLAs, emergency float escrow |
-| **Sprint 15** | **Service Workflows** | Property Domain | `COMPLETED` | Quotations review, anti-fraud GPS geofencing & photo telemetry proofs (`ProofOfWork`), financial ledgers |
-| **Sprint 16** | **Bulk Onboarding** | Property Domain | `PLANNED` | CSV templates, chunked streaming parser, row-level validation pipe, error reporting |
-| **Sprint 17** | **Terraform Infrastructure**| Infrastructure | `COMPLETED` | Multi-cloud Terraform (`aws`, `gcp`, `azure`, `digitalocean`, `vps`), Ansible, K8s manifests |
-| **Sprint 18** | **Integration & Security** | Infrastructure | `COMPLETED` | AST module boundary tests (`test:arch`), OWASP Top 10 tests (`test:security`), typecheck |
-| **Sprint 19** | **Production Readiness** | Infrastructure | `IN_PROGRESS` | Operational runbooks, health probes (`/health/live`, `/health/ready`); live APM & Swagger next |
+| **Sprint 04** | **Dynamic RBAC & Scoped Auth** | Platform Foundation | `COMPLETED` | Tenant-scoped permissions, custom roles, `requirePermission` guard middleware, 18/18 tests passed |
+| **Sprint 05** | **Asset Management** | Reusable Capabilities | `COMPLETED` | Two-phase upload lifecycle, MIME validation, storage ports, 20/20 tests passed |
+| **Sprint 06** | **Storage Adapters** | Reusable Capabilities | `COMPLETED` | Cloud storage adapters (AWS S3, GCS), StorageProviderFactory, Docker storage volume, anti-traversal defense, 24/24 tests passed |
+| **Sprint 07** | **Inventory Management** | Reusable Capabilities | `ACTIVE` | Stock items, reservations, atomic release, multi-tenant inventory ledger |
+| **Sprint 08** | **Orders & Fulfillment** | Reusable Capabilities | `PLANNED` | Order lifecycle, pricing calculation |
+| **Sprint 09** | **Transactions & Payments** | Reusable Capabilities | `PLANNED` | Multi-gateway payment routing, webhooks |
+| **Sprint 10** | **Shared Services** | Reusable Capabilities | `PLANNED` | Notifications, scheduler, search index |
+| **Sprint 11** | **Property Domain Foundation** | Property Domain | `PLANNED` | Property registry, Address VO, emergency float limits |
+| **Sprint 12** | **Caretaker Assignments** | Property Domain | `PLANNED` | Caretaker profiles, assignments, granular scopes, instant revocation |
+| **Sprint 13** | **Vendor Management** | Property Domain | `PLANNED` | Vendor onboarding, trade categories, rate cards |
+| **Sprint 14** | **Maintenance Equilibrium** | Property Domain | `PLANNED` | Priority triage (P1-P4), emergency float escrow mobilization |
+| **Sprint 15** | **Service Workflows & Telemetry**| Property Domain | `PLANNED` | Quotations review, anti-fraud GPS & photo telemetry proofs |
+| **Sprint 16** | **Bulk Property Onboarding** | Property Domain | `PLANNED` | CSV streaming parser, row-level validation |
+| **Sprint 17** | **Terraform Infrastructure**| Infrastructure | `PLANNED` | Cloud IaC modules, container orchestration |
+| **Sprint 18** | **Full System Integration** | Infrastructure | `PLANNED` | End-to-end integration and OWASP security audit |
+| **Sprint 19** | **Production Readiness** | Infrastructure | `PLANNED` | Observability, health probes, runbooks, staging sign-off |
 
 ---
 
 ## 3. Latest Verification & Quality Gate Results
 
-- `pnpm typecheck`: 0 errors across all 5 workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
+- `pnpm typecheck`: 0 errors across all workspace projects (`@monolith/contracts`, `@monolith/api`, `@monolith/web`).
 - `pnpm test:arch`: 3/3 tests passed (`module-boundaries.test.ts`).
 - `pnpm test:security`: 5/5 tests passed (`security-controls.test.ts`).
+- `storage-adapters.test.ts`: 24/24 tests passed (Sprint 06).
+- `asset-management.test.ts`: 20/20 tests passed (Sprint 05).
+- `dynamic-rbac.test.ts`: 18/18 tests passed (Sprint 04).
+- `multi-tenant-organizations.test.ts`: 18/18 tests passed (Sprint 03).
 - `pnpm build`: Clean production bundle output across `@monolith/contracts`, `@monolith/api`, and `@monolith/web`.
 - `enterprise-mobile`: 26/26 tests passed across 7 test suites.
 - `enterprise-white-label-frontend`: 16/16 tests passed across 6 test suites.
@@ -62,7 +68,6 @@
 
 ## 4. Immediate Recommended Tasks
 
-1. **Sprint 04**: Implement dynamic RBAC, organization-scoped custom roles, and fine-grained permission evaluation.
-2. **Sprint 06**: Implement concrete AWS S3 presigned URL upload adapter in `modules/asset`.
-3. **Sprint 16**: Implement CSV streaming parser and validation pipe for bulk property imports.
-4. **Sprint 19**: Mount Swagger UI at `/api/docs` and expose Prometheus `/metrics` endpoint.
+1. **Sprint 06**: Implement concrete AWS S3 and GCS storage adapters conforming to `IStorageProvider` and StorageProviderFactory (`ai/sprints/SPRINT_06.md`).
+2. **Sprint 16**: Implement CSV streaming parser and validation pipe for bulk property imports.
+3. **Sprint 19**: Mount Swagger UI at `/api/docs` and expose Prometheus `/metrics` endpoint.

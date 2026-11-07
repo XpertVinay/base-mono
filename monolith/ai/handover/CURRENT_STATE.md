@@ -72,6 +72,21 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
 - Owner approval gates for expenses exceeding caretaker delegation limits.
 - Settlement invariant enforcement ensuring disbursements match approved expense records.
 
+### 8. Asset Management Domain (`asset`)
+- **Two-Phase Upload Lifecycle**: Client-direct upload workflow (`PENDING_UPLOAD` -> `ACTIVE` -> `ARCHIVED`) preventing unverified or incomplete files from entering the active catalog.
+- **Strict Server-Side MIME & Extension Validation**: Whitelisted MIME types (`image/jpeg`, `image/png`, `image/webp`, `application/pdf`, `text/csv`) with category size thresholds (15MB image, 25MB PDF, 10MB CSV); immediate 400 Bad Request rejection for executable/script MIME types (`.exe`, `.sh`, `.bat`, `.bin`, `.js`).
+- **Hexagonal Storage Port Decoupling**: Application and domain layers interact exclusively through `IStorageProvider` port, supported by a production-grade `LocalStorageProvider` for local disk and offline environments.
+- **Tenant Asset Isolation & Boundary Enforcement**: Assets strictly partitioned by `tenant_id` and storage path (`tenants/${tenantId}/${category}/...`); cross-tenant read, download, confirm, or delete attempts rejected with 403 Forbidden.
+- **Lifecycle State Integrity**: Assets in `PENDING_UPLOAD` are quarantined from standard tenant listings and download URL generation until confirmed.
+- **Soft Deletion & Storage Purge**: `DELETE /api/assets/:id` marks metadata as `ARCHIVED` and purges the physical file from storage.
+
+### 9. Cloud Storage Adapters & Dynamic Factory (`asset`)
+- **AWS S3 Storage Adapter (`S3StorageProvider`)**: Production-grade AWS Signature Version 4 (SigV4) presigned `PUT` upload and `GET` download URL generator, zero external cloud SDK dependency bloat, custom S3/MinIO endpoint support, path-style addressing, and temporary session credential integration.
+- **Google Cloud Storage Adapter (`GcsStorageProvider`)**: Standard GCS V4 signed URL generator (`GOOG4-RSA-SHA256`) with RSA PEM private key signing and fallback test signatures.
+- **Dynamic Storage Provider Factory (`StorageProviderFactory`)**: Dynamic runtime resolution based on `STORAGE_PROVIDER` (`LOCAL`, `S3`, `GCS`) with strict configuration validation (`InvalidStorageConfigurationError`) and tenant-specific bucket/CDN overrides via `createForTenant`.
+- **Anti-Directory Traversal & Tenant Path Isolation (`storage-path.util.ts`)**: Strict path sanitization eliminating `../` traversal tokens and null bytes, enforcing multi-tenant directory partitioning (`tenants/${tenantId}/${category}/...`), and throwing `StoragePathValidationError` on boundary violations.
+- **Docker Persistent Volume Mount**: Configured `monolith_storage` volume mapped to `/data/storage/uploads` across root and infrastructure Compose definitions.
+
 ---
 
 ## 3. Latest Verification & Quality Gate Results
@@ -81,6 +96,16 @@ The Real Estate CareTaking platform is in a verified, production-ready developme
   - No cross-module internal file imports.
   - Domain layer completely isolated from Express, pg, or HTTP dependencies.
   - All modules export a clean top-level `index.ts`.
+- **Cloud Storage Adapters Test Suite (`storage-adapters.test.ts`)**: 24/24 tests passed.
+  - StorageProviderFactory dynamic resolution, validation, and tenant bucket overrides.
+  - AWS S3 SigV4 presigned upload and download URLs, TTL expiration, and custom endpoints.
+  - GCS V4 signed URLs and CDN distribution routing.
+  - Anti-directory traversal path sanitization and tenant path isolation.
+  - AssetModule pluggable storage engine integration.
+- **Asset Management Test Suite (`asset-management.test.ts`)**: 20/20 tests passed.
+  - MIME type validation gate, file size invariant limits, presigned upload & confirmation lifecycle.
+  - 100% tenant quarantine verification (Org B blocked from Org A assets with 403 Forbidden).
+  - Lifecycle state integrity, storage provider port decoupling, and presentation controller integration.
 - **Multi-Tenant Organization Test Suite (`multi-tenant-organizations.test.ts`)**: 18/18 tests passed.
   - Full organization lifecycle, multi-org user membership, invitations, and member status transitions.
   - All 5 mandatory security tests passed (unauthorized membership rejection, suspended member blocking, cross-tenant isolation, identifier tampering defense, and multi-org context switching).
@@ -113,6 +138,10 @@ JWT_KEY_ID="monolith-rsa-key-1"
 FINGERPRINT_SECRET=super-secret-device-fingerprint-salt
 REFRESH_TOKEN_SECRET=32-byte-hex-string-for-aes-256-gcm
 
+# Storage Engine (Sprint 05 & 06)
+STORAGE_PROVIDER=LOCAL
+LOCAL_STORAGE_DIR=/data/storage/uploads
+
 # Server
 PORT=3000
 NODE_ENV=production
@@ -127,7 +156,7 @@ In strict adherence to the project's core engineering principles:
 - **One Sprint, One Objective**: Focus is strictly quarantined to a single bounded domain per sprint.
 - **Repository as Memory**: Ground-truth status is maintained in-repo without chat dependency.
 - **Evidence-Based Progression**: Only code, migrations, and passing automated tests determine milestone completion.
-- **Just-In-Time Specifications**: Upfront speculative sprint specs (05-19) have been pruned; specifications are detailed iteratively on a rolling window.
+- **Just-In-Time Specifications**: Upfront speculative sprint specs (06-19) have been pruned; specifications are detailed iteratively on a rolling window.
 
 ### Current Milestone State:
 - **Sprint 00 (Architecture Baseline)**: `COMPLETED & VERIFIED` (AST boundary tests passing 3/3, 0 typecheck errors).
@@ -135,8 +164,10 @@ In strict adherence to the project's core engineering principles:
 - **Sprint 02 (Identity & Cryptography)**: `COMPLETED & VERIFIED` (RS256 JWT, JWKS endpoint, AES-GCM refresh tokens, fingerprinting).
 - **Sprint 03 (Multi-Tenant Organizations)**: `COMPLETED & VERIFIED` (Organizations, memberships, invitations, tenant context middleware, 18/18 tests passing).
 - **Sprint 04 (Dynamic RBAC & Scoped Authorization)**: `COMPLETED & VERIFIED` (Dynamic roles, tenant-scoped permissions, `requirePermission` guard, 18/18 tests passing).
-- **Sprint 05 (Asset Management Foundation)**: `ACTIVE / READY FOR IMPLEMENTATION` (Detailed specification defined in `ai/sprints/SPRINT_05.md`).
+- **Sprint 05 (Asset Management Foundation)**: `COMPLETED & VERIFIED` (Two-phase presigned upload lifecycle, MIME validation, storage ports, 20/20 tests passing).
+- **Sprint 06 (Cloud Storage Adapters: AWS S3 & GCS)**: `COMPLETED & VERIFIED` (AWS S3 SigV4, GCS V4, StorageProviderFactory, Docker volume, 24/24 tests passing).
+- **Sprint 07 (Property Portfolio Core Domain & Multi-Tenant Registry)**: `ACTIVE / READY FOR IMPLEMENTATION` (Detailed specification defined in `ai/sprints/SPRINT_07.md`).
 
 ### Immediate Next Single Action:
-1. **Execute Sprint 05**: Implement Asset Management domain foundation, metadata models, MIME validation, and abstract storage provider ports according to `ai/sprints/SPRINT_05.md`. Verify with dedicated unit and integration tests.
+1. **Execute Sprint 07**: Extend the `property` module with multi-tenant organization context (`tenant_id`), emergency float limit validation, address value objects, and automated domain test coverage.
 
