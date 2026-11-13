@@ -7,23 +7,35 @@ import { tenantContextMiddleware } from './shared/presentation/tenant.middleware
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresOrderRepository } from './infrastructure/persistence/postgres-order.repository.js';
+import { IOrderRepository } from './domain/repositories/order-repository.interface.js';
 import {
   CreateOrderUseCase,
   CancelOrderUseCase,
   GetOrderByIdQuery,
   ListMyOrdersQuery
 } from './application/commands/order.commands.js';
+import {
+  ListAllOrdersQuery,
+  GetBackofficeOrderByIdQuery,
+  UpdateOrderStatusUseCase,
+  UpdateOrderUseCase,
+  DeleteOrderUseCase
+} from './application/commands/backoffice-order.use-cases.js';
 import { OrderController } from './presentation/http/order.controller.js';
 import { createOrderRouter } from './presentation/http/order.routes.js';
 import { InventoryGrpcClient } from './grpc/inventory-grpc.client.js';
 
-export function createApp(): {
+export function createApp(customRepo?: IOrderRepository): {
   app: Express;
-  repo: PostgresOrderRepository;
+  repo: IOrderRepository;
   createUseCase: CreateOrderUseCase;
   cancelUseCase: CancelOrderUseCase;
   getByIdQuery: GetOrderByIdQuery;
   listMyQuery: ListMyOrdersQuery;
+  listAllQuery: ListAllOrdersQuery;
+  updateOrderStatusUseCase: UpdateOrderStatusUseCase;
+  updateOrderUseCase: UpdateOrderUseCase;
+  deleteOrderUseCase: DeleteOrderUseCase;
 } {
   const app = express();
 
@@ -36,24 +48,54 @@ export function createApp(): {
   app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
-  const repo = new PostgresOrderRepository();
+  const repo = customRepo || new PostgresOrderRepository();
   const inventoryClient = new InventoryGrpcClient();
 
   const createUseCase = new CreateOrderUseCase(repo, inventoryClient);
   const cancelUseCase = new CancelOrderUseCase(repo, inventoryClient);
   const getByIdQuery = new GetOrderByIdQuery(repo);
   const listMyQuery = new ListMyOrdersQuery(repo);
+  const listAllQuery = new ListAllOrdersQuery(repo);
+  const getBackofficeOrderByIdQuery = new GetBackofficeOrderByIdQuery(repo);
+  const updateOrderStatusUseCase = new UpdateOrderStatusUseCase(repo);
+  const updateOrderUseCase = new UpdateOrderUseCase(repo);
+  const deleteOrderUseCase = new DeleteOrderUseCase(repo);
 
-  const controller = new OrderController(createUseCase, cancelUseCase, getByIdQuery, listMyQuery);
+  const controller = new OrderController(
+    createUseCase,
+    cancelUseCase,
+    getByIdQuery,
+    listMyQuery,
+    listAllQuery,
+    getBackofficeOrderByIdQuery,
+    updateOrderStatusUseCase,
+    updateOrderUseCase,
+    deleteOrderUseCase
+  );
   const router = createOrderRouter(controller);
 
   app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'order-service', timestamp: new Date().toISOString() }));
 
   app.use('/api/v1/orders', router);
   app.use('/api/orders', router);
+  app.use('/api/v1/orders/backoffice', router);
+  app.use('/api/orders/backoffice', router);
+  app.use('/api/v1/orders/admin', router);
+  app.use('/api/orders/admin', router);
 
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return { app, repo, createUseCase, cancelUseCase, getByIdQuery, listMyQuery };
+  return {
+    app,
+    repo,
+    createUseCase,
+    cancelUseCase,
+    getByIdQuery,
+    listMyQuery,
+    listAllQuery,
+    updateOrderStatusUseCase,
+    updateOrderUseCase,
+    deleteOrderUseCase
+  };
 }

@@ -80,6 +80,15 @@ export class PostgresAuditRepository implements IAuditRepository {
     return res.rows.map(row => this.mapToDomain(row));
   }
 
+  async delete(id: string, tenantId?: string): Promise<boolean> {
+    const tid = tenantId || 'default';
+    const res = await dbPool.query(
+      `DELETE FROM audit.audit_logs WHERE id = $1 AND (tenant_id = $2 OR tenant_id = 'default')`,
+      [id, tid]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   private mapToDomain(row: any): AuditLog {
     return AuditLog.reconstitute(
       {

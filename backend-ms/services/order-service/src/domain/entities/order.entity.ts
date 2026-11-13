@@ -110,4 +110,20 @@ export class Order extends AggregateRoot<OrderProps> {
     this.props.status = 'CANCELLED';
     this.props.updatedAt = new Date();
   }
+
+  public updateStatus(status: OrderStatus): void {
+    this.props.status = status;
+    this.props.updatedAt = new Date();
+  }
+
+  public updateDetails(props: {
+    items?: OrderItem[];
+    totalAmount?: number;
+    currency?: string;
+  }): void {
+    if (props.items !== undefined) this.props.items = props.items;
+    if (props.totalAmount !== undefined) this.props.totalAmount = props.totalAmount;
+    if (props.currency !== undefined) this.props.currency = props.currency;
+    this.props.updatedAt = new Date();
+  }
 }

@@ -28,4 +28,16 @@ export class SearchDocument extends Entity<SearchDocumentProps> {
   get description(): string | undefined { return this.props.description; }
   get metadata(): Record<string, any> | undefined { return this.props.metadata; }
   get createdAt(): Date { return this.props.createdAt!; }
+
+  public update(props: {
+    documentType?: string;
+    title?: string;
+    description?: string;
+    metadata?: Record<string, any>;
+  }): void {
+    if (props.documentType !== undefined) this.props.documentType = props.documentType;
+    if (props.title !== undefined) this.props.title = props.title;
+    if (props.description !== undefined) this.props.description = props.description;
+    if (props.metadata !== undefined) this.props.metadata = props.metadata;
+  }
 }

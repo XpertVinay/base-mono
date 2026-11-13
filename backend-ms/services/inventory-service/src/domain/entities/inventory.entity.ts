@@ -55,4 +55,17 @@ export class InventoryItem extends Entity<InventoryProps> {
     this.props.totalQuantity += quantity;
     this.props.updatedAt = new Date();
   }
+
+  public updateDetails(props: {
+    sku?: string;
+    availableQuantity?: number;
+    totalQuantity?: number;
+    reservedQuantity?: number;
+  }): void {
+    if (props.sku !== undefined) this.props.sku = props.sku;
+    if (props.availableQuantity !== undefined) this.props.availableQuantity = props.availableQuantity;
+    if (props.totalQuantity !== undefined) this.props.totalQuantity = props.totalQuantity;
+    if (props.reservedQuantity !== undefined) this.props.reservedQuantity = props.reservedQuantity;
+    this.props.updatedAt = new Date();
+  }
 }

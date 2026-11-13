@@ -51,4 +51,16 @@ export class Notification extends Entity<NotificationProps> {
   public markFailed(): void {
     this.props.status = 'FAILED';
   }
+
+  public update(props: {
+    recipient?: string;
+    subject?: string;
+    body?: string;
+    status?: NotificationStatus;
+  }): void {
+    if (props.recipient !== undefined) this.props.recipient = props.recipient;
+    if (props.subject !== undefined) this.props.subject = props.subject;
+    if (props.body !== undefined) this.props.body = props.body;
+    if (props.status !== undefined) this.props.status = props.status;
+  }
 }

@@ -97,3 +97,38 @@ export class QueryAuditLogsQuery implements UseCase<AuditQueryFilter, AuditDto[]
     );
   }
 }
+
+export class GetAuditLogByIdQuery implements UseCase<{ id: string; tenantId?: string }, AuditDto> {
+  constructor(private readonly repo: IAuditRepository) {}
+
+  async execute(input: { id: string; tenantId?: string }): Promise<Result<AuditDto>> {
+    const log = await this.repo.findById(input.id, input.tenantId);
+    if (!log) return Result.fail('Audit log not found');
+
+    return Result.ok({
+      id: log.id,
+      tenantId: log.tenantId,
+      actorId: log.actorId,
+      actorEmail: log.actorEmail,
+      action: log.action,
+      resource: log.resource,
+      resourceId: log.resourceId,
+      severity: log.severity,
+      details: log.details,
+      ipAddress: log.ipAddress,
+      correlationId: log.correlationId,
+      createdAt: log.createdAt.toISOString()
+    });
+  }
+}
+
+export class DeleteAuditLogUseCase implements UseCase<{ id: string; tenantId?: string }, { id: string; purged: boolean }> {
+  constructor(private readonly repo: IAuditRepository) {}
+
+  async execute(input: { id: string; tenantId?: string }): Promise<Result<{ id: string; purged: boolean }>> {
+    const deleted = await this.repo.delete(input.id, input.tenantId);
+    if (!deleted) return Result.fail('Audit log not found or already purged');
+
+    return Result.ok({ id: input.id, purged: true });
+  }
+}

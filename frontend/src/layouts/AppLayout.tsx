@@ -8,18 +8,22 @@ import {
   Bell,
   HelpCircle,
   Command,
+  Activity,
 } from 'lucide-react';
 import { useTenant } from '../core/tenant/TenantContext';
 import { DevTenantSwitcher } from '../core/tenant/DevTenantSwitcher';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { TenantLogo } from '../components/common/TenantLogo';
 import { SidebarNav } from '../components/navigation/SidebarNav';
+import { ApiTrafficInspector } from '../components/telemetry/ApiTrafficInspector';
+import { useApiTrafficStore } from '../core/api/trafficStore';
 import styles from './AppLayout.module.css';
 
 export const AppLayout: React.FC = () => {
   const { tenant } = useTenant();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { toggleDrawer, records } = useApiTrafficStore();
 
   return (
     <div className={styles.appContainer}>
@@ -88,6 +92,36 @@ export const AppLayout: React.FC = () => {
             <button
               type="button"
               className={styles.iconBtn}
+              title={`API Traffic Inspector (${records.length} captured calls)`}
+              aria-label="API Traffic Inspector"
+              onClick={toggleDrawer}
+              style={{ position: 'relative' }}
+            >
+              <Activity size={18} style={{ color: 'var(--color-primary, #3b82f6)' }} />
+              {records.length > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -2,
+                    backgroundColor: 'var(--color-primary, #3b82f6)',
+                    color: '#fff',
+                    borderRadius: 8,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    padding: '1px 4px',
+                    minWidth: 14,
+                    textAlign: 'center',
+                  }}
+                >
+                  {records.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className={styles.iconBtn}
               title="Notifications"
               aria-label="Notifications"
             >
@@ -133,6 +167,9 @@ export const AppLayout: React.FC = () => {
           </div>
         </footer>
       </div>
+
+      {/* Global Interactive API Communication Inspector */}
+      <ApiTrafficInspector />
     </div>
   );
 };

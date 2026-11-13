@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { entityRecordSchema, EntityRecordFormData } from './recordSchema';
+import { EntityRecord } from '../../core/api/mockBackend';
 import { Modal } from '../../components/ui/Modal/Modal';
 import { Input } from '../../components/ui/Input/Input';
 import { Select } from '../../components/ui/Select/Select';
@@ -13,9 +14,16 @@ interface RecordModalProps {
   onClose: () => void;
   onSubmit: (data: EntityRecordFormData) => Promise<void>;
   isLoading?: boolean;
+  initialData?: EntityRecord | null;
 }
 
-export const RecordModal: React.FC<RecordModalProps> = ({ isOpen, onClose, onSubmit, isLoading = false }) => {
+export const RecordModal: React.FC<RecordModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  isLoading = false,
+  initialData,
+}) => {
   const { t } = useTranslation();
 
   const {
@@ -35,17 +43,41 @@ export const RecordModal: React.FC<RecordModalProps> = ({ isOpen, onClose, onSub
     },
   });
 
+  useEffect(() => {
+    if (initialData) {
+      reset({
+        title: initialData.title,
+        category: initialData.category,
+        amount: initialData.amount,
+        priority: initialData.priority,
+        status: initialData.status,
+        notes: initialData.notes || '',
+      });
+    } else {
+      reset({
+        title: '',
+        category: '',
+        amount: 1000,
+        priority: 'medium',
+        status: 'active',
+        notes: '',
+      });
+    }
+  }, [initialData, isOpen, reset]);
+
   const handleFormSubmit = async (data: EntityRecordFormData) => {
     await onSubmit(data);
     reset();
     onClose();
   };
 
+  const isEditing = Boolean(initialData);
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={t('records.addNew')}
+      title={isEditing ? 'Edit Record' : t('records.addNew')}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>

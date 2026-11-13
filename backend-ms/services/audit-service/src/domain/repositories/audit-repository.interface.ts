@@ -13,4 +13,5 @@ export interface IAuditRepository {
   save(log: AuditLog): Promise<void>;
   findById(id: string, tenantId?: string): Promise<AuditLog | null>;
   query(filter: AuditQueryFilter): Promise<AuditLog[]>;
+  delete(id: string, tenantId?: string): Promise<boolean>;
 }

@@ -116,6 +116,17 @@ export const BASE_NAV_GROUPS: NavGroupConfig[] = [
         description: 'Tenant entity management and dynamic vertical schemas',
       },
       {
+        key: 'apiOperations',
+        labelKey: 'nav.items.apiOperations',
+        defaultLabel: 'API Operations & CRUD',
+        path: '/api-operations',
+        icon: 'ServerCog',
+        roles: ['USER', 'SUPPORT', 'ADMIN'],
+        badge: 'Live :4000',
+        badgeVariant: 'primary',
+        description: 'Interactive Swagger CRUD operations and backend telemetric inspector',
+      },
+      {
         key: 'analytics',
         labelKey: 'nav.items.analytics',
         defaultLabel: 'Analytics & Insights',

@@ -2,7 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import {
   RecordAuditLogUseCase,
-  QueryAuditLogsQuery
+  QueryAuditLogsQuery,
+  GetAuditLogByIdQuery,
+  DeleteAuditLogUseCase
 } from '../../application/use-cases/audit.use-cases.js';
 import { monitoringManager } from '../../infrastructure/monitoring/monitoring.manager.js';
 import { ApiResponse } from '../../shared/presentation/standard-response.js';
@@ -23,12 +25,79 @@ const recordSchema = z.object({
 export class AuditController {
   constructor(
     private readonly recordUseCase: RecordAuditLogUseCase,
-    private readonly queryLogsQuery: QueryAuditLogsQuery
+    private readonly queryLogsQuery: QueryAuditLogsQuery,
+    private readonly getByIdQuery?: GetAuditLogByIdQuery,
+    private readonly deleteLogUseCase?: DeleteAuditLogUseCase
   ) {}
 
   private getTenantId(req: Request): string {
     return req.tenant?.tenantId || req.user?.tenantId || (req.header('x-tenant-id') as string) || 'default';
   }
+
+  getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.getByIdQuery) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'Get audit log by ID not implemented' });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const isPlatformAdmin = req.user?.role === 'ADMIN' && req.user?.tenantId === 'default';
+      const tenantId = isPlatformAdmin && req.query.tenantId ? String(req.query.tenantId) : this.getTenantId(req);
+
+      const result = await this.getByIdQuery.execute({ id, tenantId });
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'AUDIT_LOG_NOT_FOUND', message: result.getError() }]
+        });
+        return;
+      }
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Audit log retrieved successfully',
+        data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  deleteLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.deleteLogUseCase) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'Delete audit log not implemented' });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const tenantId = this.getTenantId(req);
+
+      const result = await this.deleteLogUseCase.execute({ id, tenantId });
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'AUDIT_LOG_PURGE_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Audit log purged successfully',
+        data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
 
   record = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

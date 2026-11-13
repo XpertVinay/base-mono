@@ -6,6 +6,14 @@ import {
   CompletePaymentUseCase,
   GetTransactionByIdQuery
 } from '../../application/use-cases/transaction.use-cases.js';
+import {
+  ListAllTransactionsQuery,
+  GetBackofficeTransactionByIdQuery,
+  CreateManualTransactionUseCase,
+  UpdateTransactionUseCase,
+  UpdateTransactionStatusUseCase,
+  DeleteTransactionUseCase
+} from '../../application/use-cases/backoffice-transaction.use-cases.js';
 import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const initiateSchema = z.object({
@@ -24,11 +32,47 @@ const webhookSchema = z.object({
   tenantId: z.string().optional()
 });
 
+const listTransactionsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  status: z.string().trim().optional(),
+  type: z.string().trim().optional(),
+  userId: z.string().trim().optional(),
+  search: z.string().trim().optional()
+});
+
+const createManualSchema = z.object({
+  referenceId: z.string().min(1),
+  userId: z.string().min(1),
+  type: z.enum(['PAYMENT', 'REFUND', 'TRANSFER']).default('PAYMENT'),
+  amount: z.number().positive(),
+  currency: z.string().optional().default('USD'),
+  paymentMethod: z.string().min(1).default('MANUAL_ENTRY'),
+  tenantId: z.string().optional()
+});
+
+const updateTransactionSchema = z.object({
+  failureReason: z.string().optional(),
+  provider: z.string().optional(),
+  paymentMethod: z.string().optional()
+});
+
+const updateStatusSchema = z.object({
+  status: z.enum(['PENDING', 'SUCCESS', 'FAILED', 'CANCELLED']),
+  reason: z.string().optional()
+});
+
 export class TransactionController {
   constructor(
     private readonly initiateUseCase: InitiatePaymentUseCase,
     private readonly completeUseCase: CompletePaymentUseCase,
-    private readonly getByIdQuery: GetTransactionByIdQuery
+    private readonly getByIdQuery: GetTransactionByIdQuery,
+    private readonly listAllQuery?: ListAllTransactionsQuery,
+    private readonly getBackofficeByIdQuery?: GetBackofficeTransactionByIdQuery,
+    private readonly createManualUseCase?: CreateManualTransactionUseCase,
+    private readonly updateUseCase?: UpdateTransactionUseCase,
+    private readonly updateStatusUseCase?: UpdateTransactionStatusUseCase,
+    private readonly deleteUseCase?: DeleteTransactionUseCase
   ) {}
 
   private getTenantId(req: Request): string {
@@ -58,16 +102,10 @@ export class TransactionController {
     const sigClean = signature.replace(/^v1=/, '');
 
     try {
-      const sigBuf = Buffer.from(sigClean, 'hex');
-      const expBuf = Buffer.from(expected, 'hex');
-      if (sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)) {
-        return true;
-      }
+      return crypto.timingSafeEqual(Buffer.from(sigClean, 'hex'), Buffer.from(expected, 'hex'));
     } catch {
-      // Ignore conversion error
+      return false;
     }
-
-    return sigClean === expected || signature === webhookSecret;
   }
 
   initiate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -85,19 +123,23 @@ export class TransactionController {
 
       const validated = initiateSchema.parse(req.body);
       const tenantId = validated.tenantId || this.getTenantId(req);
-      const result = await this.initiateUseCase.execute({ ...validated, userId, tenantId });
 
-      const txn = result.getValue();
+      const result = await this.initiateUseCase.execute({ ...validated, userId, tenantId });
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'INITIATE_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
       ApiResponse.success(res, {
         req,
         statusCode: 201,
-        message: 'Payment transaction initiated successfully',
-        data: txn,
-        meta: {
-          further_steps: [
-            `Forward customer to checkout redirectUrl if provided, or finalize via payment provider: "${(txn as any).provider || 'GATEWAY'}"`
-          ]
-        }
+        message: 'Transaction initiated successfully',
+        data: result.getValue()
       });
     } catch (err) {
       next(err);
@@ -106,13 +148,12 @@ export class TransactionController {
 
   handleWebhook = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Security: Strictly verify webhook signature to prevent unauthenticated payment spoofing
       if (!this.verifyWebhookSignature(req)) {
         ApiResponse.error(res, {
           req,
           statusCode: 401,
-          message: 'Webhook signature verification failed or signature header missing',
-          errors: [{ code: 'UNAUTHORIZED_WEBHOOK', message: 'Valid x-webhook-signature header is required' }]
+          message: 'Invalid webhook signature',
+          errors: [{ code: 'UNAUTHORIZED_WEBHOOK', message: 'Cryptographic signature mismatch' }]
         });
         return;
       }
@@ -123,11 +164,10 @@ export class TransactionController {
       const result = await this.completeUseCase.execute({
         transactionId: validated.transactionId,
         providerTxnId: validated.providerTxnId,
-        success: validated.status === 'SUCCESS',
         failureReason: validated.failureReason,
+        success: validated.status === 'SUCCESS',
         tenantId
       });
-
       if (result.isFailure) {
         ApiResponse.error(res, {
           req,
@@ -141,8 +181,49 @@ export class TransactionController {
       ApiResponse.success(res, {
         req,
         statusCode: 200,
-        message: 'Payment webhook processed successfully',
+        message: 'Webhook processed successfully',
         data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  listAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.listAllQuery) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'List transactions not implemented' });
+        return;
+      }
+
+      const queryParams = listTransactionsQuerySchema.parse(req.query);
+      const tenantId = this.getTenantId(req);
+
+      const result = await this.listAllQuery.execute({
+        tenantId,
+        page: queryParams.page,
+        limit: queryParams.limit,
+        status: queryParams.status,
+        type: queryParams.type,
+        userId: queryParams.userId,
+        search: queryParams.search
+      });
+
+      const { transactions, total, page, limit } = result.getValue();
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Transactions retrieved successfully',
+        data: transactions,
+        meta: {
+          pagination: {
+            total,
+            limit,
+            page,
+            totalPages: Math.ceil(total / limit) || 1
+          }
+        }
       });
     } catch (err) {
       next(err);
@@ -156,15 +237,34 @@ export class TransactionController {
       const role = req.user?.role || (req.header('x-user-role') as string) || 'USER';
       const tenantId = this.getTenantId(req);
 
-      const result = await this.getByIdQuery.execute({ id, userId, role, tenantId });
+      if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(role) && this.getBackofficeByIdQuery) {
+        const result = await this.getBackofficeByIdQuery.execute({ id, tenantId });
+        if (result.isFailure) {
+          ApiResponse.error(res, {
+            req,
+            statusCode: 404,
+            message: result.getError(),
+            errors: [{ code: 'TRANSACTION_NOT_FOUND', message: result.getError() }]
+          });
+          return;
+        }
 
+        ApiResponse.success(res, {
+          req,
+          statusCode: 200,
+          message: 'Transaction retrieved successfully',
+          data: result.getValue()
+        });
+        return;
+      }
+
+      const result = await this.getByIdQuery.execute({ id, userId, role, tenantId });
       if (result.isFailure) {
-        const isForbidden = result.getError().startsWith('Forbidden');
         ApiResponse.error(res, {
           req,
-          statusCode: isForbidden ? 403 : 404,
+          statusCode: 404,
           message: result.getError(),
-          errors: [{ code: isForbidden ? 'FORBIDDEN' : 'NOT_FOUND', message: result.getError(), field: 'id' }]
+          errors: [{ code: 'TRANSACTION_NOT_FOUND', message: result.getError() }]
         });
         return;
       }
@@ -173,6 +273,142 @@ export class TransactionController {
         req,
         statusCode: 200,
         message: 'Transaction retrieved successfully',
+        data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  createManual = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.createManualUseCase) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'Create manual transaction not implemented' });
+        return;
+      }
+
+      const validated = createManualSchema.parse(req.body);
+      const tenantId = validated.tenantId || this.getTenantId(req);
+
+      const result = await this.createManualUseCase.execute({ ...validated, tenantId });
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'TRANSACTION_CREATE_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 201,
+        message: 'Transaction recorded successfully',
+        data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.updateUseCase) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'Update transaction not implemented' });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const tenantId = this.getTenantId(req);
+      const validated = updateTransactionSchema.parse(req.body);
+
+      const result = await this.updateUseCase.execute({ id, tenantId, ...validated });
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'TRANSACTION_UPDATE_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Transaction updated successfully',
+        data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.updateStatusUseCase) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'Update transaction status not implemented' });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const tenantId = this.getTenantId(req);
+      const validated = updateStatusSchema.parse(req.body);
+
+      const result = await this.updateStatusUseCase.execute({
+        id,
+        status: validated.status as any,
+        reason: validated.reason,
+        tenantId
+      });
+
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'TRANSACTION_STATUS_UPDATE_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Transaction status updated successfully',
+        data: result.getValue()
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  deleteTransaction = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.deleteUseCase) {
+        ApiResponse.error(res, { req, statusCode: 501, message: 'Delete transaction not implemented' });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const tenantId = this.getTenantId(req);
+
+      const result = await this.deleteUseCase.execute({ id, tenantId });
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 404,
+          message: result.getError(),
+          errors: [{ code: 'TRANSACTION_DELETE_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
+      ApiResponse.success(res, {
+        req,
+        statusCode: 200,
+        message: 'Transaction deleted successfully',
         data: result.getValue()
       });
     } catch (err) {

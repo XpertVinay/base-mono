@@ -80,4 +80,17 @@ export class Transaction extends Entity<TransactionProps> {
     this.props.failureReason = reason;
     this.props.updatedAt = new Date();
   }
+
+  public updateStatus(status: TransactionStatus, reason?: string): void {
+    this.props.status = status;
+    if (reason) this.props.failureReason = reason;
+    this.props.updatedAt = new Date();
+  }
+
+  public update(props: { failureReason?: string; provider?: string; paymentMethod?: string }): void {
+    if (props.failureReason !== undefined) this.props.failureReason = props.failureReason;
+    if (props.provider !== undefined) this.props.provider = props.provider;
+    if (props.paymentMethod !== undefined) this.props.paymentMethod = props.paymentMethod;
+    this.props.updatedAt = new Date();
+  }
 }

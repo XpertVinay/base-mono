@@ -36,4 +36,12 @@ export class Asset extends Entity<AssetProps> {
   get ownerId(): string { return this.props.ownerId; }
   get createdAt(): Date { return this.props.createdAt!; }
   get updatedAt(): Date { return this.props.updatedAt!; }
+
+  public update(props: Partial<Pick<AssetProps, 'name' | 'mimeType' | 'sizeBytes' | 'storagePath'>>): void {
+    if (props.name !== undefined) this.props.name = props.name;
+    if (props.mimeType !== undefined) this.props.mimeType = props.mimeType;
+    if (props.sizeBytes !== undefined) this.props.sizeBytes = props.sizeBytes;
+    if (props.storagePath !== undefined) this.props.storagePath = props.storagePath;
+    this.props.updatedAt = new Date();
+  }
 }

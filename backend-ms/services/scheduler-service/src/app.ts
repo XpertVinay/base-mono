@@ -7,20 +7,29 @@ import { tenantContextMiddleware } from './shared/presentation/tenant.middleware
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresSchedulerRepository } from './infrastructure/persistence/postgres-scheduler.repository.js';
+import { ISchedulerRepository } from './domain/repositories/scheduler-repository.interface.js';
 import {
   CreateJobUseCase,
   ListJobsQuery,
   TriggerJobUseCase
 } from './application/use-cases/scheduler.use-cases.js';
+import {
+  GetJobByIdQuery,
+  UpdateJobUseCase,
+  DeleteJobUseCase
+} from './application/use-cases/backoffice-scheduler.use-cases.js';
 import { SchedulerController } from './presentation/http/scheduler.controller.js';
 import { createSchedulerRouter } from './presentation/http/scheduler.routes.js';
 import { logger } from './shared/infrastructure/logger.js';
 
-export function createApp(): {
+export function createApp(customRepo?: ISchedulerRepository): {
   app: Express;
   listQuery: ListJobsQuery;
   createUseCase: CreateJobUseCase;
   triggerUseCase: TriggerJobUseCase;
+  getByIdQuery: GetJobByIdQuery;
+  updateUseCase: UpdateJobUseCase;
+  deleteUseCase: DeleteJobUseCase;
 } {
   const app = express();
 
@@ -33,7 +42,7 @@ export function createApp(): {
   app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
-  const repo = new PostgresSchedulerRepository();
+  const repo = customRepo || new PostgresSchedulerRepository();
   const tasks = new Map<string, () => Promise<void>>();
 
   tasks.set('SYSTEM_HEARTBEAT', async () => {
@@ -43,17 +52,39 @@ export function createApp(): {
   const listQuery = new ListJobsQuery(repo);
   const createUseCase = new CreateJobUseCase(repo);
   const triggerUseCase = new TriggerJobUseCase(repo, tasks);
+  const getByIdQuery = new GetJobByIdQuery(repo);
+  const updateUseCase = new UpdateJobUseCase(repo);
+  const deleteUseCase = new DeleteJobUseCase(repo);
 
-  const controller = new SchedulerController(listQuery, createUseCase, triggerUseCase);
+  const controller = new SchedulerController(
+    listQuery,
+    createUseCase,
+    triggerUseCase,
+    getByIdQuery,
+    updateUseCase,
+    deleteUseCase
+  );
   const router = createSchedulerRouter(controller);
 
   app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'scheduler-service', timestamp: new Date().toISOString() }));
 
   app.use('/api/v1/scheduler', router);
   app.use('/api/scheduler', router);
+  app.use('/api/v1/scheduler/backoffice', router);
+  app.use('/api/scheduler/backoffice', router);
+  app.use('/api/v1/scheduler/admin', router);
+  app.use('/api/scheduler/admin', router);
 
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return { app, listQuery, createUseCase, triggerUseCase };
+  return {
+    app,
+    listQuery,
+    createUseCase,
+    triggerUseCase,
+    getByIdQuery,
+    updateUseCase,
+    deleteUseCase
+  };
 }

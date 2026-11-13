@@ -7,14 +7,23 @@ import { tenantContextMiddleware } from './shared/presentation/tenant.middleware
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresAuditRepository } from './infrastructure/persistence/postgres-audit.repository.js';
-import { RecordAuditLogUseCase, QueryAuditLogsQuery } from './application/use-cases/audit.use-cases.js';
+import { IAuditRepository } from './domain/repositories/audit-repository.interface.js';
+import {
+  RecordAuditLogUseCase,
+  QueryAuditLogsQuery,
+  GetAuditLogByIdQuery,
+  DeleteAuditLogUseCase
+} from './application/use-cases/audit.use-cases.js';
 import { AuditController } from './presentation/http/audit.controller.js';
 import { createAuditRouter } from './presentation/http/audit.routes.js';
 
-export function createApp(): {
+export function createApp(customRepo?: IAuditRepository): {
   app: Express;
+  repo: IAuditRepository;
   recordUseCase: RecordAuditLogUseCase;
   queryUseCase: QueryAuditLogsQuery;
+  getByIdQuery: GetAuditLogByIdQuery;
+  deleteLogUseCase: DeleteAuditLogUseCase;
 } {
   const app = express();
 
@@ -27,11 +36,13 @@ export function createApp(): {
   app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
-  const repo = new PostgresAuditRepository();
+  const repo = customRepo || new PostgresAuditRepository();
   const recordUseCase = new RecordAuditLogUseCase(repo);
   const queryUseCase = new QueryAuditLogsQuery(repo);
+  const getByIdQuery = new GetAuditLogByIdQuery(repo);
+  const deleteLogUseCase = new DeleteAuditLogUseCase(repo);
 
-  const controller = new AuditController(recordUseCase, queryUseCase);
+  const controller = new AuditController(recordUseCase, queryUseCase, getByIdQuery, deleteLogUseCase);
   const router = createAuditRouter(controller, recordUseCase);
 
   // Health and Metrics endpoints
@@ -40,9 +51,11 @@ export function createApp(): {
 
   app.use('/api/v1/audit', router);
   app.use('/api/audit', router);
+  app.use('/api/v1/audit/backoffice', router);
+  app.use('/api/audit/backoffice', router);
 
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return { app, recordUseCase, queryUseCase };
+  return { app, repo, recordUseCase, queryUseCase, getByIdQuery, deleteLogUseCase };
 }

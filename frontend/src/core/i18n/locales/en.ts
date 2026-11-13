@@ -38,6 +38,7 @@ export const en = {
     items: {
       dashboard: 'Dashboard',
       records: 'Data Records',
+      apiOperations: 'API Operations & CRUD',
       analytics: 'Analytics & Insights',
       tenantProfile: 'Organization Profile',
       tenantsAndPolicies: 'Tenants & Multi-Tenancy',

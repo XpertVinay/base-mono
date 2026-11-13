@@ -133,10 +133,21 @@ All controller and error-handler responses strictly conform to the unified stand
     {
       url: 'http://localhost:4011',
       description: 'Audit Service (Direct)'
+    },
+    {
+      url: 'http://localhost:4012',
+      description: 'Organization Service (Direct)'
+    },
+    {
+      url: 'http://localhost:4013',
+      description: 'RBAC Service (Direct)'
     }
   ],
   tags: [
     { name: 'Gateway Health', description: 'API Gateway discovery, health probes, and downstream aggregation monitoring' },
+    { name: 'Roles (RBAC)', description: 'Tenant role lifecycle, custom roles creation, updates, and permission bindings' },
+    { name: 'Permissions (RBAC)', description: 'Granular permissions catalog and category management' },
+    { name: 'User Role Assignments (RBAC)', description: 'Assigning, revoking, and validating user roles and real-time permission checks' },
     { name: 'IAM Service', description: 'Authentication, registration, JWT issuance, and RBAC' },
     { name: 'Order Service', description: 'Order lifecycle, inventory validation via gRPC, and checkout totals' },
     { name: 'Inventory Service', description: 'Stock tracking, reservations, and inventory ingestion' },
@@ -147,7 +158,8 @@ All controller and error-handler responses strictly conform to the unified stand
     { name: 'Scheduler Service', description: 'Distributed cron execution and periodic jobs' },
     { name: 'Search Service', description: 'Full-text indexed search queries across projected domain entities' },
     { name: 'AI & MCP Service', description: 'MCP client, provider registry, communication/search/DB/external API tools & orchestration' },
-    { name: 'Audit Service', description: 'Immutable audit logs, telemetry alerts, remediation, and monitoring adapters' }
+    { name: 'Audit Service', description: 'Immutable audit logs, telemetry alerts, remediation, and monitoring adapters' },
+    { name: 'Organization Service', description: 'Multi-tenant organization management, onboarding, profile metadata, and member assignments' }
   ],
   components: {
     securitySchemes: {
@@ -198,7 +210,10 @@ All controller and error-handler responses strictly conform to the unified stand
               transactions: '/api/v1/transactions',
               search: '/api/v1/search',
               inventory: '/api/v1/inventory',
-              audit: '/api/v1/audit'
+              ai: '/api/v1/ai',
+              audit: '/api/v1/audit',
+              organizations: '/api/v1/organizations',
+              rbac: '/api/v1/rbac'
             }
           }
         }
@@ -688,6 +703,402 @@ All controller and error-handler responses strictly conform to the unified stand
           text: { type: 'string', example: 'Resource: SystemConfig (ACTIVE_PAYMENT_GATEWAY) by admin@enterprise.local' },
           tags: { type: 'array', items: { type: 'string' }, example: ['audit', 'warn', 'SystemConfig'] }
         }
+      },
+
+      // AI & MCP schemas
+      McpCapabilitiesData: {
+        type: 'object',
+        properties: {
+          protocolVersion: { type: 'string', example: '2024-11-05' },
+          transports: { type: 'array', items: { type: 'string' }, example: ['streamable_http', 'stdio'] },
+          supportedCategories: {
+            type: 'array',
+            items: { type: 'string' },
+            example: ['COMMUNICATION', 'SEARCH', 'DATABASE', 'EXTERNAL_API', 'EXTERNAL_MCP']
+          },
+          registeredAdapters: { type: 'array', items: { type: 'string' }, example: ['communication', 'search', 'internal-db', 'external-api', 'external-mcp'] }
+        }
+      },
+      McpProviderData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          tenantId: { type: 'string', example: 'tenant-alpha' },
+          slug: { type: 'string', example: 'communication-tools' },
+          name: { type: 'string', example: 'Communication & Messaging Tools' },
+          category: { type: 'string', enum: ['COMMUNICATION', 'SEARCH', 'DATABASE', 'EXTERNAL_API', 'EXTERNAL_MCP'], example: 'COMMUNICATION' },
+          transportType: { type: 'string', enum: ['STREAMABLE_HTTP', 'STDIO'], example: 'STREAMABLE_HTTP' },
+          endpointUrl: { type: 'string', nullable: true, example: 'http://notification-service:4004' },
+          isBuiltin: { type: 'boolean', example: true },
+          isEnabled: { type: 'boolean', example: true },
+          healthStatus: { type: 'string', enum: ['HEALTHY', 'DEGRADED', 'UNHEALTHY', 'UNKNOWN'], example: 'HEALTHY' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      RegisterMcpProviderRequest: {
+        type: 'object',
+        required: ['slug', 'name', 'category', 'transportType'],
+        properties: {
+          slug: { type: 'string', minLength: 2, example: 'custom-mcp' },
+          name: { type: 'string', minLength: 2, example: 'Custom Enterprise MCP' },
+          category: { type: 'string', enum: ['COMMUNICATION', 'SEARCH', 'DATABASE', 'EXTERNAL_API', 'EXTERNAL_MCP'], example: 'EXTERNAL_MCP' },
+          transportType: { type: 'string', enum: ['STREAMABLE_HTTP', 'STDIO'], example: 'STREAMABLE_HTTP' },
+          endpointUrl: { type: 'string', example: 'http://internal-mcp:8080/mcp' },
+          authType: { type: 'string', enum: ['NONE', 'BEARER', 'API_KEY', 'BASIC'], default: 'NONE' },
+          credentials: { type: 'object', additionalProperties: true },
+          config: { type: 'object', additionalProperties: true },
+          autoSync: { type: 'boolean', default: true }
+        }
+      },
+      UpdateMcpProviderRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          endpointUrl: { type: 'string' },
+          authType: { type: 'string', enum: ['NONE', 'BEARER', 'API_KEY', 'BASIC'] },
+          credentials: { type: 'object', additionalProperties: true },
+          config: { type: 'object', additionalProperties: true },
+          isEnabled: { type: 'boolean' }
+        }
+      },
+      McpToolData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          providerId: { type: 'string', format: 'uuid' },
+          providerSlug: { type: 'string', example: 'communication-tools' },
+          toolName: { type: 'string', example: 'send_email' },
+          qualifiedName: { type: 'string', example: 'communication-tools::send_email' },
+          description: { type: 'string', example: 'Sends email notification to a recipient' },
+          inputSchema: { type: 'object', additionalProperties: true },
+          isEnabled: { type: 'boolean', example: true },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      McpToolCallRequest: {
+        type: 'object',
+        required: ['tool'],
+        properties: {
+          tool: { type: 'string', example: 'communication-tools::send_email' },
+          arguments: { type: 'object', additionalProperties: true, example: { recipient: 'user@example.com', subject: 'Alert', body: 'System notification' } },
+          providerSlug: { type: 'string', example: 'communication-tools' },
+          timeoutMs: { type: 'integer', default: 15000, example: 15000 }
+        }
+      },
+      McpToolCallData: {
+        type: 'object',
+        properties: {
+          invocationId: { type: 'string', format: 'uuid' },
+          providerSlug: { type: 'string', example: 'communication-tools' },
+          toolName: { type: 'string', example: 'send_email' },
+          qualifiedName: { type: 'string', example: 'communication-tools::send_email' },
+          isError: { type: 'boolean', example: false },
+          content: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          durationMs: { type: 'number', example: 45 }
+        }
+      },
+      McpOrchestrateRequest: {
+        type: 'object',
+        required: ['steps'],
+        properties: {
+          mode: { type: 'string', enum: ['SEQUENTIAL', 'PARALLEL'], default: 'SEQUENTIAL' },
+          stopOnError: { type: 'boolean', default: true },
+          steps: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['tool'],
+              properties: {
+                stepId: { type: 'string', example: 'step-1' },
+                tool: { type: 'string', example: 'search-tools::search_orders' },
+                arguments: { type: 'object', additionalProperties: true }
+              }
+            }
+          }
+        }
+      },
+      McpOrchestrateData: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          results: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          totalDurationMs: { type: 'number', example: 120 }
+        }
+      },
+      ToolInvocationData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          tenantId: { type: 'string', example: 'tenant-alpha' },
+          providerSlug: { type: 'string', example: 'communication-tools' },
+          toolName: { type: 'string', example: 'send_email' },
+          actorId: { type: 'string', nullable: true },
+          isError: { type: 'boolean', example: false },
+          durationMs: { type: 'number', example: 38 },
+          correlationId: { type: 'string', example: 'corr-ai-123' },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      },
+
+      // Organization schemas
+      OrganizationData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          slug: { type: 'string', example: 'acme-corp' },
+          name: { type: 'string', example: 'Acme Corporation' },
+          legalName: { type: 'string', nullable: true, example: 'Acme Corp LLC' },
+          status: { type: 'string', enum: ['ACTIVE', 'SUSPENDED', 'TRIAL', 'DEACTIVATED'], example: 'ACTIVE' },
+          tier: { type: 'string', enum: ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'], example: 'ENTERPRISE' },
+          industry: { type: 'string', nullable: true, example: 'Technology' },
+          taxId: { type: 'string', nullable: true, example: 'US-987654321' },
+          contactEmail: { type: 'string', example: 'admin@acme.corp' },
+          contactPhone: { type: 'string', nullable: true, example: '+1-555-0199' },
+          website: { type: 'string', nullable: true, example: 'https://acme.corp' },
+          maxUsers: { type: 'integer', example: 100 },
+          settings: { type: 'object', additionalProperties: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      CreateOrganizationRequest: {
+        type: 'object',
+        required: ['name', 'slug', 'contactEmail'],
+        properties: {
+          name: { type: 'string', minLength: 2, maxLength: 255, example: 'Acme Corporation' },
+          slug: { type: 'string', minLength: 2, maxLength: 100, example: 'acme-corp' },
+          legalName: { type: 'string', example: 'Acme Corp LLC' },
+          tier: { type: 'string', enum: ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'], default: 'STARTER' },
+          industry: { type: 'string', example: 'Technology' },
+          taxId: { type: 'string', example: 'US-987654321' },
+          contactEmail: { type: 'string', format: 'email', example: 'admin@acme.corp' },
+          contactPhone: { type: 'string', example: '+1-555-0199' },
+          website: { type: 'string', example: 'https://acme.corp' },
+          maxUsers: { type: 'integer', example: 50 },
+          settings: { type: 'object', additionalProperties: true }
+        }
+      },
+      UpdateOrganizationRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 2, maxLength: 255 },
+          legalName: { type: 'string' },
+          tier: { type: 'string', enum: ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'] },
+          industry: { type: 'string' },
+          taxId: { type: 'string' },
+          contactEmail: { type: 'string', format: 'email' },
+          contactPhone: { type: 'string' },
+          website: { type: 'string' },
+          maxUsers: { type: 'integer' },
+          settings: { type: 'object', additionalProperties: true }
+        }
+      },
+      UpdateOrganizationStatusRequest: {
+        type: 'object',
+        required: ['status'],
+        properties: {
+          status: { type: 'string', enum: ['ACTIVE', 'SUSPENDED', 'TRIAL', 'DEACTIVATED'], example: 'ACTIVE' }
+        }
+      },
+      OrganizationMemberData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          organizationId: { type: 'string', format: 'uuid' },
+          userId: { type: 'string', example: 'usr-4412' },
+          email: { type: 'string', example: 'member@acme.corp' },
+          name: { type: 'string', example: 'John Doe' },
+          role: { type: 'string', enum: ['OWNER', 'ADMIN', 'MEMBER', 'BILLING_ADMIN'], example: 'MEMBER' },
+          status: { type: 'string', enum: ['ACTIVE', 'INVITED', 'SUSPENDED'], example: 'ACTIVE' },
+          joinedAt: { type: 'string', format: 'date-time' },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      AddOrganizationMemberRequest: {
+        type: 'object',
+        required: ['userId', 'email', 'name'],
+        properties: {
+          userId: { type: 'string', minLength: 1, example: 'usr-4412' },
+          email: { type: 'string', format: 'email', example: 'member@acme.corp' },
+          name: { type: 'string', minLength: 1, example: 'John Doe' },
+          role: { type: 'string', enum: ['OWNER', 'ADMIN', 'MEMBER', 'BILLING_ADMIN'], default: 'MEMBER' },
+          status: { type: 'string', enum: ['ACTIVE', 'INVITED', 'SUSPENDED'], default: 'ACTIVE' }
+        }
+      },
+      UpdateOrganizationMemberRequest: {
+        type: 'object',
+        properties: {
+          role: { type: 'string', enum: ['OWNER', 'ADMIN', 'MEMBER', 'BILLING_ADMIN'] },
+          status: { type: 'string', enum: ['ACTIVE', 'INVITED', 'SUSPENDED'] }
+        }
+      },
+
+      // RBAC schemas
+      RoleData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          tenantId: { type: 'string', example: 'tenant-alpha' },
+          name: { type: 'string', example: 'SECURITY_AUDITOR' },
+          description: { type: 'string', nullable: true, example: 'Read-only access to audit logs and security policies' },
+          isSystem: { type: 'boolean', example: false },
+          permissions: { type: 'array', items: { type: 'string' }, example: ['audit:read', 'telemetry:read'] },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      CreateRoleRequest: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 100, example: 'SUPPORT_LEAD' },
+          description: { type: 'string', maxLength: 500, example: 'Manages support escalations and user profiles' },
+          permissions: { type: 'array', items: { type: 'string' }, example: ['users:read', 'orders:read'] }
+        }
+      },
+      UpdateRoleRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 100 },
+          description: { type: 'string', maxLength: 500, nullable: true },
+          permissions: { type: 'array', items: { type: 'string' } }
+        }
+      },
+      UpdateRolePermissionsRequest: {
+        type: 'object',
+        required: ['permissions'],
+        properties: {
+          permissions: { type: 'array', items: { type: 'string' }, example: ['users:read', 'orders:read', 'orders:cancel'] }
+        }
+      },
+      PermissionData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', example: 'audit:read' },
+          category: { type: 'string', example: 'AUDIT' },
+          description: { type: 'string', nullable: true, example: 'View audit event history and logs' },
+          isSystem: { type: 'boolean', example: true },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      CreatePermissionRequest: {
+        type: 'object',
+        required: ['name', 'category'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 100, example: 'billing:reports:export' },
+          category: { type: 'string', minLength: 1, maxLength: 64, example: 'BILLING' },
+          description: { type: 'string', maxLength: 500, example: 'Export periodic billing CSV summaries' }
+        }
+      },
+      UpdatePermissionRequest: {
+        type: 'object',
+        properties: {
+          category: { type: 'string', maxLength: 64 },
+          description: { type: 'string', maxLength: 500, nullable: true }
+        }
+      },
+      UserRoleAssignmentData: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          tenantId: { type: 'string', example: 'tenant-alpha' },
+          userId: { type: 'string', example: 'usr-4412' },
+          roleId: { type: 'string', format: 'uuid' },
+          roleName: { type: 'string', example: 'SUPPORT_LEAD' },
+          assignedBy: { type: 'string', nullable: true, example: 'usr-admin-1' },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      AssignRoleRequest: {
+        type: 'object',
+        required: ['roleId'],
+        properties: {
+          roleId: { type: 'string', minLength: 1, example: 'role-uuid-1234' }
+        }
+      },
+      CheckPermissionRequest: {
+        type: 'object',
+        required: ['permission'],
+        properties: {
+          permission: { type: 'string', minLength: 1, example: 'orders:cancel' }
+        }
+      },
+      CheckPermissionResponseData: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string', example: 'usr-4412' },
+          tenantId: { type: 'string', example: 'tenant-alpha' },
+          permission: { type: 'string', example: 'orders:cancel' },
+          allowed: { type: 'boolean', example: true },
+          userRoles: { type: 'array', items: { type: 'string' }, example: ['SUPPORT_LEAD'] },
+          permissions: { type: 'array', items: { type: 'string' }, example: ['users:read', 'orders:read', 'orders:cancel'] }
+        }
+      },
+
+      // IAM Backoffice & SSO schemas
+      BackofficeCreateUserRequest: {
+        type: 'object',
+        required: ['email', 'password', 'name'],
+        properties: {
+          email: { type: 'string', format: 'email', example: 'operator@enterprise.local' },
+          password: { type: 'string', minLength: 8, example: 'Str0ngP@ssw0rd!' },
+          name: { type: 'string', example: 'Operations Lead' },
+          role: { type: 'string', enum: ['USER', 'ADMIN', 'SUPPORT'], default: 'USER' },
+          tenantId: { type: 'string', example: 'default' }
+        }
+      },
+      BackofficeUpdateUserRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          role: { type: 'string', enum: ['USER', 'ADMIN', 'SUPPORT'] }
+        }
+      },
+      BackofficeUpdateStatusRequest: {
+        type: 'object',
+        required: ['isActive'],
+        properties: {
+          isActive: { type: 'boolean', example: false }
+        }
+      },
+      BackofficeResetPasswordRequest: {
+        type: 'object',
+        required: ['newPassword'],
+        properties: {
+          newPassword: { type: 'string', minLength: 8, example: 'NewStr0ngP@ss123!' }
+        }
+      },
+      SsoHandoffRequest: {
+        type: 'object',
+        required: ['targetApp'],
+        properties: {
+          targetApp: { type: 'string', example: 'mfe-audit-monitoring' },
+          targetUrl: { type: 'string', example: 'http://localhost:5174' }
+        }
+      },
+      SsoRedeemRequest: {
+        type: 'object',
+        required: ['ticket'],
+        properties: {
+          ticket: { type: 'string', example: 'sso-tkt-c7f8a9e1' }
+        }
+      },
+      SsoExchangeRequest: {
+        type: 'object',
+        required: ['targetAudience'],
+        properties: {
+          targetAudience: { type: 'string', example: 'ai-service' }
+        }
+      },
+      SsoIntrospectRequest: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string', example: 'eyJh...' }
+        }
       }
     }
   },
@@ -1089,6 +1500,179 @@ All controller and error-handler responses strictly conform to the unified stand
         summary: 'List Linked Federated Identities',
         security: [{ BearerAuth: [] }],
         responses: { '200': { description: 'Linked identities retrieved' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/iam/backoffice/users': {
+      get: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: List All Users (ADMIN / SUPPORT)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'role', in: 'query', schema: { type: 'string' } },
+          { name: 'isActive', in: 'query', schema: { type: 'boolean' } }
+        ],
+        responses: { '200': { description: 'User list retrieved' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      post: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Create User (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/BackofficeCreateUserRequest' } } }
+        },
+        responses: { '201': { description: 'User created' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/backoffice/users/{id}': {
+      get: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Get User By ID (ADMIN / SUPPORT)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'User retrieved' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      put: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Update User Profile (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/BackofficeUpdateUserRequest' } } }
+        },
+        responses: { '200': { description: 'User updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Delete User (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'User deleted' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/backoffice/users/{id}/status': {
+      patch: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Update User Status (ADMIN / SUPPORT)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/BackofficeUpdateStatusRequest' } } }
+        },
+        responses: { '200': { description: 'User status updated' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/backoffice/users/{id}/reset-password': {
+      post: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Reset User Password (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/BackofficeResetPasswordRequest' } } }
+        },
+        responses: { '200': { description: 'Password reset successful' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/backoffice/users/{id}/sessions': {
+      get: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: List User Active Sessions (ADMIN / SUPPORT)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'User sessions retrieved' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Revoke All Sessions for User (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Sessions revoked' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/backoffice/sessions/{sessionId}': {
+      delete: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: Revoke Single Session (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'sessionId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Session revoked' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/backoffice/roles': {
+      get: {
+        tags: ['IAM Service'],
+        summary: 'Backoffice: List Available Platform Roles (ADMIN / SUPPORT)',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: 'Roles retrieved' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/iam/sso/handoff': {
+      post: {
+        tags: ['IAM Service'],
+        summary: 'SSO: Create Cross-App Authentication Handoff Ticket',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/SsoHandoffRequest' } } }
+        },
+        responses: { '200': { description: 'Handoff ticket generated' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/iam/sso/redeem': {
+      post: {
+        tags: ['IAM Service'],
+        summary: 'SSO: Redeem Handoff Ticket for Session Tokens',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/SsoRedeemRequest' } } }
+        },
+        responses: { '200': { description: 'Session redeemed' }, '400': { description: 'Invalid or expired ticket' } }
+      }
+    },
+    '/api/v1/iam/sso/exchange': {
+      post: {
+        tags: ['IAM Service'],
+        summary: 'SSO: Exchange Token for Microservice Audience Token',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/SsoExchangeRequest' } } }
+        },
+        responses: { '200': { description: 'Audience token issued' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/iam/sso/introspect': {
+      post: {
+        tags: ['IAM Service'],
+        summary: 'SSO: Introspect Token Validity and Claims',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/SsoIntrospectRequest' } } }
+        },
+        responses: { '200': { description: 'Token introspection result' } }
+      }
+    },
+    '/api/v1/iam/sso/sessions': {
+      get: {
+        tags: ['IAM Service'],
+        summary: 'SSO: List Current User Active SSO Sessions',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: 'Active sessions retrieved' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/iam/sso/logout': {
+      post: {
+        tags: ['IAM Service'],
+        summary: 'SSO: Global or Current Session Logout',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: 'Logged out successfully' }, '401': auth401Response }
       }
     },
 
@@ -1935,7 +2519,451 @@ All controller and error-handler responses strictly conform to the unified stand
         tags: ['AI & MCP Service'],
         summary: 'Orchestrate Multi-Step or Parallel MCP Tool Calls',
         security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/McpOrchestrateRequest' } } }
+        },
         responses: { '200': { description: 'Orchestration completed' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}': {
+      get: {
+        tags: ['AI & MCP Service'],
+        summary: 'Get Provider Details by ID or Slug',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Provider retrieved' }, '401': auth401Response }
+      },
+      put: {
+        tags: ['AI & MCP Service'],
+        summary: 'Update MCP / External API Provider (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateMcpProviderRequest' } } }
+        },
+        responses: { '200': { description: 'Provider updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['AI & MCP Service'],
+        summary: 'Deactivate / Remove Provider (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Provider removed' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/sync': {
+      post: {
+        tags: ['AI & MCP Service'],
+        summary: 'Sync Tools from Provider (ADMIN)',
+        description: 'Triggers live tool discovery against the upstream MCP endpoint and synchronizes local tool registry.',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Tools synchronized successfully' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/health': {
+      post: {
+        tags: ['AI & MCP Service'],
+        summary: 'Probe Provider Health and Latency',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Health check completed' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/resources': {
+      get: {
+        tags: ['AI & MCP Service'],
+        summary: 'List MCP Resources from Provider',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Resources retrieved' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/resources/read': {
+      post: {
+        tags: ['AI & MCP Service'],
+        summary: 'Read Resource Content from Provider',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['uri'], properties: { uri: { type: 'string', example: 'postgres://schema/audit_logs' } } } } }
+        },
+        responses: { '200': { description: 'Resource content retrieved' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/prompts': {
+      get: {
+        tags: ['AI & MCP Service'],
+        summary: 'List Prompt Templates from Provider',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Prompts retrieved' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/prompts/{promptName}/get': {
+      post: {
+        tags: ['AI & MCP Service'],
+        summary: 'Get Rendered Prompt Template with Arguments',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'promptName', in: 'path', required: true, schema: { type: 'string' } }
+        ],
+        requestBody: {
+          content: { 'application/json': { schema: { type: 'object', properties: { arguments: { type: 'object', additionalProperties: true } } } } }
+        },
+        responses: { '200': { description: 'Rendered prompt returned' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/providers/{idOrSlug}/tools/{toolName}/call': {
+      post: {
+        tags: ['AI & MCP Service'],
+        summary: 'Invoke Tool on Specific Provider',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'toolName', in: 'path', required: true, schema: { type: 'string' } }
+        ],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { arguments: { type: 'object', additionalProperties: true } } } } }
+        },
+        responses: { '200': { description: 'Tool executed successfully' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/ai/invocations': {
+      get: {
+        tags: ['AI & MCP Service'],
+        summary: 'List MCP Tool Invocation History (ADMIN / SUPPORT)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+          { name: 'providerSlug', in: 'query', schema: { type: 'string' } },
+          { name: 'toolName', in: 'query', schema: { type: 'string' } },
+          { name: 'isError', in: 'query', schema: { type: 'boolean' } }
+        ],
+        responses: { '200': { description: 'Invocations retrieved' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+
+    // Organization Service
+    '/api/v1/organizations': {
+      get: {
+        tags: ['Organization Service'],
+        summary: 'List Organizations (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['ACTIVE', 'SUSPENDED', 'TRIAL', 'DEACTIVATED'] } },
+          { name: 'tier', in: 'query', schema: { type: 'string', enum: ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'] } },
+          { name: 'industry', in: 'query', schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }
+        ],
+        responses: { '200': { description: 'Organizations list retrieved' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      post: {
+        tags: ['Organization Service'],
+        summary: 'Create New Organization (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateOrganizationRequest' } } }
+        },
+        responses: { '201': { description: 'Organization created' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/organizations/{idOrSlug}': {
+      get: {
+        tags: ['Organization Service'],
+        summary: 'Get Organization by ID or Slug',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Organization details retrieved' }, '401': auth401Response }
+      }
+    },
+    '/api/v1/organizations/{id}': {
+      put: {
+        tags: ['Organization Service'],
+        summary: 'Update Organization (ADMIN / OWNER)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateOrganizationRequest' } } }
+        },
+        responses: { '200': { description: 'Organization updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      patch: {
+        tags: ['Organization Service'],
+        summary: 'Partially Update Organization (ADMIN / OWNER)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateOrganizationRequest' } } }
+        },
+        responses: { '200': { description: 'Organization updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['Organization Service'],
+        summary: 'Soft Delete Organization (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Organization deleted' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/organizations/{id}/status': {
+      patch: {
+        tags: ['Organization Service'],
+        summary: 'Update Organization Status (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateOrganizationStatusRequest' } } }
+        },
+        responses: { '200': { description: 'Status updated' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/organizations/{id}/members': {
+      get: {
+        tags: ['Organization Service'],
+        summary: 'List Organization Members',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'role', in: 'query', schema: { type: 'string', enum: ['OWNER', 'ADMIN', 'MEMBER', 'BILLING_ADMIN'] } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['ACTIVE', 'INVITED', 'SUSPENDED'] } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }
+        ],
+        responses: { '200': { description: 'Members list retrieved' }, '401': auth401Response }
+      },
+      post: {
+        tags: ['Organization Service'],
+        summary: 'Add Member to Organization (ADMIN / OWNER)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AddOrganizationMemberRequest' } } }
+        },
+        responses: { '201': { description: 'Member added' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/organizations/{id}/members/{memberId}': {
+      patch: {
+        tags: ['Organization Service'],
+        summary: 'Update Member Role or Status (ADMIN / OWNER)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'memberId', in: 'path', required: true, schema: { type: 'string' } }
+        ],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateOrganizationMemberRequest' } } }
+        },
+        responses: { '200': { description: 'Member updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['Organization Service'],
+        summary: 'Remove Member from Organization (ADMIN / OWNER)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'memberId', in: 'path', required: true, schema: { type: 'string' } }
+        ],
+        responses: { '200': { description: 'Member removed' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+
+    // RBAC Service
+    '/api/v1/rbac/roles': {
+      get: {
+        tags: ['Roles (RBAC)'],
+        summary: 'List Tenant Roles',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'isSystem', in: 'query', schema: { type: 'boolean' } }
+        ],
+        responses: { '200': { description: 'Roles list retrieved' } }
+      },
+      post: {
+        tags: ['Roles (RBAC)'],
+        summary: 'Create Custom Role (ADMIN / SUPER_ADMIN / ORGANIZATION_ADMIN)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateRoleRequest' } } }
+        },
+        responses: { '201': { description: 'Role created' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/roles/{id}': {
+      get: {
+        tags: ['Roles (RBAC)'],
+        summary: 'Get Role by ID with Permissions',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Role details retrieved' } }
+      },
+      put: {
+        tags: ['Roles (RBAC)'],
+        summary: 'Update Role Name and Description (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateRoleRequest' } } }
+        },
+        responses: { '200': { description: 'Role updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['Roles (RBAC)'],
+        summary: 'Delete Custom Role (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Role deleted' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/roles/{id}/permissions': {
+      put: {
+        tags: ['Roles (RBAC)'],
+        summary: 'Update Role Permissions (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdateRolePermissionsRequest' } } }
+        },
+        responses: { '200': { description: 'Role permissions updated' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/permissions': {
+      get: {
+        tags: ['Permissions (RBAC)'],
+        summary: 'List All System & Tenant Permissions',
+        parameters: [{ name: 'category', in: 'query', schema: { type: 'string' } }],
+        responses: { '200': { description: 'Permissions list retrieved' } }
+      },
+      post: {
+        tags: ['Permissions (RBAC)'],
+        summary: 'Create Custom Permission (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePermissionRequest' } } }
+        },
+        responses: { '201': { description: 'Permission created' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/permissions/categories': {
+      get: {
+        tags: ['Permissions (RBAC)'],
+        summary: 'List Unique Permission Categories',
+        responses: { '200': { description: 'Categories retrieved' } }
+      }
+    },
+    '/api/v1/rbac/permissions/{id}': {
+      get: {
+        tags: ['Permissions (RBAC)'],
+        summary: 'Get Permission by ID',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Permission retrieved' } }
+      },
+      put: {
+        tags: ['Permissions (RBAC)'],
+        summary: 'Update Permission Details (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UpdatePermissionRequest' } } }
+        },
+        responses: { '200': { description: 'Permission updated' }, '401': auth401Response, '403': forbidden403Response }
+      },
+      delete: {
+        tags: ['Permissions (RBAC)'],
+        summary: 'Delete Custom Permission (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Permission deleted' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/users/{userId}/roles': {
+      get: {
+        tags: ['User Role Assignments (RBAC)'],
+        summary: 'Get Assigned Roles for User',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'User roles retrieved' } }
+      },
+      post: {
+        tags: ['User Role Assignments (RBAC)'],
+        summary: 'Assign Role to User (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AssignRoleRequest' } } }
+        },
+        responses: { '201': { description: 'Role assigned successfully' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/users/{userId}/roles/{roleId}': {
+      delete: {
+        tags: ['User Role Assignments (RBAC)'],
+        summary: 'Revoke Role from User (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'userId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'roleId', in: 'path', required: true, schema: { type: 'string' } }
+        ],
+        responses: { '200': { description: 'Role revoked successfully' }, '401': auth401Response, '403': forbidden403Response }
+      }
+    },
+    '/api/v1/rbac/users/{userId}/permissions': {
+      get: {
+        tags: ['User Role Assignments (RBAC)'],
+        summary: 'Get Effective Permissions for User',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Effective user permissions retrieved' } }
+      }
+    },
+    '/api/v1/rbac/users/{userId}/check-permission': {
+      get: {
+        tags: ['User Role Assignments (RBAC)'],
+        summary: 'Check User Permission via Query Parameter',
+        parameters: [
+          { name: 'userId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'permission', in: 'query', required: true, schema: { type: 'string' } }
+        ],
+        responses: { '200': { description: 'Permission evaluation result' } }
+      },
+      post: {
+        tags: ['User Role Assignments (RBAC)'],
+        summary: 'Check User Permission via Request Body',
+        parameters: [{ name: 'userId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/CheckPermissionRequest' } } }
+        },
+        responses: { '200': { description: 'Permission evaluation result' } }
+      }
+    },
+    '/api/v1/rbac/roles/{id}/users': {
+      get: {
+        tags: ['Roles (RBAC)'],
+        summary: 'List Users Assigned to Role',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Assigned users retrieved' } }
       }
     },
     '/metrics': {

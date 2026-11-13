@@ -59,7 +59,7 @@ Each microservice is **100% self-contained** and independently deployable. There
 
 | Service | HTTP Port | gRPC Port | Primary Responsibilities | Cross-Service Communication |
 |---|---|---|---|---|
-| **api-gateway** | `4000` | - | Single entry point, gRPC upstream dispatch, OWASP headers, rate limiting, token forwarding | Dispatches to all 10 downstreams via gRPC over HTTP/2 |
+| **api-gateway** | `4000` | - | Single entry point, gRPC upstream dispatch, OWASP headers, rate limiting, token forwarding | Dispatches to all 13 downstreams via gRPC over HTTP/2 |
 | **iam-service** | `4001` | `50051` | Identity, JWT issue & validation, RBAC | Publishes `iam.user_registered` to RabbitMQ; Serves `IAMService` gRPC |
 | **asset-service** | `4002` | `50052` | Media assets, files, binary storage paths | Serves `AssetService` gRPC to API Gateway |
 | **config-service** | `4003` | `50053` | Dynamic configuration, active payment gateway toggles | Serves `ConfigService` gRPC to API Gateway & `transaction-service` |
@@ -69,7 +69,10 @@ Each microservice is **100% self-contained** and independently deployable. There
 | **transaction-service** | `4007` | `50057` | Multi-provider payments (Stripe, PayPal, Razorpay, Mock), hosted redirects | Serves `TransactionService` gRPC; Synchronous gRPC client to `config-service` for gateway resolution; Publishes `transactions.transaction_completed` |
 | **search-service** | `4008` | `50058` | Inverted search index, full-text queries | Serves `SearchService` gRPC; Consumes `orders.order_created` & `iam.user_registered` projections from RabbitMQ |
 | **inventory-service** | `4009` | `50059` | Stock quantities, SKUs, reservation transactions | Serves `InventoryService` gRPC (`CheckStock`, `ReserveStock`, `GetStock`, `AddStock`) |
+| **ai-service** | `4010` | `50060` | MCP client, provider management, tools execution & multi-step orchestration | Serves `AIService` gRPC to API Gateway & internal microservices |
 | **audit-service** | `4011` | `50061` | Immutable audit logs, telemetry, monitoring adapters (AWS CloudWatch, Prometheus, Grafana) | RabbitMQ consumer for all domain events; Serves `AuditService` gRPC |
+| **organization-service** | `4012` | `50062` | Multi-tenant organization CRUD, status management, tenant membership lifecycle | Serves `OrganizationService` gRPC to API Gateway |
+| **rbac-service** | `4013` | `50063` | Dynamic roles, granular permission catalog, user role assignments, permission checking | Serves `RbacService` gRPC to API Gateway & IAM |
 
 ---
 
@@ -192,7 +195,7 @@ This will start:
 - PostgreSQL 16 (with automatic schema initialization)
 - RabbitMQ 3 Management UI at `http://localhost:15672` (guest / guest)
 - API Gateway at `http://localhost:4000`
-- All 10 backend microservices
+- All 13 backend microservices
 
 ### 2. Verify Health & Access Swagger API Documentation
 ```bash

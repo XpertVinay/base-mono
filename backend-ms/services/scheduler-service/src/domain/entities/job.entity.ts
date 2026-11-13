@@ -49,4 +49,14 @@ export class Job extends Entity<JobProps> {
   public markFailed(): void {
     this.props.status = 'FAILED';
   }
+
+  public update(props: {
+    name?: string;
+    cronExpression?: string;
+    status?: JobStatus;
+  }): void {
+    if (props.name !== undefined) this.props.name = props.name;
+    if (props.cronExpression !== undefined) this.props.cronExpression = props.cronExpression;
+    if (props.status !== undefined) this.props.status = props.status;
+  }
 }

@@ -1,5 +1,5 @@
 import { DomainIntegrationEvent } from '../../shared/infrastructure/messaging/rabbitmq.service.js';
-import { PostgresOrderRepository } from '../../infrastructure/persistence/postgres-order.repository.js';
+import { IOrderRepository } from '../../domain/repositories/order-repository.interface.js';
 import { logger } from '../../shared/infrastructure/logger.js';
 
 export interface TransactionCompletedPayload {
@@ -22,7 +22,7 @@ export class TransactionCompletedOrderHandler implements IIntegrationEventHandle
   readonly eventName = 'transactions.transaction_completed';
   readonly queueName = 'order-service-transactions';
 
-  constructor(private readonly repo: PostgresOrderRepository) {}
+  constructor(private readonly repo: IOrderRepository) {}
 
   async handle(event: DomainIntegrationEvent<TransactionCompletedPayload>): Promise<void> {
     const payload = event.payload;

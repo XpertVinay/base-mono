@@ -5,9 +5,23 @@ import { requireAuth, requireRole } from '../../shared/presentation/auth.middlew
 export function createSchedulerRouter(controller: SchedulerController): Router {
   const router = Router();
 
+  // Job management CRUD
   router.get('/jobs', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.list);
   router.post('/jobs', requireAuth, requireRole(['ADMIN']), controller.create);
+  router.get('/jobs/:id', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.getById);
+  router.put('/jobs/:id', requireAuth, requireRole(['ADMIN']), controller.updateJob);
+  router.patch('/jobs/:id', requireAuth, requireRole(['ADMIN']), controller.updateJob);
+  router.delete('/jobs/:id', requireAuth, requireRole(['ADMIN']), controller.deleteJob);
   router.post('/jobs/:id/trigger', requireAuth, requireRole(['ADMIN']), controller.trigger);
+
+  // Explicit backoffice path aliases
+  router.get('/backoffice/jobs', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.list);
+  router.post('/backoffice/jobs', requireAuth, requireRole(['ADMIN']), controller.create);
+  router.get('/backoffice/jobs/:id', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.getById);
+  router.put('/backoffice/jobs/:id', requireAuth, requireRole(['ADMIN']), controller.updateJob);
+  router.patch('/backoffice/jobs/:id', requireAuth, requireRole(['ADMIN']), controller.updateJob);
+  router.delete('/backoffice/jobs/:id', requireAuth, requireRole(['ADMIN']), controller.deleteJob);
+  router.post('/backoffice/jobs/:id/trigger', requireAuth, requireRole(['ADMIN']), controller.trigger);
 
   return router;
 }

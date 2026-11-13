@@ -10,6 +10,8 @@ export type ServiceKey =
   | 'search'
   | 'inventory'
   | 'ai'
+  | 'organizations'
+  | 'rbac'
   | 'tenants'
   | 'records'
   | 'health';
@@ -33,6 +35,8 @@ export const SERVICE_CONFIG = {
     search: '/search',
     inventory: '/inventory',
     ai: '/ai',
+    organizations: '/organizations',
+    rbac: '/rbac',
     tenants: '/tenants',
     records: '/records',
     health: '/health',

@@ -11,6 +11,7 @@ import { RecordsPage } from '../features/records/RecordsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { AuditMonitoringPage } from '../features/audit-monitoring/AuditMonitoringPage';
 import { IamControlPlanePage } from '../features/iam/IamControlPlanePage';
+import { ApiExplorerPage } from '../features/api-explorer/ApiExplorerPage';
 import { UnknownTenantPage } from '../features/system/UnknownTenantPage';
 import { TenantLoadingPage } from '../features/system/TenantLoadingPage';
 import { NotFoundPage } from '../features/system/NotFoundPage';
@@ -46,6 +47,8 @@ export const AppRoutes: React.FC = () => {
       >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/records" element={<RecordsPage />} />
+        <Route path="/api-operations" element={<ApiExplorerPage />} />
+        <Route path="/api-explorer" element={<ApiExplorerPage />} />
         <Route path="/analytics" element={<RecordsPage />} />
         <Route path="/audit-monitoring" element={<AuditMonitoringPage />} />
         <Route path="/audit" element={<AuditMonitoringPage />} />

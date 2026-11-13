@@ -35,6 +35,8 @@ import { createApp as createAuditApp } from '../../audit-service/src/app.js';
 import { startAuditGrpcServer } from '../../audit-service/src/grpc/audit.grpc-server.js';
 import { createApp as createOrganizationApp } from '../../organization-service/src/app.js';
 import { startOrganizationGrpcServer } from '../../organization-service/src/grpc/organization.grpc-server.js';
+import { createApp as createRbacApp } from '../../rbac-service/src/app.js';
+import { startRbacGrpcServer } from '../../rbac-service/src/grpc/rbac.grpc-server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -229,11 +231,11 @@ test('API Gateway routes all 11 services over gRPC HTTP/2 and aggregates gRPC he
   const { app, grpcManager } = createApp({ grpcTargets });
 
   try {
-    // 1. Directory endpoint reports gRPC+HTTP/2 transport and all 12 mappings
+    // 1. Directory endpoint reports gRPC+HTTP/2 transport and all 13 mappings
     const directoryRes = await invokeGateway(app, 'GET', '/api/v1');
     assert.equal(directoryRes.status, 200);
     assert.equal(directoryRes.json.data.upstreamProtocol, 'grpc+http2');
-    assert.equal(Object.keys(directoryRes.json.data.grpcMapping).length, 12);
+    assert.equal(Object.keys(directoryRes.json.data.grpcMapping).length, 13);
 
     // 2. Aggregated detailed health check queries all 10 services over gRPC
     const healthRes = await invokeGateway(app, 'GET', '/api/v1/health/detailed');
@@ -339,6 +341,7 @@ test('Real gRPC servers for all 11 microservices connect through API Gateway', a
   const ai = createAiApp({ useInMemoryStore: true });
   const audit = createAuditApp();
   const organization = createOrganizationApp();
+  const rbac = createRbacApp();
 
   const basePort = 56151;
   const servers: grpc.Server[] = [
@@ -380,7 +383,8 @@ test('Real gRPC servers for all 11 microservices connect through API Gateway', a
       ai.app
     ),
     startAuditGrpcServer(audit.recordUseCase, audit.queryUseCase, basePort + 10, audit.app),
-    startOrganizationGrpcServer(organization.orgRepo, organization.memberRepo, basePort + 11, organization.app)
+    startOrganizationGrpcServer(organization.orgRepo, organization.memberRepo, basePort + 11, organization.app),
+    startRbacGrpcServer(rbac.repos, basePort + 12, rbac.app)
   ];
 
   // Allow async gRPC server binds to settle
@@ -399,7 +403,8 @@ test('Real gRPC servers for all 11 microservices connect through API Gateway', a
       inventory: `127.0.0.1:${basePort + 8}`,
       ai: `127.0.0.1:${basePort + 9}`,
       audit: `127.0.0.1:${basePort + 10}`,
-      organizations: `127.0.0.1:${basePort + 11}`
+      organizations: `127.0.0.1:${basePort + 11}`,
+      rbac: `127.0.0.1:${basePort + 12}`
     }
   });
 

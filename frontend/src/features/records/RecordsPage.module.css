@@ -64,6 +64,24 @@
   gap: var(--spacing-xs);
 }
 
+.editButton {
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editButton:hover {
+  background-color: var(--color-primary-container, rgba(59, 130, 246, 0.1));
+  color: var(--color-primary);
+}
+
 .deleteButton {
   background: transparent;
   border: none;

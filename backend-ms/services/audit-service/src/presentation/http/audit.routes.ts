@@ -87,10 +87,17 @@ export function createAuditRouter(
 
   // Read: Protected by authentication & service keys with DDoS rate limiting
   router.get('/logs', auditReadRateLimiter, requireAuditReadAuth, controller.query);
+  router.get('/logs/:id', auditReadRateLimiter, requireAuditReadAuth, controller.getById);
+  router.delete('/logs/:id', auditReadRateLimiter, requireRemediationAdmin, controller.deleteLog);
   router.get('/config', auditReadRateLimiter, controller.getConfig);
   router.get('/alerts', auditReadRateLimiter, requireAuditReadAuth, controller.getAlerts);
   router.get('/metrics/summary', auditReadRateLimiter, controller.getMetricsSummary);
   router.get('/grafana/annotations', auditReadRateLimiter, controller.getAnnotations);
+
+  // Backoffice path aliases
+  router.get('/backoffice/logs', auditReadRateLimiter, requireAuditReadAuth, controller.query);
+  router.get('/backoffice/logs/:id', auditReadRateLimiter, requireAuditReadAuth, controller.getById);
+  router.delete('/backoffice/logs/:id', auditReadRateLimiter, requireRemediationAdmin, controller.deleteLog);
 
   // Mutating remediation actions strictly require ADMIN
   router.post('/remediate', auditReadRateLimiter, requireRemediationAdmin, controller.executeRemediation);

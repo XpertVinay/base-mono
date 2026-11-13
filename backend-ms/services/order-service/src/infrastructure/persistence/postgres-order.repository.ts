@@ -1,4 +1,4 @@
-import { IOrderRepository } from '../../domain/repositories/order-repository.interface.js';
+import { IOrderRepository, ListOrdersOptions } from '../../domain/repositories/order-repository.interface.js';
 import { Order, OrderItem, OrderStatus } from '../../domain/entities/order.entity.js';
 import { dbPool } from '../../shared/infrastructure/database/connection-pool.js';
 
@@ -51,6 +51,73 @@ export class PostgresOrderRepository implements IOrderRepository {
     return ordersRes.rows.map(row => this.mapToDomain(row, itemsByOrderId.get(row.id) || []));
   }
 
+  async findAll(tenantId?: string, options: ListOrdersOptions = {}): Promise<{ orders: Order[]; total: number }> {
+    const tid = tenantId || 'default';
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.max(1, Math.min(100, options.limit || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions: string[] = ["(tenant_id = $1 OR tenant_id = 'default')"];
+    const params: any[] = [tid];
+
+    if (options.status) {
+      params.push(options.status.toUpperCase());
+      conditions.push(`status = $${params.length}`);
+    }
+
+    if (options.userId) {
+      params.push(options.userId);
+      conditions.push(`user_id = $${params.length}`);
+    }
+
+    if (options.search) {
+      params.push(`%${options.search}%`);
+      conditions.push(`(id ILIKE $${params.length} OR user_id ILIKE $${params.length})`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    const countRes = await dbPool.query(
+      `SELECT COUNT(*) as count FROM orders.orders WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0]?.count || '0', 10);
+
+    params.push(limit);
+    const limitParam = `$${params.length}`;
+    params.push(offset);
+    const offsetParam = `$${params.length}`;
+
+    const ordersRes = await dbPool.query(
+      `SELECT id, tenant_id, user_id, status, total_amount, currency, created_at, updated_at
+       FROM orders.orders
+       WHERE ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      params
+    );
+
+    if (ordersRes.rows.length === 0) {
+      return { orders: [], total };
+    }
+
+    const orderIds = ordersRes.rows.map(r => r.id);
+    const itemsRes = await dbPool.query(
+      'SELECT id, order_id, product_id, product_name, quantity, unit_price, total_price FROM orders.order_items WHERE order_id = ANY($1)',
+      [orderIds]
+    );
+
+    const itemsByOrderId = new Map<string, any[]>();
+    for (const item of itemsRes.rows) {
+      const list = itemsByOrderId.get(item.order_id) || [];
+      list.push(item);
+      itemsByOrderId.set(item.order_id, list);
+    }
+
+    const orders = ordersRes.rows.map(row => this.mapToDomain(row, itemsByOrderId.get(row.id) || []));
+    return { orders, total };
+  }
+
   async save(order: Order): Promise<void> {
     const pool = dbPool.getPool();
     const client = await pool.connect();
@@ -81,9 +148,20 @@ export class PostgresOrderRepository implements IOrderRepository {
 
   async update(order: Order): Promise<void> {
     await dbPool.query(
-      'UPDATE orders.orders SET status = $2, updated_at = $3 WHERE id = $1 AND (tenant_id = $4 OR tenant_id = \'default\')',
-      [order.id, order.status, order.updatedAt, order.tenantId]
+      `UPDATE orders.orders
+       SET status = $2, total_amount = $3, currency = $4, updated_at = $5
+       WHERE id = $1 AND (tenant_id = $6 OR tenant_id = 'default')`,
+      [order.id, order.status, order.totalAmount, order.currency, order.updatedAt, order.tenantId]
     );
+  }
+
+  async delete(id: string, tenantId?: string): Promise<boolean> {
+    const tid = tenantId || 'default';
+    const res = await dbPool.query(
+      'DELETE FROM orders.orders WHERE id = $1 AND (tenant_id = $2 OR tenant_id = \'default\')',
+      [id, tid]
+    );
+    return (res.rowCount ?? 0) > 0;
   }
 
   private mapToDomain(orderRow: any, itemRows: any[]): Order {

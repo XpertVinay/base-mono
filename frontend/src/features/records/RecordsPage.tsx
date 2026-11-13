@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Plus, Trash2, Database, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Edit3, Database, ChevronRight, Activity, ServerCog } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTenant } from '../../core/tenant/TenantContext';
-import { apiClient } from '../../core/api/client';
-import { resolveServiceEndpoint } from '../../core/config/serviceConfig';
+import { recordsApi } from '../../core/api/services/recordsApi';
 import { EntityRecord } from '../../core/api/mockBackend';
 import { formatCurrency, formatDate } from '../../core/i18n/formatters';
 import { RecordModal } from './RecordModal';
@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/Button/Button';
 import { Input } from '../../components/ui/Input/Input';
 import { Badge } from '../../components/ui/Badge/Badge';
 import { Spinner } from '../../components/ui/Spinner/Spinner';
+import { useApiTrafficStore } from '../../core/api/trafficStore';
 import {
   Table,
   TableHead,
@@ -27,20 +28,21 @@ export const RecordsPage: React.FC = () => {
   const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
+  const { toggleDrawer, records: trafficRecords } = useApiTrafficStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<EntityRecord | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const queryKey = ['records', tenant.identity.slug];
-
-  const recordsPath = (suffix = '') => `${resolveServiceEndpoint('records')}${suffix}`;
 
   // Fetch records via typed API client with X-Tenant-ID
   const { data: records = [], isLoading } = useQuery<EntityRecord[]>({
     queryKey,
     queryFn: async () => {
-      const response = await apiClient.get<EntityRecord[]>(recordsPath(), {
+      const response = await recordsApi.list({
         tenantId: tenant.identity.id,
+        tenantSlug: tenant.identity.slug,
       });
       return response.data;
     },
@@ -49,14 +51,23 @@ export const RecordsPage: React.FC = () => {
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (formData: EntityRecordFormData) => {
-      await apiClient.post<EntityRecord>(
-        recordsPath(),
-        {
-          ...formData,
-          tenantId: tenant.identity.id,
-        },
-        { tenantId: tenant.identity.id }
-      );
+      await recordsApi.create(formData, {
+        tenantId: tenant.identity.id,
+        tenantSlug: tenant.identity.slug,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<EntityRecordFormData> }) => {
+      await recordsApi.update(id, data, {
+        tenantId: tenant.identity.id,
+        tenantSlug: tenant.identity.slug,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -66,8 +77,9 @@ export const RecordsPage: React.FC = () => {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (recordId: string) => {
-      await apiClient.delete(recordsPath(`/${recordId}`), {
+      await recordsApi.delete(recordId, {
         tenantId: tenant.identity.id,
+        tenantSlug: tenant.identity.slug,
       });
     },
     onSuccess: () => {
@@ -124,13 +136,33 @@ export const RecordsPage: React.FC = () => {
           <p className={styles.subtitle}>{t('records.subtitle')}</p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={() => setIsModalOpen(true)}
-          leftIcon={<Plus size={16} />}
-        >
-          {t('records.addNew')}
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Link to="/api-operations" style={{ textDecoration: 'none' }}>
+            <Button variant="outline" size="sm" leftIcon={<ServerCog size={15} />}>
+              API CRUD Workbench
+            </Button>
+          </Link>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleDrawer}
+            leftIcon={<Activity size={15} />}
+          >
+            Traffic ({trafficRecords.length})
+          </Button>
+
+          <Button
+            variant="primary"
+            onClick={() => {
+              setEditingRecord(null);
+              setIsModalOpen(true);
+            }}
+            leftIcon={<Plus size={16} />}
+          >
+            {t('records.addNew')}
+          </Button>
+        </div>
       </div>
 
       <div className={styles.searchBar}>
@@ -201,6 +233,13 @@ export const RecordsPage: React.FC = () => {
                 <TableCell>
                   <div className={styles.actionsCell}>
                     <button
+                      className={styles.editButton}
+                      title="Edit Record"
+                      onClick={() => setEditingRecord(rec)}
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    <button
                       className={styles.deleteButton}
                       title={t('common.delete')}
                       onClick={() => deleteMutation.mutate(rec.id)}
@@ -216,12 +255,20 @@ export const RecordsPage: React.FC = () => {
       )}
 
       <RecordModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={async (data) => {
-          await createMutation.mutateAsync(data);
+        isOpen={isModalOpen || Boolean(editingRecord)}
+        initialData={editingRecord}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingRecord(null);
         }}
-        isLoading={createMutation.isPending}
+        onSubmit={async (data) => {
+          if (editingRecord) {
+            await updateMutation.mutateAsync({ id: editingRecord.id, data });
+          } else {
+            await createMutation.mutateAsync(data);
+          }
+        }}
+        isLoading={createMutation.isPending || updateMutation.isPending}
       />
     </div>
   );

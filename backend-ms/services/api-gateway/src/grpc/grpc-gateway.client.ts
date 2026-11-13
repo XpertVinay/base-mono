@@ -208,7 +208,25 @@ export class GrpcGatewayClientManager {
     this.protoDir = path.resolve(__dirname, '../proto');
 
     for (const def of Object.values(GRPC_SERVICE_DEFINITIONS)) {
-      const target = targetOverrides?.[def.key] || process.env[def.envVar] || def.defaultTarget;
+      let target = targetOverrides?.[def.key] || process.env[def.envVar];
+      if (!target) {
+        // Fallback: If HTTP service URL is defined (e.g. IAM_SERVICE_URL="http://iam-service:4001"), extract container hostname
+        const legacyServiceUrl = process.env[`${def.key.toUpperCase()}_SERVICE_URL`];
+        if (legacyServiceUrl) {
+          try {
+            const urlObj = new URL(legacyServiceUrl);
+            if (urlObj.hostname && urlObj.hostname !== 'localhost' && urlObj.hostname !== '127.0.0.1') {
+              const defaultPort = def.defaultTarget.split(':')[1] || '50051';
+              target = `${urlObj.hostname}:${defaultPort}`;
+            }
+          } catch {
+            // ignore invalid URL string
+          }
+        }
+      }
+      if (!target) {
+        target = def.defaultTarget;
+      }
       this.targets.set(def.key, target);
 
       const protoPath = path.join(this.protoDir, def.protoFile);

@@ -7,6 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc && mkdir -p dist/proto && cp -r src/proto/* dist/proto/",
     "start": "node dist/server.js",
+    "test": "tsx --test tests/*.test.ts",
     "db:migrate": "tsx src/infrastructure/database/run-migrations.ts"
   },
   "dependencies": {

@@ -39,10 +39,15 @@ export class PostgresSchedulerRepository implements ISchedulerRepository {
   async update(job: Job): Promise<void> {
     await dbPool.query(
       `UPDATE scheduler.jobs
-       SET status = $2, last_run_at = $3, next_run_at = $4
+       SET name = $2, cron_expression = $3, status = $4, last_run_at = $5, next_run_at = $6
        WHERE id = $1`,
-      [job.id, job.status, job.lastRunAt, job.nextRunAt]
+      [job.id, job.name, job.cronExpression, job.status, job.lastRunAt, job.nextRunAt]
     );
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const res = await dbPool.query('DELETE FROM scheduler.jobs WHERE id = $1', [id]);
+    return (res.rowCount ?? 0) > 0;
   }
 
   private mapToDomain(row: any): Job {

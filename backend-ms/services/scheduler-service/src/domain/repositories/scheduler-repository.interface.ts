@@ -6,4 +6,5 @@ export interface ISchedulerRepository {
   listAll(): Promise<Job[]>;
   save(job: Job): Promise<void>;
   update(job: Job): Promise<void>;
+  delete(id: string): Promise<boolean>;
 }

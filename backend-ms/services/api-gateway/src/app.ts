@@ -307,7 +307,9 @@ export function createApp(deps: ApiGatewayDependencies = {}): {
           search: '/api/v1/search',
           inventory: '/api/v1/inventory',
           ai: '/api/v1/ai',
-          audit: '/api/v1/audit'
+          audit: '/api/v1/audit',
+          organizations: '/api/v1/organizations',
+          rbac: '/api/v1/rbac'
         },
         grpcMapping: grpcManager.getServiceMap()
       }
@@ -360,23 +362,28 @@ export function createApp(deps: ApiGatewayDependencies = {}): {
   app.use(
     '/api-docs',
     swaggerUi.serve,
-    swaggerUi.setup(undefined, {
-      explorer: true,
-      swaggerOptions: {
-        urls: [
+    swaggerUi.setup(
+      swaggerCombinedDoc as swaggerUi.JsonObject,
+      {
+        explorer: true,
+        swaggerUrls: [
           { url: '/api-docs/openapi.json', name: 'Unified Platform (REST & gRPC)' },
           { url: '/api-docs/rest.json', name: 'HTTP REST APIs (All Microservices)' },
-          { url: '/api-docs/grpc.json', name: 'gRPC Services Contract (All 11 Services :50051–:50061)' }
-        ]
-      },
-      customSiteTitle: 'Enterprise Microservices API & gRPC Documentation',
-      customCss: `
-        .swagger-ui .topbar { background-color: #0f172a; border-bottom: 2px solid #3b82f6; }
-        .swagger-ui .topbar-wrapper img { content: url('https://raw.githubusercontent.com/swagger-api/swagger-ui/master/dist/favicon-32x32.png'); }
-        .swagger-ui .info { margin: 25px 0; }
-        .swagger-ui .info .title { color: #1e293b; font-weight: 700; }
-      `
-    })
+          { url: '/api-docs/grpc.json', name: 'gRPC Services Contract (All Microservices :50051–:50063)' }
+        ] as any,
+        swaggerOptions: {
+          filter: true,
+          docExpansion: 'list'
+        },
+        customSiteTitle: 'Enterprise Microservices API & gRPC Documentation',
+        customCss: `
+          .swagger-ui .topbar { background-color: #0f172a; border-bottom: 2px solid #3b82f6; }
+          .swagger-ui .topbar-wrapper img { content: url('https://raw.githubusercontent.com/swagger-api/swagger-ui/master/dist/favicon-32x32.png'); }
+          .swagger-ui .info { margin: 25px 0; }
+          .swagger-ui .info .title { color: #1e293b; font-weight: 700; }
+        `
+      } as swaggerUi.SwaggerUiOptions
+    )
   );
 
   // Convenient doc redirects

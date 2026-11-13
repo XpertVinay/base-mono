@@ -38,6 +38,8 @@ All gRPC unary RPC methods return standard response messages mirroring the unifi
 | **InventoryService** | \`inventory\` | \`:50059\` | \`inventory.proto\` | API Gateway, Order Service |
 | **AIService** | \`ai\` | \`:50060\` | \`ai.proto\` | API Gateway, Internal Microservices |
 | **AuditService** | \`audit\` | \`:50061\` | \`audit.proto\` | API Gateway, All Microservices |
+| **OrganizationService** | \`organization\` | \`:50062\` | \`organization.proto\` | API Gateway, IAM Service |
+| **RbacService** | \`rbac\` | \`:50063\` | \`rbac.proto\` | API Gateway, IAM Service, All Microservices |
 `,
     contact: {
       name: 'Platform Engineering Team',
@@ -88,6 +90,14 @@ All gRPC unary RPC methods return standard response messages mirroring the unifi
     {
       url: 'grpc://localhost:50061',
       description: 'Audit Service gRPC Endpoint (:50061)'
+    },
+    {
+      url: 'grpc://localhost:50062',
+      description: 'Organization Service gRPC Endpoint (:50062)'
+    },
+    {
+      url: 'grpc://localhost:50063',
+      description: 'RBAC Service gRPC Endpoint (:50063)'
     }
   ],
   tags: [
@@ -101,7 +111,9 @@ All gRPC unary RPC methods return standard response messages mirroring the unifi
     { name: 'SearchService (gRPC :50058)', description: 'Full-text search query and Gateway Dispatch RPCs' },
     { name: 'InventoryService (gRPC :50059)', description: 'Real-time stock checking, stock reservation, and Gateway Dispatch RPCs' },
     { name: 'AIService (gRPC :50060)', description: 'MCP client, provider management, tool execution, orchestration, and Gateway Dispatch RPCs' },
-    { name: 'AuditService (gRPC :50061)', description: 'Synchronous audit logging, telemetry query, and Gateway Dispatch RPCs' }
+    { name: 'AuditService (gRPC :50061)', description: 'Synchronous audit logging, telemetry query, and Gateway Dispatch RPCs' },
+    { name: 'OrganizationService (gRPC :50062)', description: 'Multi-tenant organization CRUD, slug lookup, and Gateway Dispatch RPCs' },
+    { name: 'RbacService (gRPC :50063)', description: 'Dynamic roles, permission checking, user role assignments, and Gateway Dispatch RPCs' }
   ],
   components: {
     schemas: {
@@ -416,6 +428,244 @@ All gRPC unary RPC methods return standard response messages mirroring the unifi
                           description: 'Direct array for backwards compatibility',
             items: { $ref: '#/components/schemas/GrpcAuditItem' }
                         }
+                      }
+                    },
+
+                    // Common Gateway Dispatch Messages
+                    GatewayDispatchRequest: {
+                      type: 'object',
+                      required: ['method', 'path'],
+                      properties: {
+                        method: { type: 'string', example: 'GET' },
+                        path: { type: 'string', example: '/api/v1/organizations' },
+                        headers: { type: 'object', additionalProperties: { type: 'string' } },
+                        body: { type: 'string', format: 'byte', description: 'Raw byte buffer payload' },
+                        clientIp: { type: 'string', example: '127.0.0.1' },
+                        correlationId: { type: 'string', example: 'corr-c7f8a9e1' }
+                      }
+                    },
+                    GatewayDispatchResponse: {
+                      type: 'object',
+                      required: ['statusCode'],
+                      properties: {
+                        statusCode: { type: 'integer', example: 200 },
+                        headers: { type: 'object', additionalProperties: { type: 'string' } },
+                        body: { type: 'string', format: 'byte', description: 'Raw byte buffer response' }
+                      }
+                    },
+
+                    // AI Service gRPC Messages (ai.proto)
+                    GrpcListProvidersRequest: {
+                      type: 'object',
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        category: { type: 'string', example: 'COMMUNICATION' },
+                        enabledOnly: { type: 'boolean', example: true }
+                      }
+                    },
+                    GrpcRegisterProviderRequest: {
+                      type: 'object',
+                      required: ['slug', 'name', 'category', 'transportType'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        slug: { type: 'string', example: 'custom-mcp' },
+                        name: { type: 'string', example: 'Custom MCP Provider' },
+                        category: { type: 'string', example: 'EXTERNAL_MCP' },
+                        transportType: { type: 'string', example: 'STREAMABLE_HTTP' },
+                        endpointUrl: { type: 'string', example: 'http://internal-mcp:8080/mcp' },
+                        authType: { type: 'string', example: 'BEARER' },
+                        credentialsJson: { type: 'string', example: '{"token":"secret"}' },
+                        configJson: { type: 'string', example: '{}' },
+                        autoSync: { type: 'boolean', example: true }
+                      }
+                    },
+                    GrpcListToolsRequest: {
+                      type: 'object',
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        providerSlug: { type: 'string', example: 'communication-tools' },
+                        search: { type: 'string', example: 'email' }
+                      }
+                    },
+                    GrpcCallToolRequest: {
+                      type: 'object',
+                      required: ['toolName'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        providerSlug: { type: 'string', example: 'communication-tools' },
+                        toolName: { type: 'string', example: 'send_email' },
+                        qualifiedName: { type: 'string', example: 'communication-tools::send_email' },
+                        argumentsJson: { type: 'string', example: '{"recipient":"user@example.com","subject":"Hello"}' },
+                        actorId: { type: 'string', example: 'usr-123' },
+                        correlationId: { type: 'string', example: 'corr-001' }
+                      }
+                    },
+                    GrpcOrchestrateRequest: {
+                      type: 'object',
+                      required: ['stepsJson'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        mode: { type: 'string', enum: ['SEQUENTIAL', 'PARALLEL'], default: 'SEQUENTIAL' },
+                        stopOnError: { type: 'boolean', default: true },
+                        stepsJson: { type: 'string', example: '[{"tool":"search-tools::search_orders","arguments":{}}]' },
+                        actorId: { type: 'string', example: 'usr-123' },
+                        correlationId: { type: 'string', example: 'corr-001' }
+                      }
+                    },
+
+                    // Organization Service gRPC Messages (organization.proto)
+                    GetOrganizationByIdRequest: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        id: { type: 'string', format: 'uuid', example: 'org-uuid-123' }
+                      }
+                    },
+                    GetOrganizationBySlugRequest: {
+                      type: 'object',
+                      required: ['slug'],
+                      properties: {
+                        slug: { type: 'string', example: 'acme-corp' }
+                      }
+                    },
+                    GrpcListOrganizationsRequest: {
+                      type: 'object',
+                      properties: {
+                        search: { type: 'string', example: 'Acme' },
+                        status: { type: 'string', example: 'ACTIVE' },
+                        tier: { type: 'string', example: 'ENTERPRISE' },
+                        industry: { type: 'string', example: 'Technology' },
+                        page: { type: 'integer', example: 1 },
+                        limit: { type: 'integer', example: 20 }
+                      }
+                    },
+                    GrpcCreateOrganizationRequest: {
+                      type: 'object',
+                      required: ['name', 'slug', 'contactEmail'],
+                      properties: {
+                        name: { type: 'string', example: 'Acme Corporation' },
+                        slug: { type: 'string', example: 'acme-corp' },
+                        legalName: { type: 'string', example: 'Acme Corp LLC' },
+                        tier: { type: 'string', example: 'ENTERPRISE' },
+                        industry: { type: 'string', example: 'Technology' },
+                        taxId: { type: 'string', example: 'US-987654321' },
+                        contactEmail: { type: 'string', example: 'admin@acme.corp' },
+                        contactPhone: { type: 'string', example: '+1-555-0199' },
+                        website: { type: 'string', example: 'https://acme.corp' },
+                        maxUsers: { type: 'integer', example: 100 }
+                      }
+                    },
+                    GrpcUpdateOrganizationRequest: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        id: { type: 'string', format: 'uuid', example: 'org-uuid-123' },
+                        name: { type: 'string', example: 'Acme Corp Updated' },
+                        legalName: { type: 'string', example: 'Acme International LLC' },
+                        industry: { type: 'string', example: 'Software' },
+                        taxId: { type: 'string', example: 'US-987654321' },
+                        contactEmail: { type: 'string', example: 'admin@acme.corp' },
+                        contactPhone: { type: 'string', example: '+1-555-0199' },
+                        website: { type: 'string', example: 'https://acme.corp' },
+                        tier: { type: 'string', example: 'ENTERPRISE' },
+                        maxUsers: { type: 'integer', example: 200 }
+                      }
+                    },
+                    DeleteOrganizationRequest: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        id: { type: 'string', format: 'uuid', example: 'org-uuid-123' }
+                      }
+                    },
+
+                    // RBAC Service gRPC Messages (rbac.proto)
+                    GetRoleRequest: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        id: { type: 'string', format: 'uuid', example: 'role-uuid-123' },
+                        tenantId: { type: 'string', example: 'tenant-alpha' }
+                      }
+                    },
+                    GrpcListRolesRequest: {
+                      type: 'object',
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        page: { type: 'integer', example: 1 },
+                        limit: { type: 'integer', example: 20 },
+                        search: { type: 'string', example: 'SUPPORT' }
+                      }
+                    },
+                    GrpcCreateRoleRequest: {
+                      type: 'object',
+                      required: ['name'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        name: { type: 'string', example: 'SECURITY_AUDITOR' },
+                        description: { type: 'string', example: 'Audit and compliance reviewer' },
+                        permissions: { type: 'array', items: { type: 'string' }, example: ['audit:read', 'telemetry:read'] }
+                      }
+                    },
+                    GrpcUpdateRoleRequest: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        id: { type: 'string', format: 'uuid', example: 'role-uuid-123' },
+                        name: { type: 'string', example: 'SECURITY_AUDITOR_SENIOR' },
+                        description: { type: 'string', example: 'Senior audit reviewer' },
+                        permissions: { type: 'array', items: { type: 'string' }, example: ['audit:read', 'telemetry:read', 'audit:remediate'] }
+                      }
+                    },
+                    GrpcDeleteRoleRequest: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        id: { type: 'string', format: 'uuid', example: 'role-uuid-123' }
+                      }
+                    },
+                    GrpcListPermissionsRequest: {
+                      type: 'object',
+                      properties: {
+                        category: { type: 'string', example: 'AUDIT' }
+                      }
+                    },
+                    GrpcAssignUserRoleRequest: {
+                      type: 'object',
+                      required: ['userId', 'roleId'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        userId: { type: 'string', example: 'usr-4412' },
+                        roleId: { type: 'string', format: 'uuid', example: 'role-uuid-123' },
+                        assignedBy: { type: 'string', example: 'usr-admin-1' }
+                      }
+                    },
+                    GrpcRevokeUserRoleRequest: {
+                      type: 'object',
+                      required: ['userId', 'roleId'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        userId: { type: 'string', example: 'usr-4412' },
+                        roleId: { type: 'string', format: 'uuid', example: 'role-uuid-123' }
+                      }
+                    },
+                    GrpcGetUserRolesRequest: {
+                      type: 'object',
+                      required: ['userId'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        userId: { type: 'string', example: 'usr-4412' }
+                      }
+                    },
+                    GrpcCheckPermissionRequest: {
+                      type: 'object',
+                      required: ['userId', 'permission'],
+                      properties: {
+                        tenantId: { type: 'string', example: 'tenant-alpha' },
+                        userId: { type: 'string', example: 'usr-4412' },
+                        permission: { type: 'string', example: 'orders:cancel' }
                       }
                     }
                   }
@@ -795,6 +1045,13 @@ All gRPC unary RPC methods return standard response messages mirroring the unifi
                       tags: ['AIService (gRPC :50060)'],
                       summary: 'RPC CallTool',
                       description: 'Invokes an MCP or external provider tool via gRPC. Port: :50060.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcCallToolRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcCallToolRequest' } }
+                        }
+                      },
                       responses: { '200': { description: 'MCP tool execution result returned with standard envelope' } }
                     }
                   },
@@ -803,7 +1060,367 @@ All gRPC unary RPC methods return standard response messages mirroring the unifi
                       tags: ['AIService (gRPC :50060)'],
                       summary: 'RPC Orchestrate',
                       description: 'Executes multi-step or parallel MCP tool orchestration via gRPC. Port: :50060.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcOrchestrateRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcOrchestrateRequest' } }
+                        }
+                      },
                       responses: { '200': { description: 'Orchestration results returned with standard envelope' } }
+                    }
+                  },
+                  '/ai.AIService/ListProviders': {
+                    post: {
+                      tags: ['AIService (gRPC :50060)'],
+                      summary: 'RPC ListProviders',
+                      description: 'Lists registered MCP & API providers via gRPC. Port: :50060.',
+                      requestBody: {
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcListProvidersRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcListProvidersRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Providers list returned with standard envelope' } }
+                    }
+                  },
+                  '/ai.AIService/RegisterProvider': {
+                    post: {
+                      tags: ['AIService (gRPC :50060)'],
+                      summary: 'RPC RegisterProvider',
+                      description: 'Registers an extensible MCP / external API provider via gRPC. Port: :50060.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcRegisterProviderRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcRegisterProviderRequest' } }
+                        }
+                      },
+                      responses: { '201': { description: 'Provider registered with standard envelope' } }
+                    }
+                  },
+                  '/ai.AIService/ListTools': {
+                    post: {
+                      tags: ['AIService (gRPC :50060)'],
+                      summary: 'RPC ListTools',
+                      description: 'Lists discovered MCP tools via gRPC. Port: :50060.',
+                      requestBody: {
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcListToolsRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcListToolsRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Tools list returned with standard envelope' } }
+                    }
+                  },
+                  '/ai.AIService/HealthCheck': {
+                    post: {
+                      tags: ['AIService (gRPC :50060)'],
+                      summary: 'RPC HealthCheck',
+                      description: 'Probes AI Service gRPC health status and uptime. Port: :50060.',
+                      responses: { '200': { description: 'Service health check response' } }
+                    }
+                  },
+                  '/ai.AIService/Dispatch': {
+                    post: {
+                      tags: ['AIService (gRPC :50060)'],
+                      summary: 'RPC Dispatch (Gateway Upstream Bridge)',
+                      description: 'Universal Gateway Dispatch RPC bridging HTTP REST requests to the internal microservice pipeline.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GatewayDispatchRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GatewayDispatchRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Gateway dispatch response payload' } }
+                    }
+                  },
+
+                  // OrganizationService (gRPC :50062)
+                  '/organization.OrganizationService/GetOrganizationById': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC GetOrganizationById',
+                      description: 'Retrieves organization profile by unique UUID via gRPC. Port: :50062.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GetOrganizationByIdRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GetOrganizationByIdRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Organization returned with standard envelope' } }
+                    }
+                  },
+                  '/organization.OrganizationService/GetOrganizationBySlug': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC GetOrganizationBySlug',
+                      description: 'Resolves organization metadata by slug via gRPC. Port: :50062.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GetOrganizationBySlugRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GetOrganizationBySlugRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Organization returned with standard envelope' } }
+                    }
+                  },
+                  '/organization.OrganizationService/ListOrganizations': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC ListOrganizations',
+                      description: 'Lists organizations with filtering and pagination via gRPC. Port: :50062.',
+                      requestBody: {
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcListOrganizationsRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcListOrganizationsRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Organizations list returned with standard envelope' } }
+                    }
+                  },
+                  '/organization.OrganizationService/CreateOrganization': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC CreateOrganization',
+                      description: 'Creates a new multi-tenant organization via gRPC. Port: :50062.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcCreateOrganizationRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcCreateOrganizationRequest' } }
+                        }
+                      },
+                      responses: { '201': { description: 'Organization created with standard envelope' } }
+                    }
+                  },
+                  '/organization.OrganizationService/UpdateOrganization': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC UpdateOrganization',
+                      description: 'Updates organization profile details via gRPC. Port: :50062.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcUpdateOrganizationRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcUpdateOrganizationRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Organization updated with standard envelope' } }
+                    }
+                  },
+                  '/organization.OrganizationService/DeleteOrganization': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC DeleteOrganization',
+                      description: 'Soft deletes organization by ID via gRPC. Port: :50062.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/DeleteOrganizationRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/DeleteOrganizationRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Organization deleted with standard envelope' } }
+                    }
+                  },
+                  '/organization.OrganizationService/HealthCheck': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC HealthCheck',
+                      description: 'Probes organization-service gRPC health status. Port: :50062.',
+                      responses: { '200': { description: 'Health check response' } }
+                    }
+                  },
+                  '/organization.OrganizationService/Dispatch': {
+                    post: {
+                      tags: ['OrganizationService (gRPC :50062)'],
+                      summary: 'RPC Dispatch (Gateway Upstream Bridge)',
+                      description: 'Universal Gateway Dispatch RPC bridging HTTP REST requests to the internal microservice pipeline.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GatewayDispatchRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GatewayDispatchRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Gateway dispatch response payload' } }
+                    }
+                  },
+
+                  // RbacService (gRPC :50063)
+                  '/rbac.RbacService/GetRole': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC GetRole',
+                      description: 'Retrieves role definition and mapped permissions via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GetRoleRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GetRoleRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Role returned with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/ListRoles': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC ListRoles',
+                      description: 'Lists roles defined for a tenant via gRPC. Port: :50063.',
+                      requestBody: {
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcListRolesRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcListRolesRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Roles list returned with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/CreateRole': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC CreateRole',
+                      description: 'Creates a custom role with permissions via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcCreateRoleRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcCreateRoleRequest' } }
+                        }
+                      },
+                      responses: { '201': { description: 'Role created with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/UpdateRole': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC UpdateRole',
+                      description: 'Updates role description and assigned permissions via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcUpdateRoleRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcUpdateRoleRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Role updated with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/DeleteRole': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC DeleteRole',
+                      description: 'Deletes custom role via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcDeleteRoleRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcDeleteRoleRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Role deleted with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/ListPermissions': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC ListPermissions',
+                      description: 'Lists all available platform permissions via gRPC. Port: :50063.',
+                      requestBody: {
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcListPermissionsRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcListPermissionsRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Permissions list returned with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/AssignUserRole': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC AssignUserRole',
+                      description: 'Assigns role to user within tenant boundary via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcAssignUserRoleRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcAssignUserRoleRequest' } }
+                        }
+                      },
+                      responses: { '201': { description: 'Role assigned with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/RevokeUserRole': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC RevokeUserRole',
+                      description: 'Revokes assigned role from user via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcRevokeUserRoleRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcRevokeUserRoleRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Role revoked with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/GetUserRoles': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC GetUserRoles',
+                      description: 'Retrieves all role assignments for a user via gRPC. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcGetUserRolesRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcGetUserRolesRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'User roles returned with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/CheckPermission': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC CheckPermission',
+                      description: 'Evaluates whether a user has a specific permission in a tenant context. Port: :50063.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GrpcCheckPermissionRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GrpcCheckPermissionRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Permission evaluation returned with standard envelope' } }
+                    }
+                  },
+                  '/rbac.RbacService/HealthCheck': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC HealthCheck',
+                      description: 'Probes rbac-service gRPC health status and uptime. Port: :50063.',
+                      responses: { '200': { description: 'Service health check response' } }
+                    }
+                  },
+                  '/rbac.RbacService/Dispatch': {
+                    post: {
+                      tags: ['RbacService (gRPC :50063)'],
+                      summary: 'RPC Dispatch (Gateway Upstream Bridge)',
+                      description: 'Universal Gateway Dispatch RPC bridging HTTP REST requests to the internal microservice pipeline.',
+                      requestBody: {
+                        required: true,
+                        content: {
+                          'application/grpc+proto': { schema: { $ref: '#/components/schemas/GatewayDispatchRequest' } },
+                          'application/json': { schema: { $ref: '#/components/schemas/GatewayDispatchRequest' } }
+                        }
+                      },
+                      responses: { '200': { description: 'Gateway dispatch response payload' } }
                     }
                   }
                 }
