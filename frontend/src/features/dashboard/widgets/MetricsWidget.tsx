@@ -134,13 +134,16 @@ export const MetricsWidget: React.FC = () => {
                 </span>
                 <div
                   style={{
-                    padding: '6px',
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: 'var(--color-primary-subtle)',
+                    padding: '8px',
+                    borderRadius: 'var(--radius-lg)',
+                    backgroundColor: 'var(--color-primary-fixed)',
                     color: 'var(--color-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  <IconComponent size={16} />
+                  <IconComponent size={18} />
                 </div>
               </div>
               <div
@@ -150,6 +153,8 @@ export const MetricsWidget: React.FC = () => {
                   color: 'var(--color-text)',
                   marginBottom: '4px',
                   fontFamily: 'var(--font-family-heading)',
+                  letterSpacing: '-0.02em',
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 {m.value}

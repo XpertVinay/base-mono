@@ -9,10 +9,10 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: var(--spacing-xl);
-  background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-surface-subtle) 100%);
+  padding: 28px 32px;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
@@ -20,11 +20,12 @@
 
 .heroGlow {
   position: absolute;
-  right: -50px;
-  top: -50px;
-  width: 250px;
-  height: 250px;
-  background: radial-gradient(circle, var(--color-primary-subtle) 0%, transparent 70%);
+  right: -60px;
+  top: -60px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.12) 0%, transparent 70%);
+  filter: blur(25px);
   pointer-events: none;
 }
 
@@ -32,6 +33,7 @@
   font-size: var(--font-size-3xl);
   font-weight: 700;
   color: var(--color-text);
+  letter-spacing: -0.025em;
   margin-bottom: var(--spacing-xs);
 }
 
@@ -39,6 +41,7 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   max-width: 600px;
+  line-height: var(--line-height-normal);
 }
 
 .widgetsGrid {

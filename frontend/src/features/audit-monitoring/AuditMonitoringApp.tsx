@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShieldAlert,
   Activity,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import './styles/audit-mfe.css';
 import { AuditLogItem, AlertIncident, MetricsSummary, RemediationPayload } from './types.js';
+import { resolveAuditBaseUrl, resolveGrafanaUrl } from './config.js';
 import { auditApi } from './services/auditApi.js';
 import { EmergencyBanner } from './components/EmergencyBanner.js';
 import { KpiMetricsRow } from './components/KpiMetricsRow.js';
@@ -21,7 +22,10 @@ import { AlertCenterTab } from './components/AlertCenterTab.js';
 export interface AuditMonitoringAppProps {
   standalone?: boolean;
   tenantId?: string;
+  authToken?: string;
+  gatewayUrl?: string;
   apiBaseUrl?: string;
+  endpoint?: string;
   grafanaUrl?: string;
   prometheusUrl?: string;
 }
@@ -29,9 +33,12 @@ export interface AuditMonitoringAppProps {
 export const AuditMonitoringApp: React.FC<AuditMonitoringAppProps> = ({
   standalone: _standalone = true,
   tenantId = 'default',
-  apiBaseUrl = '/api/v1/audit',
-  grafanaUrl = 'http://localhost:3000',
-  prometheusUrl: _prometheusUrl = 'http://localhost:9090'
+  authToken,
+  gatewayUrl,
+  apiBaseUrl,
+  endpoint,
+  grafanaUrl,
+  prometheusUrl: _prometheusUrl
 }) => {
   const [activeTab, setActiveTab] = useState<'AUDIT' | 'PROMETHEUS' | 'GRAFANA' | 'ALERTS'>('AUDIT');
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
@@ -49,15 +56,28 @@ export const AuditMonitoringApp: React.FC<AuditMonitoringAppProps> = ({
   const [isStreaming, setIsStreaming] = useState(true);
   const [inspectedLog, setInspectedLog] = useState<AuditLogItem | null>(null);
 
-  // Configure API client base URL
+  const resolvedBaseUrl = useMemo(
+    () => resolveAuditBaseUrl({ gatewayUrl, apiBaseUrl, endpoint }),
+    [gatewayUrl, apiBaseUrl, endpoint]
+  );
+
+  const resolvedGrafanaUrl = useMemo(
+    () => resolveGrafanaUrl(grafanaUrl),
+    [grafanaUrl]
+  );
+
+  // Configure API client base URL, tenant, and auth token unifiedly
   useEffect(() => {
-    if (apiBaseUrl) {
-      auditApi.setBaseUrl(apiBaseUrl);
-    }
-  }, [apiBaseUrl]);
+    auditApi.setBaseUrl(resolvedBaseUrl);
+    auditApi.setTenantId(tenantId);
+    auditApi.setAuthToken(authToken);
+  }, [resolvedBaseUrl, tenantId, authToken]);
 
   // Load initial data
   const loadData = useCallback(async () => {
+    auditApi.setBaseUrl(resolvedBaseUrl);
+    auditApi.setTenantId(tenantId);
+    auditApi.setAuthToken(authToken);
     setIsLoading(true);
     try {
       const [fetchedLogs, fetchedMetrics, fetchedAlerts] = await Promise.all([
@@ -71,7 +91,7 @@ export const AuditMonitoringApp: React.FC<AuditMonitoringAppProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [resolvedBaseUrl, tenantId, authToken]);
 
   useEffect(() => {
     loadData();
@@ -222,7 +242,7 @@ export const AuditMonitoringApp: React.FC<AuditMonitoringAppProps> = ({
 
         {activeTab === 'GRAFANA' && (
           <GrafanaDashboardTab
-            grafanaUrl={grafanaUrl}
+            grafanaUrl={resolvedGrafanaUrl}
             metrics={metrics}
           />
         )}

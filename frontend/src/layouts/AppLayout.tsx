@@ -1,64 +1,25 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { Outlet } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Database,
-  Truck,
-  Coins,
-  BarChart3,
-  LineChart,
-  TrendingUp,
-  Settings,
-  Layers,
-  LogOut,
   Menu,
   X,
   ExternalLink,
-  LucideIcon,
-  ShieldAlert,
+  Search,
+  Bell,
+  HelpCircle,
+  Command,
 } from 'lucide-react';
 import { useTenant } from '../core/tenant/TenantContext';
-import { useAuthStore } from '../core/auth/authStore';
 import { DevTenantSwitcher } from '../core/tenant/DevTenantSwitcher';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { TenantLogo } from '../components/common/TenantLogo';
+import { SidebarNav } from '../components/navigation/SidebarNav';
 import styles from './AppLayout.module.css';
 
-const ICON_MAP: Record<string, LucideIcon> = {
-  LayoutDashboard,
-  Database,
-  Truck,
-  Coins,
-  BarChart3,
-  LineChart,
-  TrendingUp,
-  Settings,
-  ShieldAlert,
-};
-
 export const AppLayout: React.FC = () => {
-  const { t } = useTranslation();
-  const { tenant, isFeatureEnabled } = useTenant();
-  const { user, logout } = useAuthStore();
-  const navigate = useNavigate();
+  const { tenant } = useTenant();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  // Filter navigation items by enabled features and user roles
-  const filteredNavItems = tenant.features.navigationItems.filter((item) => {
-    if (item.requiredFeature && !isFeatureEnabled(item.requiredFeature)) {
-      return false;
-    }
-    if (item.roles && user && !item.roles.includes(user.role)) {
-      return false;
-    }
-    return true;
-  });
+  const [searchQuery, setSearchQuery] = useState('');
 
   return (
     <div className={styles.appContainer}>
@@ -70,62 +31,14 @@ export const AppLayout: React.FC = () => {
             <button
               onClick={() => setMobileMenuOpen(false)}
               style={{ background: 'none', border: 'none', color: 'var(--color-muted)', cursor: 'pointer' }}
+              aria-label="Close navigation"
             >
               <X size={20} />
             </button>
           )}
         </div>
 
-        <nav className={styles.navSection} aria-label="Tenant Navigation">
-          {filteredNavItems.map((item) => {
-            const IconComponent = ICON_MAP[item.icon] || Layers;
-            return (
-              <NavLink
-                key={item.key}
-                to={item.path}
-                end={item.path === '/'}
-                onClick={() => setMobileMenuOpen(false)}
-                className={({ isActive }) =>
-                  `${styles.navLink} ${isActive ? styles.activeNavLink : ''}`
-                }
-              >
-                <IconComponent size={18} className={styles.navIcon} />
-                <span>{t(item.labelKey, item.key)}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* Sidebar User / Footer */}
-        {user && (
-          <div className={styles.sidebarFooter}>
-            <div className={styles.userInfo}>
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.name} className={styles.avatar} />
-              ) : (
-                <div className={styles.avatar} />
-              )}
-              <div className={styles.userDetails}>
-                <span className={styles.userName}>{user.name}</span>
-                <span className={styles.userRole}>{user.role}</span>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              title={t('common.logout')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--color-muted)',
-                cursor: 'pointer',
-                padding: '4px',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        )}
+        <SidebarNav onItemClick={() => setMobileMenuOpen(false)} />
       </aside>
 
       {/* Main Workspace */}
@@ -142,20 +55,58 @@ export const AppLayout: React.FC = () => {
                 cursor: 'pointer',
               }}
               className="mobileToggleBtn"
+              aria-label="Toggle navigation menu"
             >
               <Menu size={20} />
             </button>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-                {tenant.identity.displayName}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--color-muted)' }}>
-                {t('common.systemOnline')} • {tenant.localization.defaultTimeZone}
-              </span>
+
+            <div className={styles.tenantStatusPill} title={`${tenant.identity.displayName} (${tenant.industry})`}>
+              <span className={styles.statusLiveDot} />
+              <span className={styles.statusText}>{tenant.identity.displayName}</span>
+              <span className={styles.statusDivider}>•</span>
+              <span className={styles.statusSubtext}>{tenant.industry.toUpperCase()}</span>
+            </div>
+
+            {/* Global Search Bar */}
+            <div className={styles.searchBar}>
+              <Search size={16} className={styles.searchIcon} />
+              <input
+                type="text"
+                className={styles.searchInput}
+                placeholder="Search portal, entities, docs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <div className={styles.searchKbd}>
+                <Command size={11} />
+                <span>K</span>
+              </div>
             </div>
           </div>
 
           <div className={styles.headerRight}>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={18} />
+              <span className={styles.notificationDot} />
+            </button>
+
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title="Documentation & Help"
+              aria-label="Documentation"
+              onClick={() => window.open(tenant.identity.supportUrl, '_blank')}
+            >
+              <HelpCircle size={18} />
+            </button>
+
+            <div className={styles.divider} />
+
             <DevTenantSwitcher />
             <LanguageSwitcher />
           </div>

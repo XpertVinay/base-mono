@@ -7,9 +7,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <AuditMonitoringApp
       standalone={true}
       tenantId="production-enterprise"
-      apiBaseUrl="/api/v1/audit"
-      grafanaUrl="http://localhost:3000"
-      prometheusUrl="http://localhost:9090"
     />
   </React.StrictMode>
 );

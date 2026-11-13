@@ -1,4 +1,7 @@
 import { AuditLogItem, AlertIncident, MetricsSummary, RemediationPayload, RemediationResult } from '../types.js';
+import { BaseUrlResolutionInput, resolveAuditBaseUrl } from '../config.js';
+import { isProtectedUrl } from '../../../core/config/serviceConfig.js';
+import { getStoredAccessToken } from '../../../core/auth/tokenStorage.js';
 
 // Pre-seeded realistic audit trail telemetry
 const MOCK_INITIAL_LOGS: AuditLogItem[] = [
@@ -110,13 +113,63 @@ let localLogsState: AuditLogItem[] = [...MOCK_INITIAL_LOGS];
 
 export class AuditApiService {
   private baseUrl: string;
+  private authToken?: string;
+  private tenantId?: string;
 
-  constructor(baseUrl = '/api/v1/audit') {
-    this.baseUrl = baseUrl;
+  constructor(options?: string | BaseUrlResolutionInput) {
+    if (typeof options === 'string') {
+      const trimmed = options.trim();
+      if (/^https?:\/\//i.test(trimmed)) {
+        this.baseUrl = trimmed.replace(/\/+$/, '');
+      } else if (trimmed.startsWith('/api')) {
+        this.baseUrl = resolveAuditBaseUrl({ apiBaseUrl: trimmed });
+      } else {
+        this.baseUrl = resolveAuditBaseUrl({ endpoint: trimmed });
+      }
+    } else {
+      this.baseUrl = resolveAuditBaseUrl(options);
+    }
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  configure(options: BaseUrlResolutionInput = {}): string {
+    this.baseUrl = resolveAuditBaseUrl(options);
+    return this.baseUrl;
   }
 
   setBaseUrl(url: string) {
-    this.baseUrl = url;
+    this.baseUrl = url.trim().replace(/\/+$/, '');
+  }
+
+  setAuthToken(token?: string | null) {
+    this.authToken = token || undefined;
+  }
+
+  setTenantId(tenantId?: string) {
+    this.tenantId = tenantId || undefined;
+  }
+
+  private buildHeaders(url: string, extraHeaders: Record<string, string> = {}): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...extraHeaders
+    };
+
+    if (this.tenantId) {
+      headers['X-Tenant-ID'] = this.tenantId;
+    }
+
+    if (!headers['Authorization'] && !headers['authorization']) {
+      const token = this.authToken || getStoredAccessToken();
+      if (token && (isProtectedUrl(url) || url.includes('/audit'))) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    return headers;
   }
 
   async getLogs(filter?: {
@@ -133,8 +186,9 @@ export class AuditApiService {
       if (filter?.action) params.set('action', filter.action);
       if (filter?.limit) params.set('limit', String(filter.limit));
 
-      const res = await fetch(`${this.baseUrl}/logs?${params.toString()}`, {
-        headers: { 'Content-Type': 'application/json' }
+      const url = `${this.baseUrl}/logs?${params.toString()}`;
+      const res = await fetch(url, {
+        headers: this.buildHeaders(url)
       });
 
       if (res.ok) {
@@ -167,7 +221,10 @@ export class AuditApiService {
 
   async getMetricsSummary(): Promise<MetricsSummary> {
     try {
-      const res = await fetch(`${this.baseUrl}/metrics/summary`);
+      const url = `${this.baseUrl}/metrics/summary`;
+      const res = await fetch(url, {
+        headers: this.buildHeaders(url)
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
@@ -194,7 +251,10 @@ export class AuditApiService {
 
   async getAlerts(): Promise<AlertIncident[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/alerts`);
+      const url = `${this.baseUrl}/alerts`;
+      const res = await fetch(url, {
+        headers: this.buildHeaders(url)
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -241,9 +301,10 @@ export class AuditApiService {
 
   async executeRemediation(payload: RemediationPayload): Promise<RemediationResult> {
     try {
-      const res = await fetch(`${this.baseUrl}/remediate`, {
+      const url = `${this.baseUrl}/remediate`;
+      const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildHeaders(url),
         body: JSON.stringify(payload)
       });
       if (res.ok) {

@@ -2,16 +2,18 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  padding: 3px 10px;
+  height: 24px;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
   border-radius: var(--radius-full);
   line-height: 1;
   width: fit-content;
+  letter-spacing: 0.02em;
 }
 
 .neutral {
-  background-color: var(--color-surface-hover);
+  background-color: var(--color-surface-low);
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
 }
@@ -24,17 +26,20 @@
 
 .success {
   background-color: var(--color-success-subtle);
-  color: var(--color-success);
+  color: var(--color-success-text);
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .warning {
   background-color: var(--color-warning-subtle);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
+  border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .error {
   background-color: var(--color-error-subtle);
-  color: var(--color-error);
+  color: var(--color-on-error-container);
+  border: 1px solid rgba(186, 26, 26, 0.2);
 }
 
 .dot {

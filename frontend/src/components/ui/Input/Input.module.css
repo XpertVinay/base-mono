@@ -7,7 +7,7 @@
 
 .label {
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   display: flex;
   align-items: center;
@@ -27,15 +27,16 @@
 
 .input {
   width: 100%;
-  height: 40px;
-  padding: 8px 12px;
+  height: 44px;
+  padding: 10px 14px;
   font-size: var(--font-size-sm);
   color: var(--color-text);
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   outline: none;
   transition: all var(--transition-fast);
+  box-shadow: var(--shadow-xs);
 }
 
 .input::placeholder {
@@ -43,8 +44,9 @@
 }
 
 .input:focus {
+  background-color: var(--color-surface);
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  box-shadow: var(--focus-ring);
 }
 
 .hasError .input {
@@ -52,13 +54,14 @@
 }
 
 .hasError .input:focus {
-  box-shadow: 0 0 0 3px var(--color-error-subtle);
+  box-shadow: 0 0 0 3px var(--color-error-container);
 }
 
 .input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: var(--color-background);
+  background-color: var(--color-surface-low);
+  border-color: var(--color-border);
 }
 
 .helperText {

@@ -67,6 +67,25 @@ export interface TenantNavigationItem {
   icon: string;
   requiredFeature?: string;
   roles?: string[];
+  group?: string;
+  badge?: string;
+  badgeVariant?: 'primary' | 'success' | 'warning' | 'neutral' | 'danger';
+  description?: string;
+  exact?: boolean;
+  platformAdminOnly?: boolean;
+}
+
+export interface TenantNavigationGroup {
+  id: string;
+  titleKey: string;
+  defaultTitle: string;
+  icon?: string;
+  roles?: string[];
+  requiredFeature?: string;
+  badge?: string;
+  badgeVariant?: 'primary' | 'success' | 'warning' | 'neutral' | 'danger';
+  defaultExpanded?: boolean;
+  items: TenantNavigationItem[];
 }
 
 export interface TenantDashboardWidget {
@@ -83,6 +102,7 @@ export interface TenantDashboardWidget {
 export interface TenantFeaturesConfig {
   enabledFeatures: Record<string, boolean>;
   navigationItems: TenantNavigationItem[];
+  navigationGroups?: TenantNavigationGroup[];
   dashboardWidgets: TenantDashboardWidget[];
   publicLandingEnabled?: boolean;
 }

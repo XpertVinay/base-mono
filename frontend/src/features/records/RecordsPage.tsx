@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Plus, Trash2, Database } from 'lucide-react';
+import { Plus, Trash2, Database, ChevronRight } from 'lucide-react';
 import { useTenant } from '../../core/tenant/TenantContext';
 import { apiClient } from '../../core/api/client';
+import { resolveServiceEndpoint } from '../../core/config/serviceConfig';
 import { EntityRecord } from '../../core/api/mockBackend';
 import { formatCurrency, formatDate } from '../../core/i18n/formatters';
 import { RecordModal } from './RecordModal';
@@ -32,11 +33,13 @@ export const RecordsPage: React.FC = () => {
 
   const queryKey = ['records', tenant.identity.slug];
 
+  const recordsPath = (suffix = '') => `${resolveServiceEndpoint('records')}${suffix}`;
+
   // Fetch records via typed API client with X-Tenant-ID
   const { data: records = [], isLoading } = useQuery<EntityRecord[]>({
     queryKey,
     queryFn: async () => {
-      const response = await apiClient.get<EntityRecord[]>('/records', {
+      const response = await apiClient.get<EntityRecord[]>(recordsPath(), {
         tenantId: tenant.identity.id,
       });
       return response.data;
@@ -47,7 +50,7 @@ export const RecordsPage: React.FC = () => {
   const createMutation = useMutation({
     mutationFn: async (formData: EntityRecordFormData) => {
       await apiClient.post<EntityRecord>(
-        '/records',
+        recordsPath(),
         {
           ...formData,
           tenantId: tenant.identity.id,
@@ -63,7 +66,7 @@ export const RecordsPage: React.FC = () => {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (recordId: string) => {
-      await apiClient.delete(`/records/${recordId}`, {
+      await apiClient.delete(recordsPath(`/${recordId}`), {
         tenantId: tenant.identity.id,
       });
     },
@@ -108,6 +111,13 @@ export const RecordsPage: React.FC = () => {
 
   return (
     <div className={styles.container}>
+      {/* Breadcrumb Navigation */}
+      <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+        <span>Workspace</span>
+        <ChevronRight size={13} className={styles.breadcrumbSeparator} />
+        <span className={styles.breadcrumbActive}>{t('records.title')}</span>
+      </nav>
+
       <div className={styles.headerBar}>
         <div className={styles.titleArea}>
           <h1 className={styles.title}>{t('records.title')}</h1>

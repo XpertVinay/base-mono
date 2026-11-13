@@ -1,0 +1,406 @@
+.sidebarNavContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: var(--color-surface);
+}
+
+.scrollArea {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xs);
+}
+
+/* Workspace Switcher Card */
+.workspaceCard {
+  margin: var(--spacing-xs) var(--spacing-md) var(--spacing-sm);
+  padding: 8px 12px;
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.workspaceCard:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-primary);
+}
+
+.workspaceLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  overflow: hidden;
+}
+
+.workspaceIcon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.workspaceMeta {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  overflow: hidden;
+}
+
+.workspaceLabel {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: var(--font-weight-medium);
+}
+
+.workspaceName {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 130px;
+}
+
+/* Group Container */
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--spacing-2xs);
+}
+
+.navGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.navGroupHeader:hover {
+  background-color: var(--color-surface-high);
+  color: var(--color-text);
+}
+
+.navGroupHeaderActive {
+  color: var(--color-text);
+}
+
+.groupLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  overflow: hidden;
+}
+
+.groupIcon {
+  color: var(--color-muted);
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.navGroupHeader:hover .groupIcon,
+.navGroupHeaderActive .groupIcon {
+  color: var(--color-primary);
+}
+
+.groupTitle {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.groupRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chevron {
+  transition: transform var(--transition-normal);
+  color: var(--color-muted);
+}
+
+.chevronExpanded {
+  transform: rotate(90deg);
+}
+
+/* Group Items */
+.groupItems {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+  transition: max-height var(--transition-normal);
+}
+
+.groupItemsCollapsed {
+  display: none;
+}
+
+/* Nav Item Link */
+.navItemLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 8px 14px;
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.navItemLink:hover {
+  background-color: var(--color-surface-high);
+  color: var(--color-text);
+}
+
+.itemActive {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-primary);
+}
+
+.itemActive:hover {
+  background-color: var(--color-primary-hover);
+  color: #ffffff;
+}
+
+.itemContent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.itemLabel {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* RBAC Badges */
+.rbacBadge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.badgePrimary {
+  background-color: var(--color-primary-fixed);
+  color: var(--color-on-primary-fixed);
+}
+
+.badgeSuccess {
+  background-color: var(--color-success-subtle);
+  color: var(--color-success-text);
+}
+
+.badgeWarning {
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-text);
+}
+
+.badgeDanger {
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
+.badgeNeutral {
+  background-color: var(--color-surface-container);
+  color: var(--color-text-secondary);
+}
+
+/* Sidebar Footer & Role Simulator */
+.sidebarFooter {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.userCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+  padding: 8px 10px;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-container);
+  box-shadow: var(--shadow-xs);
+  border: 1px solid var(--color-border);
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.avatarWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  border: 1px solid var(--color-primary);
+  object-fit: cover;
+}
+
+.presenceDot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background-color: #10b981;
+  border: 1.5px solid #ffffff;
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.userName {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.roleTag {
+  font-size: 0.68rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.logoutBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.logoutBtn:hover {
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
+/* Role Simulator Strip */
+.roleSimulatorBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.simulatorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.roleButtons {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.roleSelectBtn {
+  flex: 1;
+  background: var(--color-surface-low);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.roleSelectBtn:hover {
+  background-color: var(--color-surface-high);
+  color: var(--color-text);
+}
+
+.roleSelectBtnActive {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+

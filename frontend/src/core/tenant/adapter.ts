@@ -1,6 +1,7 @@
 import { TenantConfig } from './types';
 import { DEMO_TENANTS } from './registry';
 import { validateTenantConfig } from './schema';
+import { resolveApiBaseUrl, resolveServiceBaseUrl } from '../config/serviceConfig';
 
 // List of trusted origins allowed for API communication
 const TRUSTED_ORIGINS = (import.meta.env.VITE_TRUSTED_API_ORIGINS || 'http://localhost:8000,http://127.0.0.1:8000')
@@ -48,8 +49,9 @@ export async function loadTenantConfigFromBackend(identifier: string): Promise<T
 
   // Production HTTP configuration resolution
   try {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
-    const response = await fetch(`${apiBase}/tenants/config?identifier=${encodeURIComponent(identifier)}`, {
+    const apiBase = resolveApiBaseUrl();
+    const tenantsBaseUrl = resolveServiceBaseUrl('tenants');
+    const response = await fetch(`${tenantsBaseUrl}/config?identifier=${encodeURIComponent(identifier)}`, {
       headers: {
         Accept: 'application/json',
       },

@@ -9,13 +9,18 @@
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-width);
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-low);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   transition: width var(--transition-normal);
   z-index: 100;
   flex-shrink: 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.04);
 }
 
 .sidebarHeader {
@@ -27,92 +32,34 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.navSection {
-  flex: 1;
-  padding: var(--spacing-md) var(--spacing-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2xs);
-  overflow-y: auto;
-}
-
-.navLink {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  transition: all var(--transition-fast);
-  text-decoration: none;
-}
-
-.navLink:hover {
-  background-color: var(--color-surface-hover);
-  color: var(--color-text);
-}
-
-.activeNavLink {
-  background-color: var(--color-primary-subtle);
-  color: var(--color-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.activeNavLink:hover {
-  background-color: var(--color-primary-subtle);
-  color: var(--color-primary);
-}
-
-.navIcon {
-  flex-shrink: 0;
-}
-
-.sidebarFooter {
-  padding: var(--spacing-md);
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-surface-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.userInfo {
+.brandContainer {
   display: flex;
   align-items: center;
   gap: 10px;
-  overflow: hidden;
 }
 
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-primary-subtle);
-  border: 1px solid var(--color-primary);
+.brandIconSquare {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
   flex-shrink: 0;
 }
 
-.userDetails {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.userName {
-  font-size: var(--font-size-xs);
+.brandTitle {
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
+  letter-spacing: -0.015em;
   white-space: nowrap;
-  text-overflow: ellipsis;
   overflow: hidden;
-}
-
-.userRole {
-  font-size: 0.68rem;
-  color: var(--color-muted);
-  text-transform: capitalize;
+  text-overflow: ellipsis;
+  max-width: 155px;
 }
 
 /* Main Area */
@@ -121,11 +68,14 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background-color: var(--color-background);
 }
 
 .header {
   height: var(--header-height);
-  background-color: var(--color-surface);
+  background-color: var(--header-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -134,18 +84,147 @@
   position: sticky;
   top: 0;
   z-index: 90;
+  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.03);
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  flex: 1;
+  max-width: 580px;
+}
+
+.tenantStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.statusLiveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-subtle);
+}
+
+.statusText {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.statusDivider {
+  color: var(--color-muted);
+}
+
+.statusSubtext {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Search Bar (Stitch Desktop Shell) */
+.searchBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 40px;
+  padding: 8px 64px 8px 36px;
+  background-color: var(--color-surface-low);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.searchInput::placeholder {
+  color: var(--color-muted);
+}
+
+.searchInput:focus {
+  background-color: var(--color-surface);
+  border-color: var(--color-primary-container);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.searchKbd {
+  position: absolute;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  background-color: var(--color-surface-high);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .headerRight {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
+}
+
+.iconBtn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.iconBtn:hover {
+  background-color: var(--color-surface-high);
+  color: var(--color-text);
+}
+
+.notificationDot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-error);
+  border: 1.5px solid #ffffff;
+}
+
+.divider {
+  height: 24px;
+  width: 1px;
+  background-color: var(--color-border);
+  margin: 0 4px;
 }
 
 .content {
@@ -198,5 +277,9 @@
 
   .content {
     padding: var(--spacing-md);
+  }
+
+  .searchBar {
+    display: none;
   }
 }

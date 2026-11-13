@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, FileText, RefreshCw, Sliders } from 'lucide-react';
+import { PlusCircle, FileText, RefreshCw, Sliders, KeyRound } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card/Card';
 import { Button } from '../../../components/ui/Button/Button';
 
@@ -19,6 +19,14 @@ export const QuickActionsWidget: React.FC = () => {
             leftIcon={<PlusCircle size={16} />}
           >
             Create New Record
+          </Button>
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => navigate('/iam')}
+            leftIcon={<KeyRound size={16} />}
+          >
+            Identity, SSO & Federation
           </Button>
           <Button
             variant="secondary"

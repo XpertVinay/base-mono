@@ -45,6 +45,21 @@ h6 {
   color: var(--color-text);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
+  letter-spacing: -0.015em;
+}
+
+h1 {
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  letter-spacing: -0.02em;
+}
+
+/* Tabular figures for metrics */
+.tabular-nums,
+[data-tabular-nums] {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Links */

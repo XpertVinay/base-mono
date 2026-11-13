@@ -49,6 +49,25 @@ export const tenantNavigationItemSchema = z.object({
   icon: z.string().min(1),
   requiredFeature: z.string().optional(),
   roles: z.array(z.string()).optional(),
+  group: z.string().optional(),
+  badge: z.string().optional(),
+  badgeVariant: z.enum(['primary', 'success', 'warning', 'neutral', 'danger']).optional(),
+  description: z.string().optional(),
+  exact: z.boolean().optional(),
+  platformAdminOnly: z.boolean().optional(),
+});
+
+export const tenantNavigationGroupSchema = z.object({
+  id: z.string().min(1),
+  titleKey: z.string().min(1),
+  defaultTitle: z.string().min(1),
+  icon: z.string().optional(),
+  roles: z.array(z.string()).optional(),
+  requiredFeature: z.string().optional(),
+  badge: z.string().optional(),
+  badgeVariant: z.enum(['primary', 'success', 'warning', 'neutral', 'danger']).optional(),
+  defaultExpanded: z.boolean().optional(),
+  items: z.array(tenantNavigationItemSchema),
 });
 
 export const tenantDashboardWidgetSchema = z.object({
@@ -63,8 +82,9 @@ export const tenantDashboardWidgetSchema = z.object({
 });
 
 export const tenantFeaturesSchema = z.object({
-  enabledFeatures: z.record(z.boolean()),
+  enabledFeatures: z.record(z.string(), z.boolean()),
   navigationItems: z.array(tenantNavigationItemSchema),
+  navigationGroups: z.array(tenantNavigationGroupSchema).optional(),
   dashboardWidgets: z.array(tenantDashboardWidgetSchema),
   publicLandingEnabled: z.boolean().optional(),
 });
@@ -73,7 +93,7 @@ export const tenantRuntimeSchema = z.object({
   apiBaseUrl: z.string().min(1),
   authMode: z.enum(['jwt', 'session', 'oauth2']),
   sessionTimeoutMinutes: z.number().int().positive(),
-  publicSettings: z.record(z.unknown()).optional(),
+  publicSettings: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const tenantConfigSchema = z.object({

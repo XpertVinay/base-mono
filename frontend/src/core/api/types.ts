@@ -12,7 +12,9 @@ export interface ApiResponse<T = unknown> {
 
 export interface ApiClientOptions extends RequestInit {
   tenantId?: string;
+  tenantSlug?: string;
   token?: string;
+  skipAuth?: boolean;
   params?: Record<string, string | number | boolean | undefined>;
 }
 

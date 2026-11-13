@@ -12,6 +12,20 @@ export default defineConfig({
     server: {
         port: 3000,
         host: true,
+        proxy: {
+            '/api': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/health': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/api-docs': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+        },
     },
     preview: {
         port: 3000,

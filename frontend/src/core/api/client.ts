@@ -1,17 +1,52 @@
 import { ApiClientOptions, ApiResponse, ApiError } from './types';
 import { mockBackend } from './mockBackend';
+import {
+  isProtectedUrl,
+  resolveServiceBaseUrl,
+  ServiceBaseUrlOptions,
+  ServiceKey,
+} from '../config/serviceConfig';
+import { getStoredAccessToken } from '../auth/tokenStorage';
 
 export class ApiClient {
   private baseUrl: string;
   private defaultHeaders: HeadersInit;
+  private service?: ServiceKey;
 
-  constructor(baseUrl?: string, defaultHeaders: HeadersInit = {}) {
-    this.baseUrl = baseUrl || (import.meta.env.VITE_API_BASE_URL || '/api/v1');
+  constructor(
+    baseUrl?: string,
+    defaultHeaders: HeadersInit = {},
+    service?: ServiceKey
+  ) {
+    this.service = service;
+    this.baseUrl = baseUrl
+      ? baseUrl.trim().replace(/\/+$/, '')
+      : resolveServiceBaseUrl(service);
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       ...defaultHeaders,
     };
+  }
+
+  public static forService(
+    service: ServiceKey,
+    defaultHeaders: HeadersInit = {}
+  ): ApiClient {
+    return new ApiClient(undefined, defaultHeaders, service);
+  }
+
+  public getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  public setBaseUrl(baseUrl: string): void {
+    this.baseUrl = baseUrl.trim().replace(/\/+$/, '');
+  }
+
+  public configure(options: ServiceBaseUrlOptions = {}): string {
+    this.baseUrl = resolveServiceBaseUrl(this.service, options);
+    return this.baseUrl;
   }
 
   /**
@@ -51,6 +86,10 @@ export class ApiClient {
       headers['X-Tenant-ID'] = options.tenantId;
     }
 
+    if (options.tenantSlug) {
+      headers['X-Tenant-Slug'] = options.tenantSlug;
+    }
+
     if (typeof window !== 'undefined') {
       try {
         let fgp = localStorage.getItem('app_device_fingerprint');
@@ -65,8 +104,11 @@ export class ApiClient {
       }
     }
 
-    if (options.token) {
-      headers['Authorization'] = `Bearer ${options.token}`;
+    if (!options.skipAuth && !headers['Authorization'] && !headers['authorization']) {
+      const effectiveToken = options.token || (isProtectedUrl(url) ? getStoredAccessToken() : null);
+      if (effectiveToken) {
+        headers['Authorization'] = `Bearer ${effectiveToken}`;
+      }
     }
 
     try {
@@ -126,6 +168,14 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  public patch<T>(endpoint: string, body?: unknown, options?: ApiClientOptions): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     });
   }

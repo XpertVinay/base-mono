@@ -57,6 +57,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         { key: 'records', labelKey: 'nav.records', path: '/records', icon: 'Database', requiredFeature: 'records' },
         { key: 'analytics', labelKey: 'nav.analytics', path: '/analytics', icon: 'BarChart3', requiredFeature: 'analytics' },
         { key: 'auditMonitoring', labelKey: 'nav.auditMonitoring', path: '/audit-monitoring', icon: 'ShieldAlert', requiredFeature: 'auditLogs' },
+        { key: 'iam', labelKey: 'nav.iam', path: '/iam', icon: 'KeyRound' },
         { key: 'settings', labelKey: 'nav.settings', path: '/settings', icon: 'Settings' },
       ],
       dashboardWidgets: [
@@ -135,6 +136,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         { key: 'records', labelKey: 'nav.shipments', path: '/records', icon: 'Truck', requiredFeature: 'records' },
         { key: 'analytics', labelKey: 'nav.analytics', path: '/analytics', icon: 'LineChart', requiredFeature: 'analytics' },
         { key: 'auditMonitoring', labelKey: 'nav.auditMonitoring', path: '/audit-monitoring', icon: 'ShieldAlert', requiredFeature: 'auditLogs' },
+        { key: 'iam', labelKey: 'nav.iam', path: '/iam', icon: 'KeyRound' },
         { key: 'settings', labelKey: 'nav.settings', path: '/settings', icon: 'Settings' },
       ],
       dashboardWidgets: [
@@ -212,6 +214,7 @@ export const DEMO_TENANTS: Record<string, TenantConfig> = {
         { key: 'records', labelKey: 'nav.portfolio', path: '/records', icon: 'Coins', requiredFeature: 'records' },
         { key: 'analytics', labelKey: 'nav.analytics', path: '/analytics', icon: 'TrendingUp', requiredFeature: 'analytics' },
         { key: 'auditMonitoring', labelKey: 'nav.auditMonitoring', path: '/audit-monitoring', icon: 'ShieldAlert', requiredFeature: 'auditLogs' },
+        { key: 'iam', labelKey: 'nav.iam', path: '/iam', icon: 'KeyRound' },
         { key: 'settings', labelKey: 'nav.settings', path: '/settings', icon: 'Settings' },
       ],
       dashboardWidgets: [

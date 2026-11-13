@@ -5,9 +5,27 @@
   animation: fadeIn var(--transition-normal) ease-out;
 }
 
-.headerBar {
+.breadcrumbs {
   display: flex;
   align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.breadcrumbSeparator {
+  color: var(--color-muted);
+}
+
+.breadcrumbActive {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.headerBar {
+  display: flex;
+  align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--spacing-md);
@@ -16,17 +34,21 @@
 .titleArea {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .title {
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-3xl);
   font-weight: 700;
   color: var(--color-text);
+  letter-spacing: -0.025em;
+  margin: 0;
 }
 
 .subtitle {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+  margin: 0;
 }
 
 .searchBar {
@@ -47,11 +69,15 @@
   border: none;
   color: var(--color-muted);
   cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .deleteButton:hover {
-  color: var(--color-error);
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
 }
