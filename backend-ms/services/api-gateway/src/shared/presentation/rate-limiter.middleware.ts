@@ -5,7 +5,22 @@ interface RateLimitStore {
   resetTime: number;
 }
 
-export function rateLimiter(options?: { windowMs?: number; max?: number; message?: string }) {
+export interface RateLimitViolationInfo {
+  ip: string;
+  count: number;
+  max: number;
+  windowMs: number;
+  firstViolationInWindow: boolean;
+}
+
+export interface RateLimiterOptions {
+  windowMs?: number;
+  max?: number;
+  message?: string;
+  onLimitExceeded?: (req: Request, info: RateLimitViolationInfo) => void;
+}
+
+export function rateLimiter(options?: RateLimiterOptions) {
   const windowMs = options?.windowMs || 60000;
   const max = options?.max || 120;
   const message = options?.message || 'Too many requests, please try again later.';
@@ -44,6 +59,21 @@ export function rateLimiter(options?: { windowMs?: number; max?: number; message
     if (entry.count > max) {
       const retryAfterSeconds = Math.max(1, Math.ceil((entry.resetTime - now) / 1000));
       res.setHeader('Retry-After', retryAfterSeconds);
+
+      if (options?.onLimitExceeded) {
+        try {
+          options.onLimitExceeded(req, {
+            ip: key,
+            count: entry.count,
+            max,
+            windowMs,
+            firstViolationInWindow: entry.count === max + 1
+          });
+        } catch {
+          // Never fail rate-limit response if telemetry hook throws
+        }
+      }
+
       res.status(429).json({
         success: false,
         error: {

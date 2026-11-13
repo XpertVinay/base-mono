@@ -61,11 +61,14 @@ services:
       SEARCH_SERVICE_URL: http://search-service:4008
       INVENTORY_SERVICE_URL: http://inventory-service:4009
       AUDIT_SERVICE_URL: http://audit-service:4011
+      RBAC_SERVICE_URL: http://rbac-service:4013
+      RBAC_GRPC_URL: rbac-service:50063
     depends_on:
       - iam-service
       - config-service
       - order-service
       - audit-service
+      - rbac-service
     networks:
       - microservices-net
 
@@ -321,6 +324,36 @@ services:
       ENABLE_CLOUDWATCH: "false"
       ENABLE_PROMETHEUS: "true"
       ENABLE_GRAFANA: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  rbac-service:
+    build:
+      context: ./services/rbac-service
+      dockerfile: Dockerfile
+    container_name: ms-rbac-service
+    restart: unless-stopped
+    ports:
+      - "4013:4013"
+      - "50063:50063"
+    environment:
+      NODE_ENV: production
+      PORT: 4013
+      GRPC_PORT: 50063
+      MULTI_TENANCY_ENABLED: ${MULTI_TENANCY_ENABLED:-true}
+      MULTI_TENANCY_MODE: ${MULTI_TENANCY_MODE:-optional}
+      DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-default}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     depends_on:
       postgres:
         condition: service_healthy

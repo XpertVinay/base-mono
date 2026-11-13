@@ -3,15 +3,21 @@ import { Notification, NotificationChannel } from '../../domain/entities/notific
 import { dbPool } from '../../shared/infrastructure/database/connection-pool.js';
 
 export class PostgresNotificationRepository implements INotificationRepository {
-  async findById(id: string): Promise<Notification | null> {
+  async findById(id: string, tenantId?: string): Promise<Notification | null> {
+    const tid = tenantId || 'default';
     const res = await dbPool.query(
-      'SELECT id, recipient, channel, subject, body, status, sent_at, created_at FROM notification.notifications WHERE id = $1',
-      [id]
+      `SELECT id, tenant_id, recipient, channel, subject, body, status, sent_at, created_at
+       FROM notification.notifications
+       WHERE id = $1 AND (tenant_id = $2 OR tenant_id = 'default')
+       ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [id, tid]
     );
     if (res.rows.length === 0) return null;
     const row = res.rows[0];
     const notif = Notification.create(
       {
+        tenantId: row.tenant_id,
         recipient: row.recipient,
         channel: row.channel as NotificationChannel,
         subject: row.subject,
@@ -24,14 +30,20 @@ export class PostgresNotificationRepository implements INotificationRepository {
     return notif;
   }
 
-  async listRecent(limit: number = 50): Promise<Notification[]> {
+  async listRecent(limit: number = 50, tenantId?: string): Promise<Notification[]> {
+    const tid = tenantId || 'default';
     const res = await dbPool.query(
-      'SELECT id, recipient, channel, subject, body, status, sent_at, created_at FROM notification.notifications ORDER BY created_at DESC LIMIT $1',
-      [limit]
+      `SELECT id, tenant_id, recipient, channel, subject, body, status, sent_at, created_at
+       FROM notification.notifications
+       WHERE tenant_id = $1 OR tenant_id = 'default'
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [tid, limit]
     );
     return res.rows.map(row => {
       const notif = Notification.create(
         {
+          tenantId: row.tenant_id,
           recipient: row.recipient,
           channel: row.channel as NotificationChannel,
           subject: row.subject,
@@ -47,10 +59,11 @@ export class PostgresNotificationRepository implements INotificationRepository {
 
   async save(notification: Notification): Promise<void> {
     await dbPool.query(
-      `INSERT INTO notification.notifications (id, recipient, channel, subject, body, status, sent_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO notification.notifications (id, tenant_id, recipient, channel, subject, body, status, sent_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         notification.id,
+        notification.tenantId,
         notification.recipient,
         notification.channel,
         notification.subject,
@@ -66,8 +79,8 @@ export class PostgresNotificationRepository implements INotificationRepository {
     await dbPool.query(
       `UPDATE notification.notifications
        SET status = $2, sent_at = $3
-       WHERE id = $1`,
-      [notification.id, notification.status, notification.sentAt]
+       WHERE id = $1 AND (tenant_id = $4 OR tenant_id = 'default')`,
+      [notification.id, notification.status, notification.sentAt, notification.tenantId]
     );
   }
 }

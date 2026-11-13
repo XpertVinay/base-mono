@@ -1,10 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { getMultiTenancyConfig, resolveTenantContext } from './tenant.middleware.js';
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
   role: string;
+  tenantId: string;
+  tenantSlug?: string;
+  authMethod?: string;
+  federatedProvider?: string;
 }
 
 declare global {
@@ -16,12 +21,23 @@ declare global {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const mtConfig = getMultiTenancyConfig();
+
   if (req.header('x-user-id')) {
+    const tenantId = mtConfig.enabled
+      ? ((req.header(mtConfig.tenantHeader) || mtConfig.defaultTenantId) as string)
+      : mtConfig.defaultTenantId;
+
     req.user = {
       id: req.header('x-user-id') as string,
       email: (req.header('x-user-email') || '') as string,
-      role: (req.header('x-user-role') || 'USER') as string
+      role: (req.header('x-user-role') || 'USER') as string,
+      tenantId,
+      tenantSlug: req.header(mtConfig.tenantSlugHeader) || undefined,
+      authMethod: req.header('x-auth-method') || undefined,
+      federatedProvider: req.header('x-federated-provider') || undefined
     };
+    req.tenant = resolveTenantContext(req);
     next();
     return;
   }
@@ -40,11 +56,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   try {
     const decoded = jwt.verify(token, secret) as any;
+    const tokenTenantId = mtConfig.enabled
+      ? (decoded.tenantId || decoded.tid || mtConfig.defaultTenantId)
+      : mtConfig.defaultTenantId;
+
     req.user = {
       id: decoded.sub || decoded.id,
       email: decoded.email,
-      role: decoded.role || 'USER'
+      role: decoded.role || 'USER',
+      tenantId: tokenTenantId,
+      tenantSlug: decoded.tenantSlug,
+      authMethod: decoded.authMethod || 'LOCAL',
+      federatedProvider: decoded.provider
     };
+    req.tenant = resolveTenantContext(req);
     next();
   } catch (err) {
     res.status(401).json({

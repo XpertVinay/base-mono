@@ -6,10 +6,11 @@ export interface AuditQueryFilter {
   action?: string;
   severity?: string;
   limit?: number;
+  tenantId?: string;
 }
 
 export interface IAuditRepository {
   save(log: AuditLog): Promise<void>;
-  findById(id: string): Promise<AuditLog | null>;
+  findById(id: string, tenantId?: string): Promise<AuditLog | null>;
   query(filter: AuditQueryFilter): Promise<AuditLog[]>;
 }

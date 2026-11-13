@@ -1,0 +1,56 @@
+import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
+
+export interface RequestContext {
+  correlationId: string;
+  userId?: string;
+  userRole?: string;
+  userEmail?: string;
+  tenantId?: string;
+  tenantSlug?: string;
+  tenantVerified?: boolean;
+  authMethod?: string;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      context?: RequestContext;
+    }
+  }
+}
+
+export function correlationIdMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const correlationId = (req.header('x-correlation-id') || req.header('x-request-id') || crypto.randomUUID()) as string;
+  const userId = req.header('x-user-id') as string | undefined;
+  const userRole = req.header('x-user-role') as string | undefined;
+  const userEmail = req.header('x-user-email') as string | undefined;
+
+  const tenantHeader = (process.env.TENANT_HEADER || 'x-tenant-id').toLowerCase();
+  const tenantSlugHeader = (process.env.TENANT_SLUG_HEADER || 'x-tenant-slug').toLowerCase();
+  const defaultTenantId = process.env.DEFAULT_TENANT_ID || 'default';
+  const multiTenancyEnabled = process.env.MULTI_TENANCY_ENABLED !== 'false';
+
+  const tenantId = multiTenancyEnabled
+    ? ((req.header(tenantHeader) || defaultTenantId) as string)
+    : defaultTenantId;
+  const tenantSlug = req.header(tenantSlugHeader) as string | undefined;
+  const tenantVerified = req.header('x-tenant-verified') === 'true';
+  const authMethod = req.header('x-auth-method') as string | undefined;
+
+  req.context = {
+    correlationId,
+    userId,
+    userRole,
+    userEmail,
+    tenantId,
+    tenantSlug,
+    tenantVerified,
+    authMethod
+  };
+
+  res.setHeader('x-correlation-id', correlationId);
+  res.setHeader('x-request-id', correlationId);
+  res.setHeader('x-tenant-id', tenantId);
+  next();
+}

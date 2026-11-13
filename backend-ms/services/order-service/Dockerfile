@@ -11,12 +11,14 @@ FROM node:23-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4006
+ENV GRPC_PORT=50056
 
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/migrations_stage ./migrations
 EXPOSE 4006
+EXPOSE 50056
 
 USER node
 CMD ["node", "dist/server.js"]

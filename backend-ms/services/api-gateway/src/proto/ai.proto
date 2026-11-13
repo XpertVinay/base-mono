@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+package ai;
+
+service AIService {
+  rpc ListProviders (ListProvidersRequest) returns (ListProvidersResponse);
+  rpc RegisterProvider (RegisterProviderRequest) returns (RegisterProviderResponse);
+  rpc ListTools (ListToolsRequest) returns (ListToolsResponse);
+  rpc CallTool (CallToolRequest) returns (CallToolResponse);
+  rpc Orchestrate (OrchestrateRequest) returns (OrchestrateResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message McpProviderData {
+  string id = 1;
+  string tenantId = 2;
+  string slug = 3;
+  string name = 4;
+  string category = 5;
+  string transportType = 6;
+  string endpointUrl = 7;
+  bool isBuiltin = 8;
+  bool isEnabled = 9;
+  string healthStatus = 10;
+  string updatedAt = 11;
+}
+
+message ListProvidersRequest {
+  string tenantId = 1;
+  string category = 2;
+  bool enabledOnly = 3;
+}
+
+message ListProvidersData {
+  repeated McpProviderData items = 1;
+}
+
+message ListProvidersResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListProvidersData data = 5;
+}
+
+message RegisterProviderRequest {
+  string tenantId = 1;
+  string slug = 2;
+  string name = 3;
+  string category = 4;
+  string transportType = 5;
+  string endpointUrl = 6;
+  string authType = 7;
+  string credentialsJson = 8;
+  string configJson = 9;
+  bool autoSync = 10;
+}
+
+message RegisterProviderResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  McpProviderData data = 5;
+}
+
+message McpToolData {
+  string id = 1;
+  string providerSlug = 2;
+  string toolName = 3;
+  string qualifiedName = 4;
+  string description = 5;
+  string inputSchemaJson = 6;
+  bool isEnabled = 7;
+}
+
+message ListToolsRequest {
+  string tenantId = 1;
+  string providerSlug = 2;
+  string search = 3;
+}
+
+message ListToolsData {
+  repeated McpToolData items = 1;
+}
+
+message ListToolsResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListToolsData data = 5;
+}
+
+message CallToolRequest {
+  string tenantId = 1;
+  string providerSlug = 2;
+  string toolName = 3;
+  string qualifiedName = 4;
+  string argumentsJson = 5;
+  string actorId = 6;
+  string correlationId = 7;
+}
+
+message CallToolData {
+  string invocationId = 1;
+  string providerSlug = 2;
+  string toolName = 3;
+  string qualifiedName = 4;
+  bool isError = 5;
+  string contentJson = 6;
+  string structuredContentJson = 7;
+  int32 durationMs = 8;
+}
+
+message CallToolResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  CallToolData data = 5;
+}
+
+message OrchestrateRequest {
+  string tenantId = 1;
+  string mode = 2;
+  bool stopOnError = 3;
+  string stepsJson = 4;
+  string actorId = 5;
+  string correlationId = 6;
+}
+
+message OrchestrateData {
+  bool success = 1;
+  string resultsJson = 2;
+  int32 totalDurationMs = 3;
+}
+
+message OrchestrateResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  OrchestrateData data = 5;
+}
+

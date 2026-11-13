@@ -1,0 +1,153 @@
+syntax = "proto3";
+
+package organization;
+
+service OrganizationService {
+  rpc GetOrganizationById (GetOrganizationByIdRequest) returns (OrganizationResponse);
+  rpc GetOrganizationBySlug (GetOrganizationBySlugRequest) returns (OrganizationResponse);
+  rpc ListOrganizations (ListOrganizationsRequest) returns (ListOrganizationsResponse);
+  rpc CreateOrganization (CreateOrganizationRequest) returns (OrganizationResponse);
+  rpc UpdateOrganization (UpdateOrganizationRequest) returns (OrganizationResponse);
+  rpc DeleteOrganization (DeleteOrganizationRequest) returns (DeleteOrganizationResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message OrganizationData {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  string legal_name = 4;
+  string status = 5;
+  string tier = 6;
+  string industry = 7;
+  string tax_id = 8;
+  string contact_email = 9;
+  string contact_phone = 10;
+  string website = 11;
+  int32 max_users = 12;
+  string created_at = 13;
+  string updated_at = 14;
+}
+
+message GetOrganizationByIdRequest {
+  string id = 1;
+}
+
+message GetOrganizationBySlugRequest {
+  string slug = 1;
+}
+
+message ListOrganizationsRequest {
+  string search = 1;
+  string status = 2;
+  string tier = 3;
+  string industry = 4;
+  int32 page = 5;
+  int32 limit = 6;
+}
+
+message CreateOrganizationRequest {
+  string name = 1;
+  string slug = 2;
+  string legal_name = 3;
+  string tier = 4;
+  string industry = 5;
+  string tax_id = 6;
+  string contact_email = 7;
+  string contact_phone = 8;
+  string website = 9;
+  int32 max_users = 10;
+}
+
+message UpdateOrganizationRequest {
+  string id = 1;
+  string name = 2;
+  string legal_name = 3;
+  string industry = 4;
+  string tax_id = 5;
+  string contact_email = 6;
+  string contact_phone = 7;
+  string website = 8;
+  string tier = 9;
+  int32 max_users = 10;
+}
+
+message DeleteOrganizationRequest {
+  string id = 1;
+}
+
+message OrganizationResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  OrganizationData data = 5;
+}
+
+message ListOrganizationsData {
+  repeated OrganizationData items = 1;
+}
+
+message ListOrganizationsResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListOrganizationsData data = 5;
+}
+
+message DeleteOrganizationResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  bool deleted = 5;
+}

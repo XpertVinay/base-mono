@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package transaction;
+
+service TransactionService {
+  rpc InitiatePayment (InitiatePaymentRequest) returns (TransactionResponse);
+  rpc HandleWebhook (WebhookRequest) returns (TransactionResponse);
+  rpc GetTransactionById (GetTransactionRequest) returns (TransactionResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message TransactionData {
+  string id = 1;
+  string referenceId = 2;
+  string userId = 3;
+  string type = 4;
+  string status = 5;
+  double amount = 6;
+  string currency = 7;
+  string paymentMethod = 8;
+  string failureReason = 9;
+  string provider = 10;
+  string providerSessionId = 11;
+  string providerTransactionId = 12;
+  string redirectUrl = 13;
+  string createdAt = 14;
+  string updatedAt = 15;
+}
+
+message InitiatePaymentRequest {
+  string referenceId = 1;
+  string userId = 2;
+  double amount = 3;
+  string currency = 4;
+  string paymentMethod = 5;
+}
+
+message WebhookRequest {
+  string transactionId = 1;
+  string status = 2;
+  string providerTxnId = 3;
+  string failureReason = 4;
+}
+
+message GetTransactionRequest {
+  string id = 1;
+}
+
+message TransactionResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  TransactionData data = 5;
+}

@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package iam;
+
+service IAMService {
+  rpc VerifyToken (VerifyTokenRequest) returns (VerifyTokenResponse);
+  rpc GetUserById (GetUserRequest) returns (GetUserResponse);
+  rpc ResolveTenant (ResolveTenantRequest) returns (ResolveTenantResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message VerifyTokenRequest {
+  string token = 1;
+  string expectedTenantId = 2;
+}
+
+message VerifyTokenData {
+  bool valid = 1;
+  string userId = 2;
+  string email = 3;
+  string role = 4;
+  string tenantId = 5;
+  string tenantSlug = 6;
+  string authMethod = 7;
+  string provider = 8;
+}
+
+message VerifyTokenResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  VerifyTokenData data = 5;
+
+  // Direct backwards-compatibility fields
+  bool valid = 6;
+  string userId = 7;
+  string email = 8;
+  string role = 9;
+  string error = 10;
+  string tenantId = 11;
+  string tenantSlug = 12;
+  string authMethod = 13;
+}
+
+message GetUserRequest {
+  string userId = 1;
+  string tenantId = 2;
+}
+
+message UserData {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  string role = 4;
+  bool isActive = 5;
+  string createdAt = 6;
+  string tenantId = 7;
+  string authMethod = 8;
+}
+
+message GetUserResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  UserData data = 5;
+
+  // Direct backwards-compatibility fields
+  string id = 6;
+  string email = 7;
+  string name = 8;
+  string role = 9;
+  bool isActive = 10;
+  string createdAt = 11;
+  string tenantId = 12;
+  string authMethod = 13;
+}
+
+message ResolveTenantRequest {
+  string idOrSlug = 1;
+}
+
+message TenantConfigData {
+  bool allowLocalLogin = 1;
+  bool allowFederatedLogin = 2;
+  bool autoProvisionUsers = 3;
+  string defaultRole = 4;
+  repeated string allowedEmailDomains = 5;
+  int32 sessionTtlSeconds = 6;
+}
+
+message TenantData {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  bool isActive = 4;
+  TenantConfigData config = 5;
+}
+
+message ResolveTenantResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  TenantData data = 5;
+}

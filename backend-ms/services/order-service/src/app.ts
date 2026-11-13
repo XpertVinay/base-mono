@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresOrderRepository } from './infrastructure/persistence/postgres-order.repository.js';
@@ -16,7 +17,14 @@ import { OrderController } from './presentation/http/order.controller.js';
 import { createOrderRouter } from './presentation/http/order.routes.js';
 import { InventoryGrpcClient } from './grpc/inventory-grpc.client.js';
 
-export function createApp(): { app: Express; repo: PostgresOrderRepository } {
+export function createApp(): {
+  app: Express;
+  repo: PostgresOrderRepository;
+  createUseCase: CreateOrderUseCase;
+  cancelUseCase: CancelOrderUseCase;
+  getByIdQuery: GetOrderByIdQuery;
+  listMyQuery: ListMyOrdersQuery;
+} {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -25,13 +33,14 @@ export function createApp(): { app: Express; repo: PostgresOrderRepository } {
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresOrderRepository();
   const inventoryClient = new InventoryGrpcClient();
 
   const createUseCase = new CreateOrderUseCase(repo, inventoryClient);
-  const cancelUseCase = new CancelOrderUseCase(repo);
+  const cancelUseCase = new CancelOrderUseCase(repo, inventoryClient);
   const getByIdQuery = new GetOrderByIdQuery(repo);
   const listMyQuery = new ListMyOrdersQuery(repo);
 
@@ -46,5 +55,5 @@ export function createApp(): { app: Express; repo: PostgresOrderRepository } {
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return { app, repo };
+  return { app, repo, createUseCase, cancelUseCase, getByIdQuery, listMyQuery };
 }

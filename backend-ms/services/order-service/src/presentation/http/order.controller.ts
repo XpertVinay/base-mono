@@ -17,7 +17,8 @@ const createOrderSchema = z.object({
       unitPrice: z.number().positive()
     })
   ).min(1),
-  currency: z.string().optional()
+  currency: z.string().optional(),
+  tenantId: z.string().optional()
 });
 
 export class OrderController {
@@ -27,6 +28,10 @@ export class OrderController {
     private readonly getByIdQuery: GetOrderByIdQuery,
     private readonly listMyQuery: ListMyOrdersQuery
   ) {}
+
+  private getTenantId(req: Request): string {
+    return req.tenant?.tenantId || req.user?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+  }
 
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -42,7 +47,8 @@ export class OrderController {
       }
 
       const validated = createOrderSchema.parse(req.body);
-      const result = await this.createUseCase.execute({ ...validated, userId });
+      const tenantId = validated.tenantId || this.getTenantId(req);
+      const result = await this.createUseCase.execute({ ...validated, userId, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
@@ -77,8 +83,9 @@ export class OrderController {
       const id = req.params.id as string;
       const userId = req.user?.id || (req.header('x-user-id') as string) || '';
       const role = req.user?.role || (req.header('x-user-role') as string) || 'USER';
+      const tenantId = this.getTenantId(req);
 
-      const result = await this.cancelUseCase.execute({ orderId: id, userId, role });
+      const result = await this.cancelUseCase.execute({ orderId: id, userId, role, tenantId });
       if (result.isFailure) {
         ApiResponse.error(res, {
           req,
@@ -105,8 +112,9 @@ export class OrderController {
       const id = req.params.id as string;
       const userId = req.user?.id || (req.header('x-user-id') as string) || '';
       const role = req.user?.role || (req.header('x-user-role') as string) || 'USER';
+      const tenantId = this.getTenantId(req);
 
-      const result = await this.getByIdQuery.execute({ orderId: id, userId, role });
+      const result = await this.getByIdQuery.execute({ orderId: id, userId, role, tenantId });
       if (result.isFailure) {
         ApiResponse.error(res, {
           req,
@@ -141,7 +149,8 @@ export class OrderController {
         return;
       }
 
-      const result = await this.listMyQuery.execute({ userId });
+      const tenantId = this.getTenantId(req);
+      const result = await this.listMyQuery.execute({ userId, tenantId });
       const orders = result.getValue();
 
       ApiResponse.success(res, {

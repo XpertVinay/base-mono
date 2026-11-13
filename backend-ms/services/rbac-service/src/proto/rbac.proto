@@ -1,0 +1,260 @@
+syntax = "proto3";
+
+package rbac;
+
+service RbacService {
+  rpc GetRole (GetRoleRequest) returns (GetRoleResponse);
+  rpc ListRoles (ListRolesRequest) returns (ListRolesResponse);
+  rpc CreateRole (CreateRoleRequest) returns (CreateRoleResponse);
+  rpc UpdateRole (UpdateRoleRequest) returns (UpdateRoleResponse);
+  rpc DeleteRole (DeleteRoleRequest) returns (DeleteRoleResponse);
+  rpc ListPermissions (ListPermissionsRequest) returns (ListPermissionsResponse);
+  rpc AssignUserRole (AssignUserRoleRequest) returns (AssignUserRoleResponse);
+  rpc RevokeUserRole (RevokeUserRoleRequest) returns (RevokeUserRoleResponse);
+  rpc GetUserRoles (GetUserRolesRequest) returns (GetUserRolesResponse);
+  rpc CheckPermission (CheckPermissionRequest) returns (CheckPermissionResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int32 total = 3;
+  int32 totalPages = 4;
+  bool hasNext = 5;
+  bool hasPrev = 6;
+}
+
+message StandardMetaData {
+  string requestId = 1;
+  string timestamp = 2;
+  PaginationMeta pagination = 3;
+  repeated string further_steps = 4;
+}
+
+message RoleData {
+  string id = 1;
+  string tenantId = 2;
+  string name = 3;
+  string description = 4;
+  bool isSystem = 5;
+  repeated string permissions = 6;
+  string createdAt = 7;
+  string updatedAt = 8;
+}
+
+message PermissionData {
+  string id = 1;
+  string name = 2;
+  string category = 3;
+  string description = 4;
+  bool isSystem = 5;
+  string createdAt = 6;
+  string updatedAt = 7;
+}
+
+message UserRoleAssignmentData {
+  string id = 1;
+  string tenantId = 2;
+  string userId = 3;
+  string roleId = 4;
+  string roleName = 5;
+  string assignedBy = 6;
+  string createdAt = 7;
+}
+
+message GetRoleRequest {
+  string id = 1;
+  string tenantId = 2;
+}
+
+message GetRoleResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  RoleData data = 5;
+}
+
+message ListRolesRequest {
+  string tenantId = 1;
+  int32 page = 2;
+  int32 limit = 3;
+  string search = 4;
+}
+
+message ListRolesData {
+  repeated RoleData items = 1;
+  int32 total = 2;
+}
+
+message ListRolesResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListRolesData data = 5;
+}
+
+message CreateRoleRequest {
+  string tenantId = 1;
+  string name = 2;
+  string description = 3;
+  repeated string permissions = 4;
+}
+
+message CreateRoleResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  RoleData data = 5;
+}
+
+message UpdateRoleRequest {
+  string tenantId = 1;
+  string id = 2;
+  string name = 3;
+  string description = 4;
+  repeated string permissions = 5;
+}
+
+message UpdateRoleResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  RoleData data = 5;
+}
+
+message DeleteRoleRequest {
+  string tenantId = 1;
+  string id = 2;
+}
+
+message DeleteRoleResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  bool deleted = 5;
+}
+
+message ListPermissionsRequest {
+  string category = 1;
+}
+
+message ListPermissionsData {
+  repeated PermissionData items = 1;
+  int32 total = 2;
+}
+
+message ListPermissionsResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListPermissionsData data = 5;
+}
+
+message AssignUserRoleRequest {
+  string tenantId = 1;
+  string userId = 2;
+  string roleId = 3;
+  string assignedBy = 4;
+}
+
+message AssignUserRoleResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  UserRoleAssignmentData data = 5;
+}
+
+message RevokeUserRoleRequest {
+  string tenantId = 1;
+  string userId = 2;
+  string roleId = 3;
+}
+
+message RevokeUserRoleResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  bool revoked = 5;
+}
+
+message GetUserRolesRequest {
+  string tenantId = 1;
+  string userId = 2;
+}
+
+message GetUserRolesData {
+  repeated UserRoleAssignmentData items = 1;
+}
+
+message GetUserRolesResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  GetUserRolesData data = 5;
+}
+
+message CheckPermissionRequest {
+  string tenantId = 1;
+  string userId = 2;
+  string permission = 3;
+}
+
+message CheckPermissionData {
+  string userId = 1;
+  string tenantId = 2;
+  string permission = 3;
+  bool allowed = 4;
+  repeated string userRoles = 5;
+  repeated string permissions = 6;
+}
+
+message CheckPermissionResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  CheckPermissionData data = 5;
+}
+

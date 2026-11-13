@@ -26,9 +26,12 @@ export class InventoryGrpcClient {
     );
   }
 
-  async checkStock(productId: string, quantity: number): Promise<boolean> {
+  async checkStock(productId: string, quantity: number, tenantId: string = 'default'): Promise<boolean> {
+    const metadata = new grpc.Metadata();
+    metadata.set('x-tenant-id', tenantId);
+
     return new Promise((resolve) => {
-      this.client.CheckStock({ productId, quantity }, (err: any, response: any) => {
+      this.client.CheckStock({ productId, quantity }, metadata, (err: any, response: any) => {
         if (err) {
           logger.warn('gRPC CheckStock call failed, allowing fallback', { err: err.message });
           return resolve(true);
@@ -39,15 +42,48 @@ export class InventoryGrpcClient {
     });
   }
 
-  async reserveStock(productId: string, quantity: number, orderId: string): Promise<boolean> {
+  async reserveStock(productId: string, quantity: number, orderId: string, tenantId: string = 'default'): Promise<boolean> {
+    const metadata = new grpc.Metadata();
+    metadata.set('x-tenant-id', tenantId);
+
     return new Promise((resolve) => {
-      this.client.ReserveStock({ productId, quantity, orderId }, (err: any, response: any) => {
+      this.client.ReserveStock({ productId, quantity, orderId }, metadata, (err: any, response: any) => {
         if (err) {
-          logger.warn('gRPC ReserveStock call failed, continuing with order', { err: err.message });
-          return resolve(true);
+          logger.warn('gRPC ReserveStock call failed', { err: err.message });
+          return resolve(false);
         }
-        const success = response.data ? true : (response.success ?? response.status ?? true);
+        const success = response.data ? true : (response.success ?? response.status ?? false);
         resolve(Boolean(success));
+      });
+    });
+  }
+
+  async releaseStock(productId: string, quantity: number, _orderId: string, tenantId: string = 'default'): Promise<boolean> {
+    const metadata = new grpc.Metadata();
+    metadata.set('x-tenant-id', tenantId);
+    const internalSecret = process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars';
+    metadata.set('x-internal-secret', internalSecret);
+
+    const dispatchReq = {
+      method: 'POST',
+      path: '/api/v1/inventory/release',
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': tenantId,
+        'x-internal-secret': internalSecret
+      },
+      body: Buffer.from(JSON.stringify({ productId, quantity, tenantId }), 'utf8'),
+      clientIp: '127.0.0.1',
+      correlationId: `saga-rel-${Date.now()}`
+    };
+
+    return new Promise((resolve) => {
+      this.client.Dispatch(dispatchReq, metadata, (err: any, response: any) => {
+        if (err) {
+          logger.warn('gRPC Dispatch releaseStock failed', { err: err.message });
+          return resolve(false);
+        }
+        resolve(response.statusCode >= 200 && response.statusCode < 300);
       });
     });
   }

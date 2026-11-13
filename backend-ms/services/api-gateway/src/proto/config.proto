@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package config;
+
+service ConfigService {
+  rpc GetConfigByKey (GetConfigRequest) returns (GetConfigResponse);
+  rpc GetActivePaymentGateway (GetActiveGatewayRequest) returns (GetActiveGatewayResponse);
+  rpc ListConfigs (ListConfigsRequest) returns (ListConfigsResponse);
+  rpc SetConfig (SetConfigRequest) returns (SetConfigResponse);
+  rpc DeleteConfig (DeleteConfigRequest) returns (DeleteConfigResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ListConfigsRequest {}
+
+message ListConfigsData {
+  repeated ConfigData items = 1;
+}
+
+message ListConfigsResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListConfigsData data = 5;
+}
+
+message SetConfigRequest {
+  string key = 1;
+  string value = 2;
+  string description = 3;
+  bool isEncrypted = 4;
+}
+
+message SetConfigResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ConfigData data = 5;
+}
+
+message DeleteConfigRequest {
+  string key = 1;
+}
+
+message DeleteConfigResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  bool deleted = 5;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message GetConfigRequest {
+  string key = 1;
+  string defaultValue = 2;
+}
+
+message ConfigData {
+  string key = 1;
+  string value = 2;
+  bool isEncrypted = 3;
+}
+
+message GetConfigResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ConfigData data = 5;
+
+  // Direct backwards-compatibility fields
+  string key = 6;
+  string value = 7;
+  bool isEncrypted = 8;
+}
+
+message GetActiveGatewayRequest {}
+
+message GatewayData {
+  string provider = 1;
+}
+
+message GetActiveGatewayResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  GatewayData data = 5;
+
+  // Direct backwards-compatibility field
+  string provider = 6;
+}

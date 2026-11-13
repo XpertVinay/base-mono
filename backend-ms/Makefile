@@ -31,7 +31,7 @@ ps:
 
 health:
 	@echo "Checking API Gateway and microservices health..."
-	@curl -s http://localhost:4000/health/detailed | jq . || curl -s http://localhost:4000/health/detailed
+	@curl -s http://localhost:4000/api/v1/health/detailed | jq . || curl -s http://localhost:4000/api/v1/health/detailed
 
 clean:
 	docker compose down -v --remove-orphans

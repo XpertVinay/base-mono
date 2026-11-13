@@ -1,6 +1,7 @@
 import { Entity } from '../../shared/domain/entity.js';
 
 export interface ConfigProps {
+  tenantId?: string;
   value: string;
   description?: string;
   isEncrypted: boolean;
@@ -16,6 +17,7 @@ export class ConfigSetting extends Entity<ConfigProps> {
     return new ConfigSetting(
       {
         ...props,
+        tenantId: props.tenantId || 'default',
         updatedAt: props.updatedAt || new Date()
       },
       key
@@ -23,6 +25,7 @@ export class ConfigSetting extends Entity<ConfigProps> {
   }
 
   get key(): string { return this._id; }
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get value(): string { return this.props.value; }
   get description(): string | undefined { return this.props.description; }
   get isEncrypted(): boolean { return this.props.isEncrypted; }

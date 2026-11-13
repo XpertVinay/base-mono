@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresTransactionRepository } from './infrastructure/persistence/postgres-transaction.repository.js';
@@ -15,7 +16,12 @@ import {
 import { TransactionController } from './presentation/http/transaction.controller.js';
 import { createTransactionRouter } from './presentation/http/transaction.routes.js';
 
-export function createApp(): Express {
+export function createApp(): {
+  app: Express;
+  initiateUseCase: InitiatePaymentUseCase;
+  completeUseCase: CompletePaymentUseCase;
+  getByIdQuery: GetTransactionByIdQuery;
+} {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -24,6 +30,7 @@ export function createApp(): Express {
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresTransactionRepository();
@@ -44,5 +51,5 @@ export function createApp(): Express {
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return app;
+  return { app, initiateUseCase, completeUseCase, getByIdQuery };
 }

@@ -5,22 +5,25 @@ import { UserDto } from '../../shared/contracts/index.js';
 
 export interface GetUserByIdQueryInput {
   userId: string;
+  tenantId?: string;
 }
 
 export class GetUserByIdQuery implements UseCase<GetUserByIdQueryInput, UserDto> {
   constructor(private readonly userRepo: IUserRepository) {}
 
   async execute(query: GetUserByIdQueryInput): Promise<Result<UserDto>> {
-    const user = await this.userRepo.findById(query.userId);
+    const user = await this.userRepo.findById(query.userId, query.tenantId);
     if (!user) {
       return Result.fail('User not found');
     }
 
     return Result.ok({
       id: user.id,
+      tenantId: user.tenantId,
       email: user.email,
       name: user.name,
       role: user.role,
+      authMethod: user.authMethod,
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString()

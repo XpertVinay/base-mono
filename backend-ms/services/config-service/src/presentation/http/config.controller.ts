@@ -12,7 +12,8 @@ const setConfigSchema = z.object({
   key: z.string().min(1),
   value: z.string(),
   description: z.string().optional(),
-  isEncrypted: z.boolean().optional()
+  isEncrypted: z.boolean().optional(),
+  tenantId: z.string().optional()
 });
 
 export class ConfigController {
@@ -23,9 +24,23 @@ export class ConfigController {
     private readonly deleteUseCase: DeleteConfigUseCase
   ) {}
 
+  private getTenantId(req: Request): string {
+    return req.tenant?.tenantId || req.user?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+  }
+
+  private isAuthorizedToDecrypt(req: Request): boolean {
+    const internalSecret = process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars';
+    return (
+      req.user?.role === 'ADMIN' ||
+      req.header('x-internal-secret') === internalSecret ||
+      process.env.NODE_ENV !== 'production'
+    );
+  }
+
   getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.listQuery.execute();
+      const tenantId = this.getTenantId(req);
+      const result = await this.listQuery.execute({ tenantId });
       const items = result.getValue();
       ApiResponse.success(res, {
         req,
@@ -49,8 +64,11 @@ export class ConfigController {
   getByKey = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const key = req.params.key as string;
+      const tenantId = this.getTenantId(req);
       const defaultValue = req.query.default as string | undefined;
-      const result = await this.getQuery.execute({ key, defaultValue });
+      const decrypt = this.isAuthorizedToDecrypt(req);
+
+      const result = await this.getQuery.execute({ key, tenantId, defaultValue, decrypt });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
@@ -76,7 +94,8 @@ export class ConfigController {
   set = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = setConfigSchema.parse(req.body);
-      const result = await this.setUseCase.execute(validated);
+      const tenantId = validated.tenantId || this.getTenantId(req);
+      const result = await this.setUseCase.execute({ ...validated, tenantId });
 
       ApiResponse.success(res, {
         req,
@@ -92,7 +111,8 @@ export class ConfigController {
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const key = req.params.key as string;
-      const result = await this.deleteUseCase.execute({ key });
+      const tenantId = this.getTenantId(req);
+      const result = await this.deleteUseCase.execute({ key, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {

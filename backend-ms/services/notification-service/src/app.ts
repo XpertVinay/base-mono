@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresNotificationRepository } from './infrastructure/persistence/postgres-notification.repository.js';
@@ -10,7 +11,11 @@ import { SendNotificationUseCase, ListNotificationsQuery } from './application/u
 import { NotificationController } from './presentation/http/notification.controller.js';
 import { createNotificationRouter } from './presentation/http/notification.routes.js';
 
-export function createApp(): { app: Express; sendUseCase: SendNotificationUseCase } {
+export function createApp(): {
+  app: Express;
+  sendUseCase: SendNotificationUseCase;
+  listQuery: ListNotificationsQuery;
+} {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -19,6 +24,7 @@ export function createApp(): { app: Express; sendUseCase: SendNotificationUseCas
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresNotificationRepository();
@@ -36,5 +42,5 @@ export function createApp(): { app: Express; sendUseCase: SendNotificationUseCas
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return { app, sendUseCase };
+  return { app, sendUseCase, listQuery };
 }

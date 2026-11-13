@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "build": "tsc && mkdir -p dist/proto && cp -r src/proto/* dist/proto/",
+    "start": "node dist/server.js",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.12.5",

@@ -6,10 +6,11 @@ export class PostgresAuditRepository implements IAuditRepository {
   async save(log: AuditLog): Promise<void> {
     await dbPool.query(
       `INSERT INTO audit.audit_logs (
-        id, actor_id, actor_email, action, resource, resource_id, severity, details, ip_address, correlation_id, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        id, tenant_id, actor_id, actor_email, action, resource, resource_id, severity, details, ip_address, correlation_id, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         log.id,
+        log.tenantId,
         log.actorId || null,
         log.actorEmail || null,
         log.action,
@@ -24,11 +25,12 @@ export class PostgresAuditRepository implements IAuditRepository {
     );
   }
 
-  async findById(id: string): Promise<AuditLog | null> {
+  async findById(id: string, tenantId?: string): Promise<AuditLog | null> {
+    const tid = tenantId || 'default';
     const res = await dbPool.query(
-      `SELECT id, actor_id, actor_email, action, resource, resource_id, severity, details, ip_address, correlation_id, created_at
-       FROM audit.audit_logs WHERE id = $1`,
-      [id]
+      `SELECT id, tenant_id, actor_id, actor_email, action, resource, resource_id, severity, details, ip_address, correlation_id, created_at
+       FROM audit.audit_logs WHERE id = $1 AND (tenant_id = $2 OR tenant_id = 'default')`,
+      [id, tid]
     );
     if (res.rows.length === 0) return null;
     return this.mapToDomain(res.rows[0]);
@@ -37,6 +39,11 @@ export class PostgresAuditRepository implements IAuditRepository {
   async query(filter: AuditQueryFilter): Promise<AuditLog[]> {
     const conditions: string[] = [];
     const params: any[] = [];
+
+    if (filter.tenantId && filter.tenantId !== 'default') {
+      params.push(filter.tenantId);
+      conditions.push(`(tenant_id = $${params.length} OR tenant_id = 'default')`);
+    }
 
     if (filter.actorId) {
       params.push(filter.actorId);
@@ -58,7 +65,7 @@ export class PostgresAuditRepository implements IAuditRepository {
       conditions.push(`severity = $${params.length}`);
     }
 
-    let sql = `SELECT id, actor_id, actor_email, action, resource, resource_id, severity, details, ip_address, correlation_id, created_at
+    let sql = `SELECT id, tenant_id, actor_id, actor_email, action, resource, resource_id, severity, details, ip_address, correlation_id, created_at
                FROM audit.audit_logs`;
 
     if (conditions.length > 0) {
@@ -76,6 +83,7 @@ export class PostgresAuditRepository implements IAuditRepository {
   private mapToDomain(row: any): AuditLog {
     return AuditLog.reconstitute(
       {
+        tenantId: row.tenant_id || 'default',
         actorId: row.actor_id,
         actorEmail: row.actor_email,
         action: row.action,

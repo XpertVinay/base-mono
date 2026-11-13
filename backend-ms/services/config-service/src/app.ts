@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresConfigRepository } from './infrastructure/persistence/postgres-config.repository.js';
@@ -24,6 +25,7 @@ export function createApp(): { app: Express; repo: PostgresConfigRepository } {
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresConfigRepository();
@@ -35,7 +37,13 @@ export function createApp(): { app: Express; repo: PostgresConfigRepository } {
   const controller = new ConfigController(getQuery, setUseCase, listQuery, deleteUseCase);
   const router = createConfigRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'config-service', timestamp: new Date().toISOString() }));
+  // Health probes (versioned + unversioned + container probe)
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.json({ status: 'UP', service: 'config-service', version: 'v1', timestamp: new Date().toISOString() });
+
+  app.get('/api/v1/health', healthHandler);
+  app.get('/api/health', healthHandler);
+  app.get('/health', healthHandler);
 
   app.use('/api/v1/config', router);
   app.use('/api/config', router);

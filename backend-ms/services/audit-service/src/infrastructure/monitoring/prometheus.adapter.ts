@@ -54,6 +54,13 @@ export class PrometheusMonitoringAdapter implements IMonitoringAdapter {
       type: 'gauge',
       values: new Map([['', 8]])
     });
+
+    this.metrics.set('security_attacks_detected_total', {
+      name: 'security_attacks_detected_total',
+      help: 'Total DDoS, rate-limit, and security attack anomalies detected',
+      type: 'counter',
+      values: new Map()
+    });
   }
 
   async init(): Promise<void> {
@@ -94,6 +101,16 @@ export class PrometheusMonitoringAdapter implements IMonitoringAdapter {
       counter.values.set(key, current + 1);
     }
     this.updateRiskScore();
+  }
+
+  public recordSecurityAttack(attackType: string, targetResource: string): void {
+    if (!this.isEnabled) return;
+    const counter = this.metrics.get('security_attacks_detected_total');
+    if (counter) {
+      const key = `attack_type="${attackType}",resource="${targetResource}"`;
+      const current = counter.values.get(key) || 0;
+      counter.values.set(key, current + 1);
+    }
   }
 
   private updateRiskScore(): void {

@@ -32,13 +32,122 @@ export interface DomainIntegrationEvent<T = unknown> {
   occurredAt: string;
   payload: T;
   version: number;
+  tenantId?: string;
+}
+
+export type MultiTenancyMode = 'disabled' | 'optional' | 'strict';
+
+export interface MultiTenancyConfig {
+  enabled: boolean;
+  mode: MultiTenancyMode;
+  defaultTenantId: string;
+  tenantHeader: string;
+  tenantSlugHeader: string;
+  subdomainEnabled: boolean;
+}
+
+export interface TenantContext {
+  tenantId: string;
+  tenantSlug?: string;
+  source: 'jwt' | 'gateway' | 'header' | 'query' | 'subdomain' | 'default';
+  isDefault: boolean;
+  verified: boolean;
+  multiTenancyEnabled: boolean;
+  mode: MultiTenancyMode;
+}
+
+export interface TenantConfigDto {
+  allowLocalLogin: boolean;
+  allowFederatedLogin: boolean;
+  autoProvisionUsers: boolean;
+  defaultRole: 'USER' | 'ADMIN' | 'SUPPORT';
+  allowedEmailDomains: string[];
+  sessionTtlSeconds: number;
+}
+
+export interface TenantDto {
+  id: string;
+  slug: string;
+  name: string;
+  isActive: boolean;
+  config: TenantConfigDto;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OidcProviderType =
+  | 'GENERIC_OIDC'
+  | 'GOOGLE'
+  | 'ENTRA_ID'
+  | 'OKTA'
+  | 'KEYCLOAK'
+  | 'MOCK';
+
+export interface OidcProviderPublicDto {
+  id: string;
+  tenantId: string;
+  slug: string;
+  providerType: OidcProviderType;
+  displayName: string;
+  scopes: string;
+  usePkce: boolean;
+  authorizeUrl: string;
+}
+
+export interface OidcProviderDto {
+  id: string;
+  tenantId: string;
+  slug: string;
+  providerType: OidcProviderType;
+  displayName: string;
+  issuerUrl: string;
+  authorizationEndpoint?: string;
+  tokenEndpoint?: string;
+  userinfoEndpoint?: string;
+  jwksUri?: string;
+  clientId: string;
+  hasClientSecret: boolean;
+  redirectUri: string;
+  scopes: string;
+  usePkce: boolean;
+  autoProvision: boolean;
+  allowedDomains: string[];
+  claimMapping: Record<string, string>;
+  roleMapping: Record<string, string>;
+  extraAuthParams: Record<string, string>;
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FederatedIdentityDto {
+  id: string;
+  tenantId: string;
+  userId: string;
+  providerId: string;
+  providerSlug: string;
+  subject: string;
+  email?: string;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OidcAuthInitiationDto {
+  authorizationUrl: string;
+  state: string;
+  provider: string;
+  tenantId: string;
+  expiresAt: string;
 }
 
 export interface UserDto {
   id: string;
+  tenantId?: string;
   email: string;
   name: string;
   role: string;
+  authMethod?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -48,6 +157,14 @@ export interface AuthTokensDto {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  tokenType?: 'Bearer';
+  tenantId?: string;
+  tenantSlug?: string;
+  authMethod?: string;
+  provider?: string;
+  user?: UserDto;
+  isNewUser?: boolean;
+  redirectUrl?: string;
 }
 
 export interface OrderDto {

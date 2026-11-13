@@ -31,7 +31,7 @@ async function bootstrap() {
     logger.info(`📊 Prometheus metrics available at http://0.0.0.0:${port}/metrics`);
   });
 
-  const grpcServer = startAuditGrpcServer(recordUseCase, queryUseCase, grpcPort);
+  const grpcServer = startAuditGrpcServer(recordUseCase, queryUseCase, grpcPort, app);
 
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}. Shutting down audit-service...`);

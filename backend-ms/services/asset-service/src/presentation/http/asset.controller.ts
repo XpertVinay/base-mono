@@ -31,7 +31,8 @@ export class AssetController {
       }
 
       const validated = createAssetSchema.parse(req.body);
-      const result = await this.createUseCase.execute({ ...validated, ownerId });
+      const tenantId = req.tenant?.tenantId || req.user?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+      const result = await this.createUseCase.execute({ ...validated, ownerId, tenantId });
 
       ApiResponse.success(res, {
         req,
@@ -57,7 +58,8 @@ export class AssetController {
         return;
       }
 
-      const result = await this.listQuery.execute({ ownerId });
+      const tenantId = req.tenant?.tenantId || req.user?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+      const result = await this.listQuery.execute({ ownerId, tenantId });
       const assets = result.getValue();
 
       ApiResponse.success(res, {

@@ -19,7 +19,7 @@ async function bootstrap() {
     logger.info(`🚀 inventory-service HTTP running at http://0.0.0.0:${port}`);
   });
 
-  const grpcServer = startInventoryGrpcServer(repo, grpcPort);
+  const grpcServer = startInventoryGrpcServer(repo, grpcPort, app);
 
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}. Shutting down inventory-service...`);

@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresSchedulerRepository } from './infrastructure/persistence/postgres-scheduler.repository.js';
@@ -15,7 +16,12 @@ import { SchedulerController } from './presentation/http/scheduler.controller.js
 import { createSchedulerRouter } from './presentation/http/scheduler.routes.js';
 import { logger } from './shared/infrastructure/logger.js';
 
-export function createApp(): Express {
+export function createApp(): {
+  app: Express;
+  listQuery: ListJobsQuery;
+  createUseCase: CreateJobUseCase;
+  triggerUseCase: TriggerJobUseCase;
+} {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -24,6 +30,7 @@ export function createApp(): Express {
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresSchedulerRepository();
@@ -48,5 +55,5 @@ export function createApp(): Express {
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return app;
+  return { app, listQuery, createUseCase, triggerUseCase };
 }

@@ -20,6 +20,7 @@ export interface InitiatePaymentInput {
   amount: number;
   currency?: string;
   paymentMethod?: string;
+  tenantId?: string;
 }
 
 export class InitiatePaymentUseCase implements UseCase<InitiatePaymentInput, TransactionDto> {
@@ -36,11 +37,12 @@ export class InitiatePaymentUseCase implements UseCase<InitiatePaymentInput, Tra
   }
 
   async execute(input: InitiatePaymentInput): Promise<Result<TransactionDto>> {
-    // Dynamically retrieve active payment gateway via gRPC from config-service!
+    const tenantId = input.tenantId || 'default';
     const activeGatewayName = (await this.configClient.getActiveGateway()).toUpperCase();
     const adapter = this.adapters.get(activeGatewayName) || this.adapters.get('STRIPE')!;
 
     const transaction = Transaction.create({
+      tenantId,
       referenceId: input.referenceId,
       userId: input.userId,
       type: 'PAYMENT',
@@ -89,14 +91,19 @@ export interface CompletePaymentInput {
   providerTxnId?: string;
   success: boolean;
   failureReason?: string;
+  tenantId?: string;
 }
 
 export class CompletePaymentUseCase implements UseCase<CompletePaymentInput, TransactionDto> {
   constructor(private readonly repo: ITransactionRepository) {}
 
   async execute(input: CompletePaymentInput): Promise<Result<TransactionDto>> {
-    const txn = await this.repo.findById(input.transactionId);
+    const txn = await this.repo.findById(input.transactionId, input.tenantId);
     if (!txn) return Result.fail('Transaction not found');
+
+    if (input.tenantId && txn.tenantId !== input.tenantId) {
+      return Result.fail('Forbidden: Tenant mismatch');
+    }
 
     if (input.success) {
       txn.markSuccess(input.providerTxnId);
@@ -106,7 +113,7 @@ export class CompletePaymentUseCase implements UseCase<CompletePaymentInput, Tra
 
     await this.repo.update(txn);
 
-    // Publish RabbitMQ asynchronous integration event
+    // Publish RabbitMQ asynchronous integration event with tenant context
     await rabbitmq.publish('transactions.transaction_completed', {
       id: crypto.randomUUID(),
       eventName: 'transactions.transaction_completed',
@@ -114,13 +121,15 @@ export class CompletePaymentUseCase implements UseCase<CompletePaymentInput, Tra
       occurredAt: new Date().toISOString(),
       payload: {
         transactionId: txn.id,
+        tenantId: txn.tenantId,
         referenceId: txn.referenceId,
         userId: txn.userId,
         amount: txn.amount,
         currency: txn.currency,
         status: txn.status
       },
-      version: 1
+      version: 1,
+      tenantId: txn.tenantId
     });
 
     return Result.ok({
@@ -143,12 +152,23 @@ export class CompletePaymentUseCase implements UseCase<CompletePaymentInput, Tra
   }
 }
 
-export class GetTransactionByIdQuery implements UseCase<{ id: string }, TransactionDto> {
+export class GetTransactionByIdQuery implements UseCase<{ id: string; userId: string; role: string; tenantId?: string }, TransactionDto> {
   constructor(private readonly repo: ITransactionRepository) {}
 
-  async execute(input: { id: string }): Promise<Result<TransactionDto>> {
-    const txn = await this.repo.findById(input.id);
+  async execute(input: { id: string; userId: string; role: string; tenantId?: string }): Promise<Result<TransactionDto>> {
+    const txn = await this.repo.findById(input.id, input.tenantId);
     if (!txn) return Result.fail('Transaction not found');
+
+    // Strict Tenant Isolation: Block cross-tenant access unless platform admin
+    if (input.tenantId && txn.tenantId !== input.tenantId && input.role !== 'ADMIN') {
+      return Result.fail('Forbidden: Tenant mismatch');
+    }
+
+    // Strict Object-Level Authorization (IDOR / BOLA Prevention):
+    // Non-admin users can only view their own transactions!
+    if (txn.userId !== input.userId && input.role !== 'ADMIN') {
+      return Result.fail('Forbidden: You do not own this transaction');
+    }
 
     return Result.ok({
       id: txn.id,

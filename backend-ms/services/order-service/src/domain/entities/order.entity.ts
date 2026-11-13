@@ -13,6 +13,7 @@ export interface OrderItem {
 }
 
 export interface OrderProps {
+  tenantId?: string;
   userId: string;
   status: OrderStatus;
   items: OrderItem[];
@@ -29,7 +30,8 @@ export class OrderCreatedDomainEvent implements DomainEvent {
     public readonly userId: string,
     public readonly totalAmount: number,
     public readonly currency: string,
-    public readonly items: OrderItem[]
+    public readonly items: OrderItem[],
+    public readonly tenantId: string = 'default'
   ) {}
   getAggregateId(): string { return this.orderId; }
 }
@@ -43,7 +45,8 @@ export class Order extends AggregateRoot<OrderProps> {
     userId: string,
     items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number }>,
     currency: string = 'USD',
-    id?: string
+    id?: string,
+    tenantId: string = 'default'
   ): Order {
     if (!items || items.length === 0) {
       throw new Error('Order must contain at least one item');
@@ -63,6 +66,7 @@ export class Order extends AggregateRoot<OrderProps> {
 
     const order = new Order(
       {
+        tenantId,
         userId,
         status: 'PENDING',
         items: mappedItems,
@@ -75,7 +79,7 @@ export class Order extends AggregateRoot<OrderProps> {
     );
 
     order.addDomainEvent(
-      new OrderCreatedDomainEvent(order.id, userId, totalAmount, currency, mappedItems)
+      new OrderCreatedDomainEvent(order.id, userId, totalAmount, currency, mappedItems, tenantId)
     );
 
     return order;
@@ -85,6 +89,7 @@ export class Order extends AggregateRoot<OrderProps> {
     return new Order(props, id);
   }
 
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get userId(): string { return this.props.userId; }
   get status(): OrderStatus { return this.props.status; }
   get items(): OrderItem[] { return this.props.items; }

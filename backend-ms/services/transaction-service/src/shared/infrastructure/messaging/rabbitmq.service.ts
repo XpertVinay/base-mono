@@ -8,6 +8,7 @@ export interface DomainIntegrationEvent<T = any> {
   occurredAt: string;
   payload: T;
   version: number;
+  tenantId?: string;
 }
 
 export type EventHandler<T = any> = (event: DomainIntegrationEvent<T>) => Promise<void>;
@@ -30,6 +31,7 @@ export class RabbitMQService {
   }
 
   public async connect(): Promise<void> {
+    if (process.env.RABBITMQ_ENABLED === 'false') return;
     if (this.connection && this.channel) return;
     if (this.isConnecting) return;
 
@@ -54,7 +56,8 @@ export class RabbitMQService {
       logger.info('RabbitMQ connected successfully');
     } catch (err) {
       logger.error('Failed to connect to RabbitMQ broker', err);
-      setTimeout(() => this.connect(), 5000);
+      const timer = setTimeout(() => this.connect(), 5000);
+      timer.unref();
     } finally {
       this.isConnecting = false;
     }
@@ -63,7 +66,8 @@ export class RabbitMQService {
   private reconnect(): void {
     this.connection = null;
     this.channel = null;
-    setTimeout(() => this.connect(), 5000);
+    const timer = setTimeout(() => this.connect(), 5000);
+    timer.unref();
   }
 
   public async publish<T>(routingKey: string, event: DomainIntegrationEvent<T>): Promise<void> {
@@ -81,12 +85,14 @@ export class RabbitMQService {
         persistent: true,
         contentType: 'application/json',
         messageId: event.id,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        headers: event.tenantId ? { 'x-tenant-id': event.tenantId } : undefined
       });
 
       logger.info(`Published event to RabbitMQ: ${routingKey}`, {
         eventId: event.id,
-        aggregateId: event.aggregateId
+        aggregateId: event.aggregateId,
+        tenantId: event.tenantId
       });
     } catch (err) {
       logger.error(`Failed to publish event ${routingKey}`, err);
@@ -123,9 +129,14 @@ export class RabbitMQService {
           if (!msg) return;
           try {
             const event: DomainIntegrationEvent<T> = JSON.parse(msg.content.toString());
+            const headerTenantId = msg.properties?.headers?.['x-tenant-id'];
+            if (!event.tenantId && headerTenantId) {
+              event.tenantId = String(headerTenantId);
+            }
             logger.info(`Received event ${event.eventName} on queue ${serviceQueueName}`, {
               eventId: event.id,
-              aggregateId: event.aggregateId
+              aggregateId: event.aggregateId,
+              tenantId: event.tenantId
             });
             await handler(event);
             this.channel?.ack(msg);

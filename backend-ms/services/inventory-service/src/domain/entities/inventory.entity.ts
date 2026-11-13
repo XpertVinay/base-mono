@@ -1,6 +1,7 @@
 import { Entity } from '../../shared/domain/entity.js';
 
 export interface InventoryProps {
+  tenantId?: string;
   sku: string;
   availableQuantity: number;
   reservedQuantity: number;
@@ -17,6 +18,7 @@ export class InventoryItem extends Entity<InventoryProps> {
     return new InventoryItem(
       {
         ...props,
+        tenantId: props.tenantId || 'default',
         updatedAt: props.updatedAt || new Date()
       },
       productId
@@ -24,6 +26,7 @@ export class InventoryItem extends Entity<InventoryProps> {
   }
 
   get productId(): string { return this._id; }
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get sku(): string { return this.props.sku; }
   get availableQuantity(): number { return this.props.availableQuantity; }
   get reservedQuantity(): number { return this.props.reservedQuantity; }

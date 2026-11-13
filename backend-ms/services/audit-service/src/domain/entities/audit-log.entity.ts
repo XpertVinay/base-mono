@@ -3,6 +3,7 @@ import { Entity } from '../../shared/domain/entity.js';
 export type AuditSeverity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
 
 export interface AuditLogProps {
+  tenantId?: string;
   actorId?: string;
   actorEmail?: string;
   action: string;
@@ -27,6 +28,7 @@ export class AuditLog extends Entity<AuditLogProps> {
     return new AuditLog(
       {
         ...props,
+        tenantId: props.tenantId || 'default',
         createdAt: new Date()
       },
       id
@@ -37,6 +39,7 @@ export class AuditLog extends Entity<AuditLogProps> {
     return new AuditLog(props, id);
   }
 
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get actorId(): string | undefined { return this.props.actorId; }
   get actorEmail(): string | undefined { return this.props.actorEmail; }
   get action(): string { return this.props.action; }

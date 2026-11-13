@@ -7,13 +7,13 @@ import { logger } from '../../shared/infrastructure/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function runMigrations() {
+export async function applyIamMigrations(): Promise<void> {
   logger.info('Starting database migrations for iam-service...');
   const migrationsDir = path.resolve(__dirname, '../../../migrations');
 
   if (!fs.existsSync(migrationsDir)) {
     logger.info('No migrations directory found, skipping.');
-    process.exit(0);
+    return;
   }
 
   const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
@@ -22,20 +22,19 @@ async function runMigrations() {
     const filePath = path.join(migrationsDir, file);
     const sql = fs.readFileSync(filePath, 'utf8');
     logger.info(`Applying migration: ${file}`);
-    try {
-      await dbPool.query(sql);
-      logger.info(`Successfully applied: ${file}`);
-    } catch (err) {
-      logger.error(`Failed to apply migration ${file}`, err);
-      process.exit(1);
-    }
+    await dbPool.query(sql);
+    logger.info(`Successfully applied: ${file}`);
   }
 
   logger.info('Migrations completed cleanly.');
-  await dbPool.close();
 }
 
-runMigrations().catch(err => {
-  logger.error('Fatal migration error', err);
-  process.exit(1);
-});
+const isCliEntry = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
+if (isCliEntry) {
+  applyIamMigrations()
+    .then(() => dbPool.close())
+    .catch(err => {
+      logger.error('Fatal migration error', err);
+      process.exit(1);
+    });
+}

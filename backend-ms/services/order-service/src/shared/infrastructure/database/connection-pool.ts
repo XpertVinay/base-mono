@@ -51,6 +51,30 @@ export class DatabasePool {
     }
   }
 
+  /**
+   * Executes database work within a transaction where PostgreSQL's session setting
+   * `app.current_tenant_id` is scoped via SET LOCAL, enabling seamless Row-Level Security (RLS)
+   * or tenant-aware SQL policies across microservices.
+   */
+  public async withTenantContext<T>(
+    tenantId: string,
+    fn: (client: pg.PoolClient) => Promise<T>
+  ): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   public async close(): Promise<void> {
     await this.pool.end();
   }

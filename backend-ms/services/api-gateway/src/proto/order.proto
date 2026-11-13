@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package order;
+
+service OrderService {
+  rpc CreateOrder (CreateOrderRequest) returns (OrderResponse);
+  rpc GetOrderById (GetOrderByIdRequest) returns (OrderResponse);
+  rpc ListMyOrders (ListMyOrdersRequest) returns (ListOrdersResponse);
+  rpc CancelOrder (CancelOrderRequest) returns (OrderResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message OrderItemData {
+  string productId = 1;
+  string productName = 2;
+  int32 quantity = 3;
+  double unitPrice = 4;
+}
+
+message OrderData {
+  string id = 1;
+  string userId = 2;
+  string status = 3;
+  repeated OrderItemData items = 4;
+  double totalAmount = 5;
+  string currency = 6;
+  string createdAt = 7;
+  string updatedAt = 8;
+}
+
+message CreateOrderRequest {
+  string userId = 1;
+  repeated OrderItemData items = 2;
+  string currency = 3;
+}
+
+message GetOrderByIdRequest {
+  string orderId = 1;
+  string userId = 2;
+  string role = 3;
+}
+
+message CancelOrderRequest {
+  string orderId = 1;
+  string userId = 2;
+  string role = 3;
+}
+
+message OrderResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  OrderData data = 5;
+}
+
+message ListMyOrdersRequest {
+  string userId = 1;
+}
+
+message ListOrdersData {
+  repeated OrderData items = 1;
+}
+
+message ListOrdersResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListOrdersData data = 5;
+}

@@ -7,6 +7,7 @@ export function createInventoryRouter(controller: InventoryController): Router {
 
   router.get('/:productId', controller.getStock);
   router.post('/reserve', requireAuth, controller.reserve);
+  router.post('/release', requireAuth, controller.release);
   router.post('/stock', requireAuth, requireRole(['ADMIN']), controller.addStock);
 
   return router;

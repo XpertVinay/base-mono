@@ -1,6 +1,7 @@
 import { Entity } from '../../shared/domain/entity.js';
 
 export interface AssetProps {
+  tenantId?: string;
   name: string;
   mimeType: string;
   sizeBytes: number;
@@ -19,6 +20,7 @@ export class Asset extends Entity<AssetProps> {
     return new Asset(
       {
         ...props,
+        tenantId: props.tenantId || 'default',
         createdAt: props.createdAt || new Date(),
         updatedAt: props.updatedAt || new Date()
       },
@@ -26,6 +28,7 @@ export class Asset extends Entity<AssetProps> {
     );
   }
 
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get name(): string { return this.props.name; }
   get mimeType(): string { return this.props.mimeType; }
   get sizeBytes(): number { return this.props.sizeBytes; }

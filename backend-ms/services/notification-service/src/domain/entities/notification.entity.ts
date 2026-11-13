@@ -4,6 +4,7 @@ export type NotificationChannel = 'EMAIL' | 'SMS' | 'PUSH' | 'WEBHOOK';
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
 
 export interface NotificationProps {
+  tenantId?: string;
   recipient: string;
   channel: NotificationChannel;
   subject: string;
@@ -25,6 +26,7 @@ export class Notification extends Entity<NotificationProps> {
     return new Notification(
       {
         ...props,
+        tenantId: props.tenantId || 'default',
         status: 'PENDING',
         createdAt: new Date()
       },
@@ -32,6 +34,7 @@ export class Notification extends Entity<NotificationProps> {
     );
   }
 
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get recipient(): string { return this.props.recipient; }
   get channel(): NotificationChannel { return this.props.channel; }
   get subject(): string { return this.props.subject; }

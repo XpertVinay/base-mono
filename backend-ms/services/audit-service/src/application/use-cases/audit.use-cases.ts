@@ -5,6 +5,7 @@ import { AuditLog, AuditSeverity } from '../../domain/entities/audit-log.entity.
 import { monitoringManager } from '../../infrastructure/monitoring/monitoring.manager.js';
 
 export interface RecordAuditInput {
+  tenantId?: string;
   actorId?: string;
   actorEmail?: string;
   action: string;
@@ -18,6 +19,7 @@ export interface RecordAuditInput {
 
 export interface AuditDto {
   id: string;
+  tenantId?: string;
   actorId?: string;
   actorEmail?: string;
   action: string;
@@ -35,6 +37,7 @@ export class RecordAuditLogUseCase implements UseCase<RecordAuditInput, AuditDto
 
   async execute(input: RecordAuditInput): Promise<Result<AuditDto>> {
     const log = AuditLog.create({
+      tenantId: input.tenantId || 'default',
       actorId: input.actorId,
       actorEmail: input.actorEmail,
       action: input.action,
@@ -46,13 +49,17 @@ export class RecordAuditLogUseCase implements UseCase<RecordAuditInput, AuditDto
       correlationId: input.correlationId
     });
 
-    await this.repo.save(log);
-
-    // Broadcast across enabled monitoring adapters (CloudWatch, Prometheus, Grafana)
-    await monitoringManager.broadcastAuditLog(log);
+    try {
+      await this.repo.save(log);
+    } finally {
+      // Broadcast across enabled monitoring adapters (CloudWatch, Prometheus, Grafana)
+      // even if DB persistence fails (e.g., under DDoS saturation or temporary DB outage)
+      await monitoringManager.broadcastAuditLog(log);
+    }
 
     return Result.ok({
       id: log.id,
+      tenantId: log.tenantId,
       actorId: log.actorId,
       actorEmail: log.actorEmail,
       action: log.action,
@@ -73,18 +80,19 @@ export class QueryAuditLogsQuery implements UseCase<AuditQueryFilter, AuditDto[]
   async execute(filter: AuditQueryFilter): Promise<Result<AuditDto[]>> {
     const logs = await this.repo.query(filter);
     return Result.ok(
-      logs.map(l => ({
-        id: l.id,
-        actorId: l.actorId,
-        actorEmail: l.actorEmail,
-        action: l.action,
-        resource: l.resource,
-        resourceId: l.resourceId,
-        severity: l.severity,
-        details: l.details,
-        ipAddress: l.ipAddress,
-        correlationId: l.correlationId,
-        createdAt: l.createdAt.toISOString()
+      logs.map(log => ({
+        id: log.id,
+        tenantId: log.tenantId,
+        actorId: log.actorId,
+        actorEmail: log.actorEmail,
+        action: log.action,
+        resource: log.resource,
+        resourceId: log.resourceId,
+        severity: log.severity,
+        details: log.details,
+        ipAddress: log.ipAddress,
+        correlationId: log.correlationId,
+        createdAt: log.createdAt.toISOString()
       }))
     );
   }

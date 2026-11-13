@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresAuditRepository } from './infrastructure/persistence/postgres-audit.repository.js';
@@ -23,6 +24,7 @@ export function createApp(): {
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresAuditRepository();
@@ -30,7 +32,7 @@ export function createApp(): {
   const queryUseCase = new QueryAuditLogsQuery(repo);
 
   const controller = new AuditController(recordUseCase, queryUseCase);
-  const router = createAuditRouter(controller);
+  const router = createAuditRouter(controller, recordUseCase);
 
   // Health and Metrics endpoints
   app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'audit-service', timestamp: new Date().toISOString() }));

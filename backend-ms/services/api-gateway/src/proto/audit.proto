@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package audit;
+
+service AuditService {
+  rpc RecordAuditLog (AuditLogRequest) returns (AuditLogResponse);
+  rpc QueryAuditLogs (QueryAuditRequest) returns (QueryAuditResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message AuditLogRequest {
+  string actorId = 1;
+  string actorEmail = 2;
+  string action = 3;
+  string resource = 4;
+  string resourceId = 5;
+  string severity = 6;
+  string detailsJson = 7;
+  string ipAddress = 8;
+  string correlationId = 9;
+}
+
+message AuditLogData {
+  string logId = 1;
+  string timestamp = 2;
+}
+
+message AuditLogResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  AuditLogData data = 5;
+
+  // Direct backwards-compatibility fields
+  bool success = 6;
+  string logId = 7;
+  string timestamp = 8;
+}
+
+message QueryAuditRequest {
+  string actorId = 1;
+  string resource = 2;
+  string action = 3;
+  int32 limit = 4;
+}
+
+message AuditItem {
+  string id = 1;
+  string actorId = 2;
+  string actorEmail = 3;
+  string action = 4;
+  string resource = 5;
+  string resourceId = 6;
+  string severity = 7;
+  string detailsJson = 8;
+  string ipAddress = 9;
+  string correlationId = 10;
+  string timestamp = 11;
+}
+
+message QueryAuditData {
+  repeated AuditItem items = 1;
+}
+
+message QueryAuditResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  QueryAuditData data = 5;
+
+  // Direct backwards-compatibility field
+  repeated AuditItem items = 6;
+}

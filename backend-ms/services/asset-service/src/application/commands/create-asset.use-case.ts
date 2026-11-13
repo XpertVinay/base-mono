@@ -5,6 +5,7 @@ import { Asset } from '../../domain/entities/asset.entity.js';
 import { AssetDto } from '../../shared/contracts/index.js';
 
 export interface CreateAssetInput {
+  tenantId?: string;
   name: string;
   mimeType: string;
   sizeBytes: number;
@@ -17,6 +18,7 @@ export class CreateAssetUseCase implements UseCase<CreateAssetInput, AssetDto> {
 
   async execute(input: CreateAssetInput): Promise<Result<AssetDto>> {
     const asset = Asset.create({
+      tenantId: input.tenantId,
       name: input.name,
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
@@ -28,6 +30,7 @@ export class CreateAssetUseCase implements UseCase<CreateAssetInput, AssetDto> {
 
     return Result.ok({
       id: asset.id,
+      tenantId: asset.tenantId,
       name: asset.name,
       mimeType: asset.mimeType,
       sizeBytes: asset.sizeBytes,

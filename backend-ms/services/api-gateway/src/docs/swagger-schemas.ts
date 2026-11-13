@@ -17,7 +17,8 @@ export const commonSchemas = {
       debug: {
         type: 'object',
         nullable: true,
-        description: 'Debugging diagnostics for local & development environments',
+        additionalProperties: true,
+        description: 'Debugging diagnostics for local & development environments (omitted in production)',
         properties: {
           service: { type: 'string', example: 'iam-service' },
           env: { type: 'string', example: 'development' },
@@ -50,6 +51,7 @@ export const commonSchemas = {
 
   ErrorDetail: {
     type: 'object',
+    additionalProperties: true,
     properties: {
       code: { type: 'string', example: 'VALIDATION_ERROR' },
       message: { type: 'string', example: 'Password must contain at least 8 characters' },
@@ -72,9 +74,8 @@ export const commonSchemas = {
         example: 'Operation completed successfully'
       },
       data: {
-        type: 'object',
         nullable: true,
-        description: 'Response payload data'
+        description: 'Response payload data (object, array, primitive, or null)'
       },
       errors: {
         type: 'array',
@@ -103,7 +104,8 @@ export const commonSchemas = {
         example: 'Invalid request input or resource not found'
       },
       data: {
-        type: 'null',
+        nullable: true,
+        description: 'Always null on error responses',
         example: null
       },
       errors: {
@@ -121,6 +123,33 @@ export const commonSchemas = {
       },
       meta_data: {
         $ref: '#/components/schemas/MetaData'
+      }
+    }
+  },
+
+  MiddlewareErrorResponse: {
+    type: 'object',
+    required: ['success', 'error'],
+    description: 'Error payload returned directly by authentication or rate-limiting middleware',
+    properties: {
+      success: {
+        type: 'boolean',
+        example: false
+      },
+      error: {
+        type: 'object',
+        required: ['code', 'message'],
+        properties: {
+          code: {
+            type: 'string',
+            enum: ['UNAUTHORIZED', 'INVALID_TOKEN', 'FORBIDDEN', 'RATE_LIMIT_EXCEEDED'],
+            example: 'UNAUTHORIZED'
+          },
+          message: {
+            type: 'string',
+            example: 'Missing or malformed Authorization header'
+          }
+        }
       }
     }
   }

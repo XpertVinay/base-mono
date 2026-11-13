@@ -21,9 +21,10 @@ Each microservice is **100% self-contained** and independently deployable. There
                                   │  - OWASP Security         │
                                   │  - JWT Verification       │
                                   │  - Correlation Tracing    │
-                                  │  - Health Aggregator      │
+                                  │  - gRPC Upstream Dispatch │
+                                  │  - gRPC Health Aggregator │
                                   └─────────────┬─────────────┘
-                                                │ Reverse Proxy
+                                                │ gRPC over HTTP/2 (:50051 - :50061)
          ┌──────────────┬──────────────┬────────┼─────────────┬──────────────┬──────────────┬──────────────┐
          ▼              ▼              ▼        ▼             ▼              ▼              ▼              ▼
    ┌───────────┐  ┌───────────┐  ┌───────────┐     ┌─────────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
@@ -58,16 +59,16 @@ Each microservice is **100% self-contained** and independently deployable. There
 
 | Service | HTTP Port | gRPC Port | Primary Responsibilities | Cross-Service Communication |
 |---|---|---|---|---|
-| **api-gateway** | `4000` | - | Single entry point, reverse proxy, OWASP headers, rate limiting, token forwarding | Routes to all 10 downstreams |
+| **api-gateway** | `4000` | - | Single entry point, gRPC upstream dispatch, OWASP headers, rate limiting, token forwarding | Dispatches to all 10 downstreams via gRPC over HTTP/2 |
 | **iam-service** | `4001` | `50051` | Identity, JWT issue & validation, RBAC | Publishes `iam.user_registered` to RabbitMQ; Serves `IAMService` gRPC |
-| **asset-service** | `4002` | - | Media assets, files, binary storage paths | Independent persistence |
-| **config-service** | `4003` | `50053` | Dynamic configuration, active payment gateway toggles | Serves `ConfigService` gRPC to `transaction-service` |
-| **notification-service** | `4004` | - | Email, SMS, Webhook notifications | Consumes `iam.user_registered`, `orders.order_created`, `transactions.transaction_completed` via RabbitMQ |
-| **scheduler-service** | `4005` | - | Cron tasks, periodic background executions | Standalone background executor |
-| **order-service** | `4006` | - | Order lifecycle, basket totals, checkout status | Synchronous gRPC client to `inventory-service`; Publishes `orders.order_created`; Consumes `transactions.transaction_completed` |
-| **transaction-service** | `4007` | - | Multi-provider payments (Stripe, PayPal, Razorpay, Mock), hosted redirects | Synchronous gRPC client to `config-service` for gateway resolution; Publishes `transactions.transaction_completed` |
-| **search-service** | `4008` | - | Inverted search index, full-text queries | Consumes `orders.order_created` & `iam.user_registered` projections from RabbitMQ |
-| **inventory-service** | `4009` | `50059` | Stock quantities, SKUs, reservation transactions | Serves `InventoryService` gRPC (`CheckStock`, `ReserveStock`) |
+| **asset-service** | `4002` | `50052` | Media assets, files, binary storage paths | Serves `AssetService` gRPC to API Gateway |
+| **config-service** | `4003` | `50053` | Dynamic configuration, active payment gateway toggles | Serves `ConfigService` gRPC to API Gateway & `transaction-service` |
+| **notification-service** | `4004` | `50054` | Email, SMS, Webhook notifications | Consumes `iam.user_registered`, `orders.order_created`, `transactions.transaction_completed` via RabbitMQ; Serves `NotificationService` gRPC |
+| **scheduler-service** | `4005` | `50055` | Cron tasks, periodic background executions | Serves `SchedulerService` gRPC to API Gateway |
+| **order-service** | `4006` | `50056` | Order lifecycle, basket totals, checkout status | Serves `OrderService` gRPC; Synchronous gRPC client to `inventory-service`; Publishes `orders.order_created`; Consumes `transactions.transaction_completed` |
+| **transaction-service** | `4007` | `50057` | Multi-provider payments (Stripe, PayPal, Razorpay, Mock), hosted redirects | Serves `TransactionService` gRPC; Synchronous gRPC client to `config-service` for gateway resolution; Publishes `transactions.transaction_completed` |
+| **search-service** | `4008` | `50058` | Inverted search index, full-text queries | Serves `SearchService` gRPC; Consumes `orders.order_created` & `iam.user_registered` projections from RabbitMQ |
+| **inventory-service** | `4009` | `50059` | Stock quantities, SKUs, reservation transactions | Serves `InventoryService` gRPC (`CheckStock`, `ReserveStock`, `GetStock`, `AddStock`) |
 | **audit-service** | `4011` | `50061` | Immutable audit logs, telemetry, monitoring adapters (AWS CloudWatch, Prometheus, Grafana) | RabbitMQ consumer for all domain events; Serves `AuditService` gRPC |
 
 ---
@@ -81,8 +82,8 @@ The **Audit Service** provides unified compliance logging and operational observ
    - Dispatches structured audit events and custom metrics to AWS CloudWatch Logs & Metrics.
    - Configurable log group (`AWS_CLOUDWATCH_LOG_GROUP`) and stream (`AWS_CLOUDWATCH_LOG_STREAM`).
 2. **Prometheus Metrics Adapter** (`ENABLE_PROMETHEUS=true`):
-   - Real-time metrics collection exposed at `http://localhost:4011/metrics` (or via Gateway `/metrics`).
-   - Tracks metrics including `audit_events_total`, request counts, latencies, and operational counters.
+   - Real-time metrics collection exposed at `http://localhost:4011/metrics` (and JSON summary via Gateway `/api/v1/audit/metrics/summary`).
+   - Tracks metrics including `audit_events_total`, `audit_errors_total`, `remediation_actions_total`, and `customer_impact_risk_score`.
 3. **Grafana Adapter & Dashboard** (`ENABLE_GRAFANA=true`):
    - Exposes formatted annotations at `/api/v1/audit/grafana/annotations` marking system events on Grafana dashboards.
    - Compatible with standard Prometheus and Loki data sources.
@@ -103,8 +104,38 @@ Protocol buffer contracts (`.proto`) are bundled natively inside each service re
 - **RPC `GetActivePaymentGateway`**: Enables `transaction-service` to dynamically fetch whether Stripe, PayPal, Razorpay, or Mock is active in real time with sub-millisecond overhead.
 
 ### 2. IAM Service (`iam.proto` on port `50051`)
-- **RPC `VerifyToken`**: Validates JWT tokens and returns user identity attributes.
-- **RPC `GetUserById`**: Returns user profile and authorization roles.
+- **RPC `VerifyToken`**: Validates JWT tokens (including `tenantId`, `tenantSlug`, `authMethod`, `provider`, and optional `expectedTenantId` enforcement) and returns user + tenant identity attributes.
+- **RPC `GetUserById`**: Returns user profile, tenant ID, auth method, and authorization roles.
+- **RPC `ResolveTenant`**: Resolves tenant metadata and configuration (`allowLocalLogin`, `allowFederatedLogin`, `autoProvisionUsers`, `allowedEmailDomains`) by ID or slug.
+
+---
+
+## 🔐 OIDC Federated Login & Configurable Multi-Tenancy
+
+`iam-service` and the shared microservice kernel support **OpenID Connect (OIDC) federated login** and **configurable multi-tenancy**:
+
+### Configurable Multi-Tenancy Flags
+| Variable | Default | Description |
+|---|---|---|
+| `MULTI_TENANCY_ENABLED` | `true` | Enable/disable tenant propagation and enforcement across API Gateway and all microservices |
+| `MULTI_TENANCY_MODE` | `optional` | `disabled` (always `default`), `optional` (resolve from JWT/`x-tenant-id`/`x-tenant-slug`/query or fallback to `DEFAULT_TENANT_ID`), `strict` (require explicit tenant on `requireTenant()` routes) |
+| `DEFAULT_TENANT_ID` | `default` | Default tenant ID when mode is `optional` or `disabled` |
+| `TENANT_HEADER` | `x-tenant-id` | Header carrying tenant ID |
+| `TENANT_SLUG_HEADER` | `x-tenant-slug` | Header carrying tenant slug |
+| `TENANT_SUBDOMAIN_ENABLED` | `false` | Optional subdomain-based tenant slug resolution |
+| `OIDC_ENCRYPTION_KEY` | `JWT_SECRET` fallback | Key used for AES-256-GCM encryption of OIDC `client_secret` values at rest |
+
+### OIDC & Tenant Endpoints (`/api/v1/iam/...`)
+- **Tenants**: `GET /tenants/config`, `GET /tenants`, `POST /tenants`, `GET /tenants/:idOrSlug`, `PATCH /tenants/:idOrSlug`
+- **OIDC Discovery & Flow**: `GET /oidc/providers`, `GET /oidc/:provider/authorize` (PKCE S256 + state + nonce), `GET|POST /oidc/:provider/callback`, `POST /oidc/token-exchange`, `POST /refresh`
+- **Federated Identity Linking**: `POST /oidc/:provider/link`, `GET /federated-identities`, `DELETE /federated-identities/:id`
+- **Admin OIDC Config**: `GET /oidc/admin/supported-types`, `GET|POST /oidc/admin/providers`, `PATCH|DELETE /oidc/admin/providers/:id`, `POST /oidc/admin/providers/:id/test-discovery`
+
+### Extending Other Microservices
+1. **HTTP**: `tenantContextMiddleware()` is already mounted in every service's `src/app.ts` (`req.tenant` & `req.context.tenantId`). Add `requireTenant()` from `src/shared/presentation/tenant.middleware.ts` to any route requiring strict tenant enforcement.
+2. **PostgreSQL**: Use `dbPool.withTenantContext(req.tenant.tenantId, async (client) => ...)` from `src/shared/infrastructure/database/connection-pool.ts` to scope `app.current_tenant_id` via `SET LOCAL` for RLS or tenant-scoped queries.
+3. **RabbitMQ**: Events carry optional `tenantId` in `DomainIntegrationEvent` and `x-tenant-id` AMQP headers automatically.
+4. **Custom OIDC Providers**: Implement `IOidcProviderAdapter` and register it in `OidcProviderRegistry` (`services/iam-service/src/infrastructure/oidc/oidc-provider-registry.ts`). Built-in presets: `GENERIC_OIDC`, `GOOGLE`, `ENTRA_ID`, `OKTA`, `KEYCLOAK`, and `MOCK`.
 
 ### 3. Inventory Service (`inventory.proto` on port `50059`)
 - **RPC `CheckStock`**: Real-time stock availability check prior to order creation.
@@ -167,15 +198,15 @@ This will start:
 ```bash
 make health
 # or curl directly:
-curl http://localhost:4000/health/detailed
+curl http://localhost:4000/api/v1/health/detailed
 ```
 
 ### 3. 📚 Swagger API & gRPC Contract Documentation
 Interactive Swagger UI with a multi-specification dropdown selector is available directly via the API Gateway:
-- **Interactive Swagger UI**: [http://localhost:4000/api-docs](http://localhost:4000/api-docs) (aliases: `/docs`, `/swagger`)
-- **Combined Specification (REST + gRPC)**: [http://localhost:4000/api-docs/openapi.json](http://localhost:4000/api-docs/openapi.json)
-- **HTTP REST APIs Specification**: [http://localhost:4000/api-docs/rest.json](http://localhost:4000/api-docs/rest.json)
-- **gRPC Services Contract Specification**: [http://localhost:4000/api-docs/grpc.json](http://localhost:4000/api-docs/grpc.json)
+- **Interactive Swagger UI**: [http://localhost:4000/api-docs](http://localhost:4000/api-docs) (aliases: `/docs`, `/swagger`, `/api/docs`, `/api/v1/docs`)
+- **Combined Specification (REST + gRPC)**: [http://localhost:4000/api-docs/openapi.json](http://localhost:4000/api-docs/openapi.json) (aliases: `/api/v1/openapi.json`, `/api/openapi.json`)
+- **HTTP REST APIs Specification**: [http://localhost:4000/api-docs/rest.json](http://localhost:4000/api-docs/rest.json) (aliases: `/api/v1/rest.json`, `/api/rest.json`)
+- **gRPC Services Contract Specification**: [http://localhost:4000/api-docs/grpc.json](http://localhost:4000/api-docs/grpc.json) (aliases: `/api/v1/grpc.json`, `/api/grpc.json`)
 
 #### 📋 Unified Standard Response Envelope Format
 Both HTTP REST APIs and gRPC contracts return all payloads within the standardized response envelope:

@@ -19,7 +19,7 @@ async function bootstrap() {
     logger.info(`🚀 config-service HTTP running at http://0.0.0.0:${port}`);
   });
 
-  const grpcServer = startConfigGrpcServer(repo, grpcPort);
+  const grpcServer = startConfigGrpcServer(repo, grpcPort, app);
 
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}. Shutting down config-service...`);

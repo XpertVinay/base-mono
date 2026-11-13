@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { correlationIdMiddleware } from './shared/presentation/request-context.js';
+import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresAssetRepository } from './infrastructure/persistence/postgres-asset.repository.js';
@@ -11,7 +12,11 @@ import { ListAssetsQuery } from './application/queries/list-assets.query.js';
 import { AssetController } from './presentation/http/asset.controller.js';
 import { createAssetRouter } from './presentation/http/asset.routes.js';
 
-export function createApp(): Express {
+export function createApp(): {
+  app: Express;
+  createUseCase: CreateAssetUseCase;
+  listQuery: ListAssetsQuery;
+} {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -20,6 +25,7 @@ export function createApp(): Express {
   app.use(compression());
   app.use(express.json({ limit: '10mb' }));
   app.use(correlationIdMiddleware);
+  app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
   const repo = new PostgresAssetRepository();
@@ -37,5 +43,5 @@ export function createApp(): Express {
   app.use((req, _res, next) => next(new NotFoundError(`Route ${req.method} ${req.originalUrl}`)));
   app.use(errorHandlerMiddleware);
 
-  return app;
+  return { app, createUseCase, listQuery };
 }

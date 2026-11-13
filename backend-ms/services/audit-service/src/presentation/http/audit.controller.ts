@@ -16,7 +16,8 @@ const recordSchema = z.object({
   severity: z.enum(['INFO', 'WARN', 'ERROR', 'CRITICAL']).optional(),
   details: z.record(z.any()).optional(),
   ipAddress: z.string().optional(),
-  correlationId: z.string().optional()
+  correlationId: z.string().optional(),
+  tenantId: z.string().optional()
 });
 
 export class AuditController {
@@ -25,14 +26,20 @@ export class AuditController {
     private readonly queryLogsQuery: QueryAuditLogsQuery
   ) {}
 
+  private getTenantId(req: Request): string {
+    return req.tenant?.tenantId || req.user?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+  }
+
   record = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = recordSchema.parse(req.body);
       const correlationId = (req.header('x-correlation-id') || req.context?.correlationId) as string | undefined;
       const ipAddress = (req.ip || 'unknown') as string;
+      const tenantId = validated.tenantId || this.getTenantId(req);
 
       const result = await this.recordUseCase.execute({
         ...validated,
+        tenantId,
         correlationId: validated.correlationId || correlationId,
         ipAddress: validated.ipAddress || ipAddress
       });
@@ -56,7 +63,14 @@ export class AuditController {
       const severity = req.query.severity as string | undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
 
+      // Restrict query to the active tenant unless platform admin
+      const isPlatformAdmin = req.user?.role === 'ADMIN' && req.user?.tenantId === 'default';
+      const tenantId = isPlatformAdmin && req.query.tenantId
+        ? String(req.query.tenantId)
+        : this.getTenantId(req);
+
       const result = await this.queryLogsQuery.execute({
+        tenantId,
         actorId,
         resource,
         action,
@@ -101,7 +115,8 @@ export class AuditController {
 
   getAlerts = async (req: Request, res: Response): Promise<void> => {
     const summary = monitoringManager.prometheusAdapter.getMetricsSummary();
-    const alerts = [
+    const liveSecurityIncidents = monitoringManager.getSecurityIncidents();
+    const baselineAlerts = [
       {
         id: 'alt-001',
         title: 'Elevated Transaction Failures',
@@ -138,7 +153,7 @@ export class AuditController {
       req,
       statusCode: 200,
       message: 'Active monitoring alerts retrieved successfully',
-      data: alerts
+      data: [...liveSecurityIncidents, ...baselineAlerts]
     });
   };
 
@@ -161,9 +176,11 @@ export class AuditController {
 
       const body = remediationSchema.parse(req.body);
       monitoringManager.prometheusAdapter.recordRemediation(body.actionType, body.targetResource);
+      const tenantId = this.getTenantId(req);
 
       // Record an audit log for the remediation itself to maintain complete traceability
       await this.recordUseCase.execute({
+        tenantId,
         actorEmail: req.user?.email || 'operator@enterprise.internal',
         action: `REMEDIATION_${body.actionType}`,
         resource: body.targetResource,
@@ -208,4 +225,3 @@ export class AuditController {
     res.status(200).json(monitoringManager.grafanaAdapter.getAnnotations());
   };
 }
-

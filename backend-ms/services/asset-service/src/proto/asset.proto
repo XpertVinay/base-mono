@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package asset;
+
+service AssetService {
+  rpc CreateAsset (CreateAssetRequest) returns (CreateAssetResponse);
+  rpc ListMyAssets (ListMyAssetsRequest) returns (ListMyAssetsResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ErrorItem {
+  string code = 1;
+  string message = 2;
+  string field = 3;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+}
+
+message StandardMetaData {
+  string request_id = 1;
+  string timestamp = 2;
+  map<string, string> debug_data = 3;
+  PaginationMeta pagination = 4;
+  repeated string further_steps = 5;
+}
+
+message AssetData {
+  string id = 1;
+  string name = 2;
+  string mimeType = 3;
+  int64 sizeBytes = 4;
+  string storagePath = 5;
+  string ownerId = 6;
+  string createdAt = 7;
+  string updatedAt = 8;
+}
+
+message CreateAssetRequest {
+  string name = 1;
+  string mimeType = 2;
+  int64 sizeBytes = 3;
+  string storagePath = 4;
+  string ownerId = 5;
+}
+
+message CreateAssetResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  AssetData data = 5;
+}
+
+message ListMyAssetsRequest {
+  string ownerId = 1;
+}
+
+message ListMyAssetsData {
+  repeated AssetData items = 1;
+}
+
+message ListMyAssetsResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListMyAssetsData data = 5;
+}
+

@@ -4,6 +4,7 @@ dotenv.config();
 import { createApp } from './app.js';
 import { dbPool } from './shared/infrastructure/database/connection-pool.js';
 import { rabbitmq } from './shared/infrastructure/messaging/rabbitmq.service.js';
+import { startNotificationGrpcServer } from './grpc/notification.grpc-server.js';
 import { logger } from './shared/infrastructure/logger.js';
 
 import { NotificationEventSubscriber } from './presentation/events/notification-event.subscriber.js';
@@ -13,9 +14,10 @@ import { TransactionCompletedNotificationHandler } from './presentation/events/t
 
 async function bootstrap() {
   const port = parseInt(process.env.PORT || '4004', 10);
+  const grpcPort = parseInt(process.env.GRPC_PORT || '50054', 10);
   await rabbitmq.connect();
 
-  const { app, sendUseCase } = createApp();
+  const { app, sendUseCase, listQuery } = createApp();
 
   // SOLID Event Consumers: Each event is consumed independently via its dedicated handler & queue
   const eventSubscriber = new NotificationEventSubscriber(rabbitmq, [
@@ -29,9 +31,12 @@ async function bootstrap() {
     logger.info(`🚀 notification-service HTTP running at http://0.0.0.0:${port}`);
   });
 
+  const grpcServer = startNotificationGrpcServer(sendUseCase, listQuery, grpcPort, app);
+
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}. Shutting down notification-service...`);
     server.close(async () => {
+      grpcServer.forceShutdown();
       await rabbitmq.close();
       await dbPool.close();
       logger.info('notification-service shut down cleanly');

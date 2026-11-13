@@ -4,6 +4,7 @@ export type TransactionType = 'PAYMENT' | 'REFUND' | 'TRANSFER';
 export type TransactionStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 
 export interface TransactionProps {
+  tenantId?: string;
   referenceId: string;
   userId: string;
   type: TransactionType;
@@ -32,6 +33,7 @@ export class Transaction extends Entity<TransactionProps> {
     return new Transaction(
       {
         ...props,
+        tenantId: props.tenantId || 'default',
         status: 'PENDING',
         createdAt: new Date(),
         updatedAt: new Date()
@@ -44,6 +46,7 @@ export class Transaction extends Entity<TransactionProps> {
     return new Transaction(props, id);
   }
 
+  get tenantId(): string { return this.props.tenantId || 'default'; }
   get referenceId(): string { return this.props.referenceId; }
   get userId(): string { return this.props.userId; }
   get type(): TransactionType { return this.props.type; }
