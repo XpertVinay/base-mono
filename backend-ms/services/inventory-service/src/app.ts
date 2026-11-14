@@ -57,7 +57,29 @@ export function createApp(customRepo?: IInventoryRepository): { app: Express; re
   );
   const router = createInventoryRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'inventory-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'inventory-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/inventory/health',
+      '/api/inventory/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/inventory', router);
+  app.use('/api/backoffice/inventory', router);
+  app.use('/api/v1/backoffice/items', router);
+  app.use('/api/backoffice/items', router);
 
   app.use('/api/v1/inventory', router);
   app.use('/api/inventory', router);

@@ -16,6 +16,10 @@ const setConfigSchema = z.object({
   tenantId: z.string().optional()
 });
 
+const configParamSchema = z.object({
+  key: z.string().trim().min(1, 'Config key is required')
+});
+
 export class ConfigController {
   constructor(
     private readonly getQuery: GetConfigQuery,
@@ -63,7 +67,7 @@ export class ConfigController {
 
   getByKey = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const key = req.params.key as string;
+      const { key } = configParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
       const defaultValue = req.query.default as string | undefined;
       const decrypt = this.isAuthorizedToDecrypt(req);
@@ -93,7 +97,14 @@ export class ConfigController {
 
   set = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const validated = setConfigSchema.parse(req.body);
+      const paramKey = req.params.key !== undefined
+        ? configParamSchema.parse(req.params).key
+        : undefined;
+      const raw = {
+        ...req.body,
+        key: paramKey || req.body?.key
+      };
+      const validated = setConfigSchema.parse(raw);
       const tenantId = validated.tenantId || this.getTenantId(req);
       const result = await this.setUseCase.execute({ ...validated, tenantId });
 
@@ -110,7 +121,7 @@ export class ConfigController {
 
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const key = req.params.key as string;
+      const { key } = configParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
       const result = await this.deleteUseCase.execute({ key, tenantId });
 

@@ -587,4 +587,31 @@ test('Back-Office Portal IAM CRUD APIs', async (t) => {
     });
     assert.strictEqual(alias2.status, 200);
   });
+
+  await t.test('14. IAM Root Directory Discovery: GET /api/v1/iam returns 200 discovery metadata (D6 fix)', async () => {
+    const res = await makeHttpRequest(app, 'GET', '/api/v1/iam');
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.service, 'iam-service');
+    assert.ok(Array.isArray(res.body.endpoints));
+  });
+
+  await t.test('15. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/iam, /api/v1/backoffice/users, and /api/v1/backoffice/roles', async () => {
+    const iamUsers = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/iam/users', undefined, {
+      Authorization: `Bearer ${supportToken}`
+    });
+    assert.strictEqual(iamUsers.status, 200);
+    assert.strictEqual(iamUsers.body.status, true);
+
+    const directUsers = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/users', undefined, {
+      Authorization: `Bearer ${supportToken}`
+    });
+    assert.strictEqual(directUsers.status, 200);
+    assert.strictEqual(directUsers.body.status, true);
+
+    const roles = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/roles', undefined, {
+      Authorization: `Bearer ${adminToken}`
+    });
+    assert.strictEqual(roles.status, 200);
+    assert.strictEqual(roles.body.status, true);
+  });
 });

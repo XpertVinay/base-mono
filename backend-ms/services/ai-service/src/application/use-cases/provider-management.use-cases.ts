@@ -15,7 +15,7 @@ import { IMcpToolRepository } from '../../domain/repositories/mcp-tool-repositor
 import { DecryptedProviderCredentials, IMcpClientManager } from '../ports/mcp-client.port.js';
 import { ProviderExecutionContext } from '../ports/provider-adapter.port.js';
 import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapter-registry.js';
-import { AppError, NotFoundError } from '../../shared/presentation/error-handler.middleware.js';
+import { AppError, NotFoundError } from '../../shared/domain/errors.js';
 
 export function decryptCredentials(encrypted?: string): DecryptedProviderCredentials | undefined {
   if (!encrypted) return undefined;

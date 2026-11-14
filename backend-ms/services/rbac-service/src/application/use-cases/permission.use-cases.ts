@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Permission } from '../../domain/entities/permission.entity.js';
 import { IPermissionRepository } from '../../domain/repositories/permission-repository.interface.js';
-import { AppError, NotFoundError } from '../../shared/presentation/error-handler.middleware.js';
+import { AppError, NotFoundError } from '../../shared/domain/errors.js';
 
 export interface CreatePermissionDTO {
   name: string;

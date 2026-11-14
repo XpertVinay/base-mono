@@ -75,7 +75,29 @@ export function createApp(customRepo?: ITransactionRepository): {
   );
   const router = createTransactionRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'transaction-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'transaction-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/transactions/health',
+      '/api/transactions/health',
+      '/api/v1/transaction/health',
+      '/api/transaction/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/transactions', router);
+  app.use('/api/backoffice/transactions', router);
 
   app.use('/api/v1/transactions', router);
   app.use('/api/transactions', router);

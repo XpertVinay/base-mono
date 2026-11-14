@@ -77,16 +77,31 @@ export function createApp(deps: AppDependencies = {}): {
   const router = createOrganizationRouter(controller);
 
   const healthHandler = (_req: express.Request, res: express.Response) =>
-    res.json({
-      status: 'UP',
+    res.status(200).json({
+      status: 'ok',
       service: 'organization-service',
       version: 'v1',
       timestamp: new Date().toISOString()
     });
 
-  app.get('/api/v1/health', healthHandler);
-  app.get('/api/health', healthHandler);
-  app.get('/health', healthHandler);
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/organizations/health',
+      '/api/organizations/health',
+      '/api/v1/organization/health',
+      '/api/organization/health',
+      '/api/v1/health',
+      '/api/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/organizations', router);
+  app.use('/api/backoffice/organizations', router);
 
   app.use('/api/v1/organizations', router);
   app.use('/api/organizations', router);

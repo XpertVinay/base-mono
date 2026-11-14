@@ -5,6 +5,77 @@ package config;
 service ConfigService {
   rpc GetConfigByKey (GetConfigRequest) returns (GetConfigResponse);
   rpc GetActivePaymentGateway (GetActiveGatewayRequest) returns (GetActiveGatewayResponse);
+  rpc ListConfigs (ListConfigsRequest) returns (ListConfigsResponse);
+  rpc SetConfig (SetConfigRequest) returns (SetConfigResponse);
+  rpc DeleteConfig (DeleteConfigRequest) returns (DeleteConfigResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Dispatch (GatewayDispatchRequest) returns (GatewayDispatchResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;
+  string service = 2;
+  string version = 3;
+  string timestamp = 4;
+  int64 uptimeSeconds = 5;
+}
+
+message GatewayDispatchRequest {
+  string method = 1;
+  string path = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  string clientIp = 5;
+  string correlationId = 6;
+}
+
+message GatewayDispatchResponse {
+  int32 statusCode = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message ListConfigsRequest {}
+
+message ListConfigsData {
+  repeated ConfigData items = 1;
+}
+
+message ListConfigsResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ListConfigsData data = 5;
+}
+
+message SetConfigRequest {
+  string key = 1;
+  string value = 2;
+  string description = 3;
+  bool isEncrypted = 4;
+}
+
+message SetConfigResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  ConfigData data = 5;
+}
+
+message DeleteConfigRequest {
+  string key = 1;
+}
+
+message DeleteConfigResponse {
+  bool status = 1;
+  string message = 2;
+  repeated ErrorItem errors = 3;
+  StandardMetaData meta_data = 4;
+  bool deleted = 5;
 }
 
 message ErrorItem {

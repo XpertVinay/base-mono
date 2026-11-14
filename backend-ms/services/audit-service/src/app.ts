@@ -46,8 +46,28 @@ export function createApp(customRepo?: IAuditRepository): {
   const router = createAuditRouter(controller, recordUseCase);
 
   // Health and Metrics endpoints
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'audit-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'audit-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/audit/health',
+      '/api/audit/health'
+    ],
+    healthHandler
+  );
   app.get('/metrics', controller.getMetrics);
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/audit', router);
+  app.use('/api/backoffice/audit', router);
 
   app.use('/api/v1/audit', router);
   app.use('/api/audit', router);

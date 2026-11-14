@@ -1,3 +1,5 @@
+import { ValidationError } from '../../shared/domain/errors.js';
+
 export interface CreatePermissionProps {
   id: string;
   name: string;
@@ -19,13 +21,13 @@ export class Permission {
 
   constructor(props: CreatePermissionProps) {
     if (!props.id || props.id.trim() === '') {
-      throw new Error('Permission ID cannot be empty');
+      throw new ValidationError('Permission ID cannot be empty');
     }
     if (!props.name || props.name.trim() === '') {
-      throw new Error('Permission name cannot be empty');
+      throw new ValidationError('Permission name cannot be empty');
     }
     if (!props.category || props.category.trim() === '') {
-      throw new Error('Permission category cannot be empty');
+      throw new ValidationError('Permission category cannot be empty');
     }
 
     this._id = props.id.trim();
@@ -52,7 +54,7 @@ export class Permission {
 
   updateCategory(category: string): void {
     if (!category || category.trim() === '') {
-      throw new Error('Category cannot be empty');
+      throw new ValidationError('Category cannot be empty');
     }
     this._category = category.trim().toLowerCase();
     this._updatedAt = new Date();

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { IAssetRepository, ListAssetsOptions } from '../../domain/repositories/asset-repository.interface.js';
 import { Result } from '../../shared/domain/result.js';
 
@@ -89,11 +90,19 @@ export class UpdateAssetUseCase {
       return Result.fail('Asset not found');
     }
 
+    let cleanStoragePath = dto.storagePath;
+    if (dto.storagePath !== undefined) {
+      if (dto.storagePath.includes('\0') || dto.storagePath.split(/[/\\]/).some(s => s === '..')) {
+        return Result.fail('Invalid storagePath: path traversal or null bytes detected');
+      }
+      cleanStoragePath = path.posix.normalize(dto.storagePath.replace(/\\/g, '/'));
+    }
+
     asset.update({
       name: dto.name,
       mimeType: dto.mimeType,
       sizeBytes: dto.sizeBytes,
-      storagePath: dto.storagePath
+      storagePath: cleanStoragePath
     });
 
     await this.repo.update(asset);

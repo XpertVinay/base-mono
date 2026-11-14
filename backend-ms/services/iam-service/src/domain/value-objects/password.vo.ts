@@ -1,4 +1,5 @@
 import { ValueObject } from '../../shared/domain/value-object.js';
+import { ValidationError } from '../../shared/domain/errors.js';
 import bcrypt from 'bcryptjs';
 
 export interface PasswordProps {
@@ -12,7 +13,7 @@ export class PasswordVO extends ValueObject<PasswordProps> {
 
   public static async create(plainText: string): Promise<PasswordVO> {
     if (!plainText || plainText.length < 8) {
-      throw new Error('Password must be at least 8 characters long');
+      throw new ValidationError('Password must be at least 8 characters long');
     }
     const salt = await bcrypt.genSalt(12);
     const hashed = await bcrypt.hash(plainText, salt);

@@ -35,7 +35,8 @@ export function startConfigGrpcServer(
       const requestId = `grpc-config-${Date.now()}`;
       try {
         const { key, defaultValue } = call.request;
-        const setting = await repo.getByKey(key);
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const setting = await repo.getByKey(key, tenantId);
 
         if (!setting) {
           if (defaultValue !== undefined && defaultValue !== '') {
@@ -100,10 +101,11 @@ export function startConfigGrpcServer(
       }
     },
 
-    GetActivePaymentGateway: async (_call: any, callback: any) => {
+    GetActivePaymentGateway: async (call: any, callback: any) => {
       const requestId = `grpc-config-${Date.now()}`;
       try {
-        const setting = await repo.getByKey('ACTIVE_PAYMENT_GATEWAY');
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const setting = await repo.getByKey('ACTIVE_PAYMENT_GATEWAY', tenantId);
         const provider = setting ? setting.value : (process.env.ACTIVE_PAYMENT_GATEWAY || 'STRIPE');
 
         callback(null, {
@@ -127,10 +129,11 @@ export function startConfigGrpcServer(
       }
     },
 
-    ListConfigs: async (_call: any, callback: any) => {
+    ListConfigs: async (call: any, callback: any) => {
       const requestId = `grpc-config-${Date.now()}`;
       try {
-        const settings = await repo.getAll();
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const settings = await repo.getAll(tenantId);
         const items = settings.map(s => ({
           key: s.key,
           value: s.value,
@@ -158,7 +161,9 @@ export function startConfigGrpcServer(
       const requestId = `grpc-config-${Date.now()}`;
       try {
         const { key, value, description, isEncrypted } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const setting = ConfigSetting.create(key, {
+          tenantId,
           value,
           description: description || undefined,
           isEncrypted: !!isEncrypted
@@ -184,7 +189,8 @@ export function startConfigGrpcServer(
     DeleteConfig: async (call: any, callback: any) => {
       const requestId = `grpc-config-${Date.now()}`;
       try {
-        const deleted = await repo.delete(call.request.key);
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const deleted = await repo.delete(call.request.key, tenantId);
         callback(null, {
           status: deleted,
           message: deleted ? 'Configuration deleted successfully' : 'Configuration setting not found',

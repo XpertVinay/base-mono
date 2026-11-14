@@ -2,10 +2,13 @@ import { ISearchRepository, ListSearchDocumentsOptions } from '../../domain/repo
 import { SearchDocument } from '../../domain/entities/search-document.entity.js';
 import { Result } from '../../shared/domain/result.js';
 
-export interface ListSearchDocumentsDTO extends ListSearchDocumentsOptions {}
+export interface ListSearchDocumentsDTO extends ListSearchDocumentsOptions {
+  tenantId?: string;
+}
 
 export interface GetSearchDocumentByIdDTO {
   id: string;
+  tenantId?: string;
 }
 
 export interface CreateSearchDocumentDTO {
@@ -14,6 +17,7 @@ export interface CreateSearchDocumentDTO {
   title: string;
   description?: string;
   metadata?: Record<string, any>;
+  tenantId?: string;
 }
 
 export interface UpdateSearchDocumentDTO {
@@ -22,10 +26,12 @@ export interface UpdateSearchDocumentDTO {
   title?: string;
   description?: string;
   metadata?: Record<string, any>;
+  tenantId?: string;
 }
 
 export interface DeleteSearchDocumentDTO {
   id: string;
+  tenantId?: string;
 }
 
 export class ListSearchDocumentsQuery {
@@ -38,7 +44,8 @@ export class ListSearchDocumentsQuery {
       page,
       limit,
       type: dto.type,
-      search: dto.search
+      search: dto.search,
+      tenantId: dto.tenantId
     });
 
     const mapped = result.documents.map(d => ({
@@ -47,7 +54,8 @@ export class ListSearchDocumentsQuery {
       title: d.title,
       description: d.description,
       metadata: d.metadata,
-      createdAt: d.createdAt
+      createdAt: d.createdAt,
+      tenantId: d.tenantId
     }));
 
     return Result.ok({
@@ -63,7 +71,7 @@ export class GetSearchDocumentByIdQuery {
   constructor(private readonly repo: ISearchRepository) {}
 
   async execute(dto: GetSearchDocumentByIdDTO): Promise<Result<any>> {
-    const doc = await this.repo.findById(dto.id);
+    const doc = await this.repo.findById(dto.id, dto.tenantId);
     if (!doc) {
       return Result.fail('Search document not found');
     }
@@ -74,7 +82,8 @@ export class GetSearchDocumentByIdQuery {
       title: doc.title,
       description: doc.description,
       metadata: doc.metadata,
-      createdAt: doc.createdAt
+      createdAt: doc.createdAt,
+      tenantId: doc.tenantId
     });
   }
 }
@@ -83,7 +92,7 @@ export class CreateSearchDocumentUseCase {
   constructor(private readonly repo: ISearchRepository) {}
 
   async execute(dto: CreateSearchDocumentDTO): Promise<Result<any>> {
-    const existing = await this.repo.findById(dto.id);
+    const existing = await this.repo.findById(dto.id, dto.tenantId);
     if (existing) {
       return Result.fail(`Search document with id ${dto.id} already exists`);
     }
@@ -92,7 +101,8 @@ export class CreateSearchDocumentUseCase {
       documentType: dto.documentType,
       title: dto.title,
       description: dto.description,
-      metadata: dto.metadata
+      metadata: dto.metadata,
+      tenantId: dto.tenantId
     });
 
     await this.repo.index(doc);
@@ -103,7 +113,8 @@ export class CreateSearchDocumentUseCase {
       title: doc.title,
       description: doc.description,
       metadata: doc.metadata,
-      createdAt: doc.createdAt
+      createdAt: doc.createdAt,
+      tenantId: doc.tenantId
     });
   }
 }
@@ -112,7 +123,7 @@ export class UpdateSearchDocumentUseCase {
   constructor(private readonly repo: ISearchRepository) {}
 
   async execute(dto: UpdateSearchDocumentDTO): Promise<Result<any>> {
-    const doc = await this.repo.findById(dto.id);
+    const doc = await this.repo.findById(dto.id, dto.tenantId);
     if (!doc) {
       return Result.fail('Search document not found');
     }
@@ -121,7 +132,8 @@ export class UpdateSearchDocumentUseCase {
       documentType: dto.documentType,
       title: dto.title,
       description: dto.description,
-      metadata: dto.metadata
+      metadata: dto.metadata,
+      tenantId: dto.tenantId
     });
 
     await this.repo.index(doc);
@@ -132,7 +144,8 @@ export class UpdateSearchDocumentUseCase {
       title: doc.title,
       description: doc.description,
       metadata: doc.metadata,
-      createdAt: doc.createdAt
+      createdAt: doc.createdAt,
+      tenantId: doc.tenantId
     });
   }
 }
@@ -141,12 +154,12 @@ export class DeleteSearchDocumentUseCase {
   constructor(private readonly repo: ISearchRepository) {}
 
   async execute(dto: DeleteSearchDocumentDTO): Promise<Result<{ id: string; deleted: boolean }>> {
-    const doc = await this.repo.findById(dto.id);
+    const doc = await this.repo.findById(dto.id, dto.tenantId);
     if (!doc) {
       return Result.fail('Search document not found');
     }
 
-    const deleted = await this.repo.remove(dto.id);
+    const deleted = await this.repo.remove(dto.id, dto.tenantId);
     if (!deleted) {
       return Result.fail('Failed to delete search document');
     }
@@ -154,4 +167,3 @@ export class DeleteSearchDocumentUseCase {
     return Result.ok({ id: dto.id, deleted: true });
   }
 }
-

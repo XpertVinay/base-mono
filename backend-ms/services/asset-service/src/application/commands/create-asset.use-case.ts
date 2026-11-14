@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { UseCase } from '../../shared/application/use-case.interface.js';
 import { Result } from '../../shared/domain/result.js';
 import { IAssetRepository } from '../../domain/repositories/asset-repository.interface.js';
@@ -17,12 +18,19 @@ export class CreateAssetUseCase implements UseCase<CreateAssetInput, AssetDto> {
   constructor(private readonly repo: IAssetRepository) {}
 
   async execute(input: CreateAssetInput): Promise<Result<AssetDto>> {
+    if (input.storagePath) {
+      if (input.storagePath.includes('\0') || input.storagePath.split(/[/\\]/).some(s => s === '..')) {
+        return Result.fail('Invalid storagePath: path traversal or null bytes detected');
+      }
+    }
+    const cleanStoragePath = path.posix.normalize(input.storagePath.replace(/\\/g, '/'));
+
     const asset = Asset.create({
       tenantId: input.tenantId,
       name: input.name,
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
-      storagePath: input.storagePath,
+      storagePath: cleanStoragePath,
       ownerId: input.ownerId
     });
 

@@ -60,7 +60,27 @@ export function createApp(customRepo?: ISearchRepository): {
   );
   const router = createSearchRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'search-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'search-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/search/health',
+      '/api/search/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/search', router);
+  app.use('/api/backoffice/search', router);
 
   app.use('/api/v1/search', router);
   app.use('/api/search', router);

@@ -1,6 +1,6 @@
 import { ITenantRepository } from '../../domain/repositories/tenant-repository.interface.js';
 import { Tenant } from '../../domain/entities/tenant.entity.js';
-import { getMultiTenancyConfig } from '../../shared/presentation/tenant.middleware.js';
+import { getMultiTenancyConfig } from '../../shared/infrastructure/config/multi-tenancy.config.js';
 
 export interface ResolvedTenantInput {
   tenantId?: string;

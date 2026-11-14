@@ -71,6 +71,10 @@ services:
       INVENTORY_GRPC_URL: inventory-service:50059
       AUDIT_SERVICE_URL: http://audit-service:4011
       AUDIT_GRPC_URL: audit-service:50061
+      AI_SERVICE_URL: http://ai-service:4010
+      AI_GRPC_URL: ai-service:50060
+      ORGANIZATION_SERVICE_URL: http://organization-service:4012
+      ORGANIZATION_GRPC_URL: organization-service:50062
       RBAC_SERVICE_URL: http://rbac-service:4013
       RBAC_GRPC_URL: rbac-service:50063
     depends_on:
@@ -78,6 +82,8 @@ services:
       - config-service
       - order-service
       - audit-service
+      - ai-service
+      - organization-service
       - rbac-service
     networks:
       - microservices-net
@@ -334,6 +340,63 @@ services:
       ENABLE_CLOUDWATCH: "false"
       ENABLE_PROMETHEUS: "true"
       ENABLE_GRAFANA: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  ai-service:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile
+    container_name: ms-ai-service
+    restart: unless-stopped
+    ports:
+      - "4010:4010"
+      - "50060:50060"
+    environment:
+      NODE_ENV: production
+      PORT: 4010
+      GRPC_PORT: 50060
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  organization-service:
+    build:
+      context: ./services/organization-service
+      dockerfile: Dockerfile
+    container_name: ms-organization-service
+    restart: unless-stopped
+    ports:
+      - "4012:4012"
+      - "50062:50062"
+    environment:
+      NODE_ENV: production
+      PORT: 4012
+      GRPC_PORT: 50062
+      MULTI_TENANCY_ENABLED: ${MULTI_TENANCY_ENABLED:-true}
+      MULTI_TENANCY_MODE: ${MULTI_TENANCY_MODE:-optional}
+      DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-default}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: microservices_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     depends_on:
       postgres:
         condition: service_healthy

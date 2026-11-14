@@ -10,6 +10,7 @@ export interface IndexDocumentInput {
   title: string;
   description?: string;
   metadata?: Record<string, any>;
+  tenantId?: string;
 }
 
 export class IndexDocumentUseCase implements UseCase<IndexDocumentInput, void> {
@@ -17,6 +18,7 @@ export class IndexDocumentUseCase implements UseCase<IndexDocumentInput, void> {
 
   async execute(input: IndexDocumentInput): Promise<Result<void>> {
     const doc = SearchDocument.create(input.id, {
+      tenantId: input.tenantId,
       documentType: input.type,
       title: input.title,
       description: input.description,
@@ -31,13 +33,14 @@ export class IndexDocumentUseCase implements UseCase<IndexDocumentInput, void> {
 export interface SearchQueryInput {
   query: string;
   type?: string;
+  tenantId?: string;
 }
 
 export class SearchQueryUseCase implements UseCase<SearchQueryInput, SearchResultItemDto[]> {
   constructor(private readonly repo: ISearchRepository) {}
 
   async execute(input: SearchQueryInput): Promise<Result<SearchResultItemDto[]>> {
-    const docs = await this.repo.search(input.query, input.type);
+    const docs = await this.repo.search(input.query, input.type, input.tenantId);
     return Result.ok(
       docs.map(d => ({
         id: d.id,

@@ -35,11 +35,13 @@ export function startNotificationGrpcServer(
       const requestId = `grpc-notif-${Date.now()}`;
       try {
         const { recipient, channel, subject, body } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const result = await sendUseCase.execute({
           recipient,
           channel: (channel || 'EMAIL') as 'EMAIL' | 'SMS' | 'PUSH' | 'WEBHOOK',
           subject,
-          body
+          body,
+          tenantId
         });
 
         const data = result.getValue();
@@ -67,7 +69,8 @@ export function startNotificationGrpcServer(
       const requestId = `grpc-notif-${Date.now()}`;
       try {
         const limit = call.request.limit || 50;
-        const result = await listQuery.execute({ limit });
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const result = await listQuery.execute({ limit, tenantId });
         const items = result.getValue().map(n => ({
           ...n,
           sentAt: n.sentAt || ''

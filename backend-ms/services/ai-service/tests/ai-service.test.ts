@@ -421,3 +421,33 @@ test('ai-service integrates Communication, Search, Internal/External DB, Externa
     await new Promise<void>(resolve => externalServer.close(() => resolve()));
   }
 });
+
+test('Canonical Back-Office Routes (Feature F12): Works under /api/v1/backoffice/ai and /api/backoffice/ai', async () => {
+  const ai = createApp({ useInMemoryStore: true });
+  const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
+  const adminToken = jwt.sign(
+    { sub: 'admin-1', email: 'admin@test.local', role: 'ADMIN', tenantId: 'tenant-1' },
+    jwtSecret,
+    { expiresIn: '1h' }
+  );
+
+  try {
+    const resDiscovery = await invokeExpress(ai.app, 'GET', '/api/v1/backoffice/ai');
+    assert.equal(resDiscovery.status, 200);
+    assert.equal(resDiscovery.json.service, 'ai-service');
+
+    const resProviders = await invokeExpress(ai.app, 'GET', '/api/v1/backoffice/ai/providers', {
+      headers: { authorization: `Bearer ${adminToken}` }
+    });
+    assert.equal(resProviders.status, 200);
+    assert.equal(resProviders.json.status, true);
+
+    const resUnversioned = await invokeExpress(ai.app, 'GET', '/api/backoffice/ai/providers', {
+      headers: { authorization: `Bearer ${adminToken}` }
+    });
+    assert.equal(resUnversioned.status, 200);
+    assert.equal(resUnversioned.json.status, true);
+  } finally {
+    await ai.closeResources();
+  }
+});

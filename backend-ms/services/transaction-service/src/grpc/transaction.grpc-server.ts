@@ -42,12 +42,14 @@ export function startTransactionGrpcServer(
       const requestId = `grpc-txn-${Date.now()}`;
       try {
         const { referenceId, userId, amount, currency, paymentMethod } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const result = await useCases.initiateUseCase.execute({
           referenceId,
           userId,
           amount: Number(amount),
           currency: currency || undefined,
-          paymentMethod: paymentMethod || undefined
+          paymentMethod: paymentMethod || undefined,
+          tenantId
         });
 
         const txn = result.getValue();
@@ -79,11 +81,13 @@ export function startTransactionGrpcServer(
       const requestId = `grpc-txn-${Date.now()}`;
       try {
         const { transactionId, status, providerTxnId, failureReason } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const result = await useCases.completeUseCase.execute({
           transactionId,
           providerTxnId: providerTxnId || undefined,
           success: status === 'SUCCESS',
-          failureReason: failureReason || undefined
+          failureReason: failureReason || undefined,
+          tenantId
         });
 
         if (result.isFailure) {

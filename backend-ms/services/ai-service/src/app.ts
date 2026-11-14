@@ -162,14 +162,19 @@ export function createApp(options: CreateAiAppOptions = {}): {
 
   const router = createAiRouter(controller);
 
-  app.get('/health', (_req, res) =>
-    res.json({
-      status: 'UP',
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
       service: 'ai-service',
       adapters: adapterRegistry.listAdapterIds(),
       timestamp: new Date().toISOString()
-    })
-  );
+    });
+
+  app.get(['/health', '/ready', '/live', '/api/v1/ai/health', '/api/ai/health'], healthHandler);
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/ai', router);
+  app.use('/api/backoffice/ai', router);
 
   app.use('/api/v1/ai', router);
   app.use('/api/ai', router);

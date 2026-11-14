@@ -1,4 +1,5 @@
 import { commonSchemas } from './swagger-schemas.js';
+import { swaggerBackofficeDoc } from './swagger-backoffice.js';
 
 const envelopedData = (schema: Record<string, any>) => ({
   allOf: [
@@ -159,7 +160,9 @@ All controller and error-handler responses strictly conform to the unified stand
     { name: 'Search Service', description: 'Full-text indexed search queries across projected domain entities' },
     { name: 'AI & MCP Service', description: 'MCP client, provider registry, communication/search/DB/external API tools & orchestration' },
     { name: 'Audit Service', description: 'Immutable audit logs, telemetry alerts, remediation, and monitoring adapters' },
-    { name: 'Organization Service', description: 'Multi-tenant organization management, onboarding, profile metadata, and member assignments' }
+    { name: 'Organization Service', description: 'Multi-tenant organization management, onboarding, profile metadata, and member assignments' },
+    { name: 'Back-Office Operations', description: 'Dedicated administrative & back-office API endpoints protected by API Gateway Perimeter Guard (requires ADMIN, SUPER_ADMIN, SUPPORT, or ORGANIZATION_ADMIN roles)' },
+    ...swaggerBackofficeDoc.tags
   ],
   components: {
     securitySchemes: {
@@ -214,6 +217,31 @@ All controller and error-handler responses strictly conform to the unified stand
               audit: '/api/v1/audit',
               organizations: '/api/v1/organizations',
               rbac: '/api/v1/rbac'
+            }
+          },
+          backoffice: {
+            type: 'object',
+            properties: {
+              base: { type: 'string', example: '/api/v1/backoffice' },
+              services: {
+                type: 'object',
+                additionalProperties: { type: 'string' },
+                example: {
+                  iam: '/api/v1/backoffice/iam',
+                  orders: '/api/v1/backoffice/orders',
+                  inventory: '/api/v1/backoffice/inventory',
+                  transactions: '/api/v1/backoffice/transactions',
+                  assets: '/api/v1/backoffice/assets',
+                  audit: '/api/v1/backoffice/audit',
+                  config: '/api/v1/backoffice/config',
+                  organizations: '/api/v1/backoffice/organizations',
+                  rbac: '/api/v1/backoffice/rbac',
+                  scheduler: '/api/v1/backoffice/scheduler',
+                  search: '/api/v1/backoffice/search',
+                  notifications: '/api/v1/backoffice/notifications',
+                  ai: '/api/v1/backoffice/ai'
+                }
+              }
             }
           }
         }
@@ -1138,6 +1166,7 @@ All controller and error-handler responses strictly conform to the unified stand
         }
       }
     },
+    ...swaggerBackofficeDoc.paths,
     '/api/v1/health': {
       get: {
         tags: ['Gateway Health'],

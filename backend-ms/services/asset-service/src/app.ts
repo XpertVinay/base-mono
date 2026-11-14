@@ -57,7 +57,29 @@ export function createApp(customRepo?: IAssetRepository): {
   );
   const router = createAssetRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'asset-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'asset-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/assets/health',
+      '/api/assets/health',
+      '/api/v1/asset/health',
+      '/api/asset/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/assets', router);
+  app.use('/api/backoffice/assets', router);
 
   app.use('/api/v1/assets', router);
   app.use('/api/assets', router);

@@ -267,5 +267,21 @@ test('Inventory Service: Back-office CRUD Operations', async (t) => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
   });
+
+  await t.test('8. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/inventory and /api/v1/backoffice/items', async () => {
+    const resInv = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/inventory', undefined, {
+      Authorization: `Bearer ${adminToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resInv.status, 200);
+    assert.strictEqual(resInv.body.status, true);
+
+    const resItems = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/items', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resItems.status, 200);
+    assert.strictEqual(resItems.body.status, true);
+  });
 });
 

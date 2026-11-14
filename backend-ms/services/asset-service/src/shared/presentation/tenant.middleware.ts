@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { MultiTenancyConfig, MultiTenancyMode, TenantContext } from '../contracts/index.js';
+import { MultiTenancyMode, TenantContext } from '../contracts/index.js';
+export type { MultiTenancyConfig } from '../contracts/index.js';
 
 declare global {
   namespace Express {
@@ -11,24 +12,8 @@ declare global {
 
 const VALID_TENANT_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 
-export function getMultiTenancyConfig(): MultiTenancyConfig {
-  const enabled = process.env.MULTI_TENANCY_ENABLED !== 'false';
-  const rawMode = (process.env.MULTI_TENANCY_MODE || 'optional').toLowerCase();
-  const mode: MultiTenancyMode = !enabled
-    ? 'disabled'
-    : rawMode === 'strict' || rawMode === 'disabled'
-      ? (rawMode as MultiTenancyMode)
-      : 'optional';
-
-  return {
-    enabled,
-    mode,
-    defaultTenantId: process.env.DEFAULT_TENANT_ID || 'default',
-    tenantHeader: (process.env.TENANT_HEADER || 'x-tenant-id').toLowerCase(),
-    tenantSlugHeader: (process.env.TENANT_SLUG_HEADER || 'x-tenant-slug').toLowerCase(),
-    subdomainEnabled: process.env.TENANT_SUBDOMAIN_ENABLED === 'true'
-  };
-}
+import { getMultiTenancyConfig } from '../infrastructure/config/multi-tenancy.config.js';
+export { getMultiTenancyConfig };
 
 function extractSubdomainTenant(req: Request): string | undefined {
   const host = req.hostname || req.header('host')?.split(':')[0];

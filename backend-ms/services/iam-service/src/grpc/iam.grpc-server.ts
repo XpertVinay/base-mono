@@ -42,7 +42,19 @@ export function startIamGrpcServer(
       const requestId = `grpc-iam-${Date.now()}`;
 
       try {
-        const decoded = jwt.verify(token, secret) as any;
+        const complete = jwt.decode(token, { complete: true }) as any;
+        const alg = complete?.header?.alg;
+
+        let decoded: any;
+        if (alg === 'RS256') {
+          const pubKey = (process.env.JWT_PUBLIC_KEY || process.env.IAM_JWT_PUBLIC_KEY)?.replace(/\\n/g, '\n');
+          if (!pubKey) {
+            throw new Error('RS256 public key is not configured');
+          }
+          decoded = jwt.verify(token, pubKey, { algorithms: ['RS256'] });
+        } else {
+          decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+        }
         const userId = decoded.sub || decoded.id;
         const email = decoded.email || '';
         const role = decoded.role || 'USER';

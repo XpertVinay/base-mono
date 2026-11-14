@@ -1,3 +1,5 @@
+import { ValidationError } from '../../shared/domain/errors.js';
+
 export interface CreateRoleProps {
   id: string;
   tenantId: string;
@@ -21,13 +23,13 @@ export class Role {
 
   constructor(props: CreateRoleProps) {
     if (!props.id || props.id.trim() === '') {
-      throw new Error('Role ID cannot be empty');
+      throw new ValidationError('Role ID cannot be empty');
     }
     if (!props.tenantId || props.tenantId.trim() === '') {
-      throw new Error('Tenant ID cannot be empty');
+      throw new ValidationError('Tenant ID cannot be empty');
     }
     if (!props.name || props.name.trim() === '') {
-      throw new Error('Role name cannot be empty');
+      throw new ValidationError('Role name cannot be empty');
     }
 
     this._id = props.id.trim();
@@ -74,7 +76,7 @@ export class Role {
 
   addPermission(permission: string): void {
     if (!permission || permission.trim() === '') {
-      throw new Error('Permission name cannot be empty');
+      throw new ValidationError('Permission name cannot be empty');
     }
     this._permissions.add(permission.trim().toLowerCase());
     this._updatedAt = new Date();
@@ -100,11 +102,11 @@ export class Role {
 
   updateDetails(props: { name?: string; description?: string | null }): void {
     if (this._isSystem && props.name && props.name.trim().toUpperCase() !== this._name) {
-      throw new Error('System roles cannot be renamed');
+      throw new ValidationError('System roles cannot be renamed');
     }
     if (props.name !== undefined) {
       if (!props.name || props.name.trim() === '') {
-        throw new Error('Role name cannot be empty');
+        throw new ValidationError('Role name cannot be empty');
       }
       this._name = props.name.trim().toUpperCase();
     }

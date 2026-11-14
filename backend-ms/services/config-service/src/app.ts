@@ -7,6 +7,7 @@ import { tenantContextMiddleware } from './shared/presentation/tenant.middleware
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresConfigRepository } from './infrastructure/persistence/postgres-config.repository.js';
+import { CachedConfigRepository } from './infrastructure/persistence/cached-config.repository.js';
 import { IConfigRepository } from './domain/repositories/config-repository.interface.js';
 import {
   GetConfigQuery,
@@ -29,7 +30,8 @@ export function createApp(customRepo?: IConfigRepository): { app: Express; repo:
   app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
-  const repo = customRepo || new PostgresConfigRepository();
+  const baseRepo = customRepo || new PostgresConfigRepository();
+  const repo = baseRepo instanceof CachedConfigRepository ? baseRepo : new CachedConfigRepository(baseRepo);
   const getQuery = new GetConfigQuery(repo);
   const setUseCase = new SetConfigUseCase(repo);
   const listQuery = new ListConfigsQuery(repo);
@@ -40,11 +42,24 @@ export function createApp(customRepo?: IConfigRepository): { app: Express; repo:
 
   // Health probes (versioned + unversioned + container probe)
   const healthHandler = (_req: express.Request, res: express.Response) =>
-    res.json({ status: 'UP', service: 'config-service', version: 'v1', timestamp: new Date().toISOString() });
+    res.status(200).json({ status: 'ok', service: 'config-service', version: 'v1', timestamp: new Date().toISOString() });
 
-  app.get('/api/v1/health', healthHandler);
-  app.get('/api/health', healthHandler);
-  app.get('/health', healthHandler);
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/config/health',
+      '/api/config/health',
+      '/api/v1/health',
+      '/api/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/config', router);
+  app.use('/api/backoffice/config', router);
 
   app.use('/api/v1/config', router);
   app.use('/api/config', router);

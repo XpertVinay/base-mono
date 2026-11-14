@@ -7,7 +7,7 @@ import {
   createUserRoleAssignedEvent,
   createUserRoleRevokedEvent
 } from '../../domain/events/rbac.events.js';
-import { AppError, NotFoundError } from '../../shared/presentation/error-handler.middleware.js';
+import { AppError, NotFoundError } from '../../shared/domain/errors.js';
 
 export interface AssignRoleDTO {
   tenantId: string;

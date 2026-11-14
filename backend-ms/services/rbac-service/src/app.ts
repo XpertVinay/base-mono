@@ -10,6 +10,9 @@ import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/err
 import { PostgresRoleRepository } from './infrastructure/persistence/postgres-role.repository.js';
 import { PostgresPermissionRepository } from './infrastructure/persistence/postgres-permission.repository.js';
 import { PostgresUserRoleRepository } from './infrastructure/persistence/postgres-user-role.repository.js';
+import { IRoleRepository } from './domain/repositories/role-repository.interface.js';
+import { IPermissionRepository } from './domain/repositories/permission-repository.interface.js';
+import { IUserRoleRepository } from './domain/repositories/user-role-repository.interface.js';
 
 import {
   CreateRoleUseCase,
@@ -41,16 +44,22 @@ import { createPermissionRouter } from './presentation/http/permission.routes.js
 import { AssignmentController } from './presentation/http/assignment.controller.js';
 import { createAssignmentRouter } from './presentation/http/assignment.routes.js';
 
+export interface AppDependencies {
+  roleRepo?: IRoleRepository;
+  permRepo?: IPermissionRepository;
+  userRoleRepo?: IUserRoleRepository;
+}
+
 export interface AppInstance {
   app: Express;
   repos: {
-    roleRepo: PostgresRoleRepository;
-    permRepo: PostgresPermissionRepository;
-    userRoleRepo: PostgresUserRoleRepository;
+    roleRepo: IRoleRepository;
+    permRepo: IPermissionRepository;
+    userRoleRepo: IUserRoleRepository;
   };
 }
 
-export function createApp(): AppInstance {
+export function createApp(deps: AppDependencies = {}): AppInstance {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -63,9 +72,9 @@ export function createApp(): AppInstance {
   app.use(rateLimiter());
 
   // Repositories
-  const roleRepo = new PostgresRoleRepository();
-  const permRepo = new PostgresPermissionRepository();
-  const userRoleRepo = new PostgresUserRoleRepository();
+  const roleRepo = deps.roleRepo || new PostgresRoleRepository();
+  const permRepo = deps.permRepo || new PostgresPermissionRepository();
+  const userRoleRepo = deps.userRoleRepo || new PostgresUserRoleRepository();
 
   // Role Use Cases
   const createRoleUseCase = new CreateRoleUseCase(roleRepo, permRepo);
@@ -120,18 +129,35 @@ export function createApp(): AppInstance {
 
   // Health probes (versioned + unversioned + container probe)
   const healthHandler = (_req: express.Request, res: express.Response) =>
-    res.json({
-      status: 'UP',
+    res.status(200).json({
+      status: 'ok',
       service: 'rbac-service',
       version: 'v1',
       timestamp: new Date().toISOString()
     });
 
-  app.get('/api/v1/health', healthHandler);
-  app.get('/api/health', healthHandler);
-  app.get('/health', healthHandler);
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/rbac/health',
+      '/api/rbac/health',
+      '/api/v1/health',
+      '/api/health'
+    ],
+    healthHandler
+  );
 
   // Mount API Routes
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/rbac/roles', roleRouter);
+  app.use('/api/backoffice/rbac/roles', roleRouter);
+  app.use('/api/v1/backoffice/rbac/permissions', permissionRouter);
+  app.use('/api/backoffice/rbac/permissions', permissionRouter);
+  app.use('/api/v1/backoffice/rbac', assignmentRouter);
+  app.use('/api/backoffice/rbac', assignmentRouter);
+
   app.use('/api/v1/rbac/roles', roleRouter);
   app.use('/api/rbac/roles', roleRouter);
 

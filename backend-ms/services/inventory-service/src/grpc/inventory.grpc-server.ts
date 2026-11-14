@@ -35,7 +35,8 @@ export function startInventoryGrpcServer(
       const requestId = `grpc-inv-${Date.now()}`;
       try {
         const { productId, quantity } = call.request;
-        const item = await repo.findByProductId(productId);
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const item = await repo.findByProductId(productId, tenantId);
 
         if (!item) {
           return callback(null, {
@@ -136,7 +137,8 @@ export function startInventoryGrpcServer(
       const requestId = `grpc-inv-${Date.now()}`;
       try {
         const { productId } = call.request;
-        const item = await repo.findByProductId(productId);
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const item = await repo.findByProductId(productId, tenantId);
         if (!item) {
           return callback(null, {
             status: false,
@@ -180,12 +182,14 @@ export function startInventoryGrpcServer(
       const requestId = `grpc-inv-${Date.now()}`;
       try {
         const { productId, sku, quantity } = call.request;
-        let item = await repo.findByProductId(productId);
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        let item = await repo.findByProductId(productId, tenantId);
         if (item) {
           item.addStock(quantity);
           await repo.update(item);
         } else {
           item = InventoryItem.create(productId, {
+            tenantId,
             sku,
             availableQuantity: quantity,
             reservedQuantity: 0,

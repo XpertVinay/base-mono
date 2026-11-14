@@ -9,6 +9,7 @@ export interface JobProps {
   lastRunAt?: Date;
   nextRunAt?: Date;
   createdAt?: Date;
+  tenantId?: string;
 }
 
 export class Job extends Entity<JobProps> {
@@ -36,6 +37,7 @@ export class Job extends Entity<JobProps> {
   get lastRunAt(): Date | undefined { return this.props.lastRunAt; }
   get nextRunAt(): Date | undefined { return this.props.nextRunAt; }
   get createdAt(): Date { return this.props.createdAt!; }
+  get tenantId(): string | undefined { return this.props.tenantId; }
 
   public markRunning(): void {
     this.props.status = 'RUNNING';
@@ -54,9 +56,11 @@ export class Job extends Entity<JobProps> {
     name?: string;
     cronExpression?: string;
     status?: JobStatus;
+    tenantId?: string;
   }): void {
     if (props.name !== undefined) this.props.name = props.name;
     if (props.cronExpression !== undefined) this.props.cronExpression = props.cronExpression;
     if (props.status !== undefined) this.props.status = props.status;
+    if (props.tenantId !== undefined) this.props.tenantId = props.tenantId;
   }
 }

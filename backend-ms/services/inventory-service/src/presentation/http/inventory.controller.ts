@@ -303,6 +303,16 @@ export class InventoryController {
       const tenantId = validated.tenantId || this.getTenantId(req);
       const result = await this.addStockUseCase.execute({ ...validated, tenantId });
 
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'ADD_STOCK_FAILED', message: result.getError() }]
+        });
+        return;
+      }
+
       ApiResponse.success(res, {
         req,
         statusCode: 200,

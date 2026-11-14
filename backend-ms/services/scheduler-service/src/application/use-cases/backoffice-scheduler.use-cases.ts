@@ -4,6 +4,7 @@ import { Result } from '../../shared/domain/result.js';
 
 export interface GetJobByIdDTO {
   id: string;
+  tenantId?: string;
 }
 
 export interface UpdateJobDTO {
@@ -11,17 +12,19 @@ export interface UpdateJobDTO {
   name?: string;
   cronExpression?: string;
   status?: JobStatus;
+  tenantId?: string;
 }
 
 export interface DeleteJobDTO {
   id: string;
+  tenantId?: string;
 }
 
 export class GetJobByIdQuery {
   constructor(private readonly repo: ISchedulerRepository) {}
 
   async execute(dto: GetJobByIdDTO): Promise<Result<any>> {
-    const job = await this.repo.findById(dto.id);
+    const job = await this.repo.findById(dto.id, dto.tenantId);
     if (!job) {
       return Result.fail('Job not found');
     }
@@ -42,7 +45,7 @@ export class UpdateJobUseCase {
   constructor(private readonly repo: ISchedulerRepository) {}
 
   async execute(dto: UpdateJobDTO): Promise<Result<any>> {
-    const job = await this.repo.findById(dto.id);
+    const job = await this.repo.findById(dto.id, dto.tenantId);
     if (!job) {
       return Result.fail('Job not found');
     }
@@ -71,12 +74,12 @@ export class DeleteJobUseCase {
   constructor(private readonly repo: ISchedulerRepository) {}
 
   async execute(dto: DeleteJobDTO): Promise<Result<{ id: string; deleted: boolean }>> {
-    const job = await this.repo.findById(dto.id);
+    const job = await this.repo.findById(dto.id, dto.tenantId);
     if (!job) {
       return Result.fail('Job not found');
     }
 
-    const deleted = await this.repo.delete(dto.id);
+    const deleted = await this.repo.delete(dto.id, dto.tenantId);
     if (!deleted) {
       return Result.fail('Failed to delete job');
     }

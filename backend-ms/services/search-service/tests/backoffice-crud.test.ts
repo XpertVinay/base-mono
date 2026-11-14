@@ -11,12 +11,12 @@ import { ISearchRepository, ListSearchDocumentsOptions } from '../src/domain/rep
 class InMemorySearchRepo implements ISearchRepository {
   public documents: SearchDocument[] = [];
 
-  async findById(id: string): Promise<SearchDocument | null> {
-    return this.documents.find(d => d.id === id) || null;
+  async findById(id: string, tenantId?: string): Promise<SearchDocument | null> {
+    return this.documents.find(d => d.id === id && (!tenantId || d.tenantId === tenantId || d.tenantId === 'default')) || null;
   }
 
   async index(doc: SearchDocument): Promise<void> {
-    const existing = this.documents.findIndex(d => d.id === doc.id);
+    const existing = this.documents.findIndex(d => d.id === doc.id && d.tenantId === doc.tenantId);
     if (existing >= 0) {
       this.documents[existing] = doc;
     } else {
@@ -24,17 +24,21 @@ class InMemorySearchRepo implements ISearchRepository {
     }
   }
 
-  async search(query: string, type?: string): Promise<SearchDocument[]> {
+  async search(query: string, type?: string, tenantId?: string): Promise<SearchDocument[]> {
     const q = query.toLowerCase();
     return this.documents.filter(d => {
+      const matchTenant = !tenantId || d.tenantId === tenantId || d.tenantId === 'default';
       const matchText = d.title.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q);
       const matchType = !type || d.documentType.toUpperCase() === type.toUpperCase();
-      return matchText && matchType;
+      return matchTenant && matchText && matchType;
     });
   }
 
   async listAll(options: ListSearchDocumentsOptions = {}): Promise<{ documents: SearchDocument[]; total: number }> {
     let filtered = [...this.documents];
+    if (options.tenantId) {
+      filtered = filtered.filter(d => d.tenantId === options.tenantId || d.tenantId === 'default');
+    }
     if (options.type) {
       filtered = filtered.filter(d => d.documentType.toUpperCase() === options.type!.toUpperCase());
     }
@@ -51,8 +55,8 @@ class InMemorySearchRepo implements ISearchRepository {
     return { documents, total: filtered.length };
   }
 
-  async remove(id: string): Promise<boolean> {
-    const idx = this.documents.findIndex(d => d.id === id);
+  async remove(id: string, tenantId?: string): Promise<boolean> {
+    const idx = this.documents.findIndex(d => d.id === id && (!tenantId || d.tenantId === tenantId));
     if (idx >= 0) {
       this.documents.splice(idx, 1);
       return true;
@@ -241,6 +245,30 @@ test('Search Service: Back-office CRUD Operations', async (t) => {
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
+  });
+
+  await t.test('8. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/search and /api/backoffice/search', async () => {
+    const resV1 = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/search/documents', undefined, {
+      Authorization: `Bearer ${adminToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resV1.status, 200);
+    assert.strictEqual(resV1.body.status, true);
+
+    const resUnversioned = await makeHttpRequest(app, 'GET', '/api/backoffice/search/documents', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resUnversioned.status, 200);
+    assert.strictEqual(resUnversioned.body.status, true);
+  });
+
+  await t.test('9. F22 Parameter Validation: Rejects whitespace-only document ID with 400', async () => {
+    const res = await makeHttpRequest(app, 'GET', '/api/v1/search/documents/%20%20', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(res.status, 400);
   });
 });
 

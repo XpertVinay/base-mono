@@ -1,4 +1,5 @@
 import { AggregateRoot } from '../../shared/domain/aggregate-root.js';
+import { ValidationError } from '../../shared/domain/errors.js';
 import {
   OrganizationAddress,
   OrganizationDto,
@@ -69,12 +70,12 @@ export class Organization extends AggregateRoot<OrganizationProps> {
   ): Organization {
     const slug = Organization.sanitizeSlug(params.slug);
     if (!slug) {
-      throw new Error('Organization slug must be non-empty and contain valid URL-friendly characters.');
+      throw new ValidationError('Organization slug must be non-empty and contain valid URL-friendly characters.');
     }
 
     const email = params.contactEmail.trim().toLowerCase();
     if (!email || !email.includes('@')) {
-      throw new Error('A valid contact email is required.');
+      throw new ValidationError('A valid contact email is required.');
     }
 
     const tier = params.tier || 'FREE';
@@ -168,7 +169,7 @@ export class Organization extends AggregateRoot<OrganizationProps> {
     if (patch.taxId !== undefined) this.props.taxId = patch.taxId.trim();
     if (patch.contactEmail !== undefined) {
       const email = patch.contactEmail.trim().toLowerCase();
-      if (!email.includes('@')) throw new Error('Invalid contact email format');
+      if (!email.includes('@')) throw new ValidationError('Invalid contact email format');
       this.props.contactEmail = email;
     }
     if (patch.contactPhone !== undefined) this.props.contactPhone = patch.contactPhone.trim();

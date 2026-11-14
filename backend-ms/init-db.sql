@@ -3,6 +3,7 @@
 -- ==========================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- 1. IAM (Multi-Tenant + OIDC Federated Login)
 CREATE SCHEMA IF NOT EXISTS iam;
@@ -154,6 +155,7 @@ CREATE INDEX IF NOT EXISTS idx_notification_status ON notification.notifications
 CREATE SCHEMA IF NOT EXISTS scheduler;
 CREATE TABLE IF NOT EXISTS scheduler.jobs (
     id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
     name VARCHAR(255) NOT NULL,
     cron_expression VARCHAR(100) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'SCHEDULED',
@@ -161,8 +163,9 @@ CREATE TABLE IF NOT EXISTS scheduler.jobs (
     next_run_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-INSERT INTO scheduler.jobs (id, name, cron_expression, status)
-VALUES ('job-heartbeat-1', 'SYSTEM_HEARTBEAT', '*/5 * * * *', 'SCHEDULED')
+CREATE INDEX IF NOT EXISTS idx_scheduler_tenant ON scheduler.jobs(tenant_id);
+INSERT INTO scheduler.jobs (id, tenant_id, name, cron_expression, status)
+VALUES ('job-heartbeat-1', 'default', 'SYSTEM_HEARTBEAT', '*/5 * * * *', 'SCHEDULED')
 ON CONFLICT (id) DO NOTHING;
 
 -- 6. Orders
@@ -180,6 +183,8 @@ CREATE TABLE IF NOT EXISTS orders.orders (
 CREATE INDEX IF NOT EXISTS idx_orders_tenant ON orders.orders(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_user_created ON orders.orders(tenant_id, user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_status_created ON orders.orders(tenant_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS orders.order_items (
     id VARCHAR(36) PRIMARY KEY,
@@ -217,11 +222,13 @@ CREATE INDEX IF NOT EXISTS idx_transactions_reference ON transactions.transactio
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions.transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_session ON transactions.transactions(provider_session_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_provider_txn ON transactions.transactions(provider_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_tenant_user_created ON transactions.transactions(tenant_id, user_id, created_at DESC);
 
 -- 8. Search
 CREATE SCHEMA IF NOT EXISTS search;
 CREATE TABLE IF NOT EXISTS search.search_index (
     id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
     document_type VARCHAR(100) NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
@@ -229,17 +236,21 @@ CREATE TABLE IF NOT EXISTS search.search_index (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_search_type ON search.search_index(document_type);
+CREATE INDEX IF NOT EXISTS idx_search_tenant ON search.search_index(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_search_title_trgm ON search.search_index USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_search_desc_trgm ON search.search_index USING gin (description gin_trgm_ops);
 
 -- 9. Inventory
 CREATE SCHEMA IF NOT EXISTS inventory;
 CREATE TABLE IF NOT EXISTS inventory.inventory_items (
     product_id VARCHAR(36) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
-    sku VARCHAR(100) NOT NULL UNIQUE,
+    sku VARCHAR(100) NOT NULL,
     available_quantity INT NOT NULL DEFAULT 0,
     reserved_quantity INT NOT NULL DEFAULT 0,
     total_quantity INT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_inventory_tenant_sku UNIQUE (tenant_id, sku)
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_tenant ON inventory.inventory_items(tenant_id);
 INSERT INTO inventory.inventory_items (product_id, tenant_id, sku, available_quantity, reserved_quantity, total_quantity)
@@ -270,6 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit.audit_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit.audit_logs(resource, resource_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit.audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_severity ON audit.audit_logs(severity);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant_created ON audit.audit_logs(tenant_id, created_at DESC);
 
 -- 11. AI & MCP Integration
 CREATE SCHEMA IF NOT EXISTS ai;

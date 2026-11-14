@@ -242,6 +242,23 @@ test('Config Service: Back-office CRUD & Security Operations', async (t) => {
     assert.strictEqual(verify.body.data.value, 'false');
   });
 
+  await t.test('6b. Route Parameter Binding: PUT /:key with body omitting key succeeds (D2 fix)', async () => {
+    const res = await makeHttpRequest(
+      app,
+      'PUT',
+      '/api/v1/config/APP_THEME',
+      {
+        value: 'dark',
+        description: 'Dark theme'
+      },
+      { authorization: `Bearer ${adminToken}`, 'x-tenant-id': 'tenant-alpha' }
+    );
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.status, true);
+    assert.strictEqual(res.body.data.key, 'APP_THEME');
+    assert.strictEqual(res.body.data.value, 'dark');
+  });
+
   await t.test('7. Multi-Tenant Isolation: Tenant Beta cannot see Tenant Alpha custom settings', async () => {
     const betaToken = createToken('ADMIN', 'tenant-beta');
 
@@ -301,5 +318,38 @@ test('Config Service: Back-office CRUD & Security Operations', async (t) => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
     assert.strictEqual(res.body.data.key, 'PAYMENT_GATEWAY');
+  });
+
+  await t.test('10. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/config and /api/backoffice/config', async () => {
+    const resV1 = await makeHttpRequest(
+      app,
+      'GET',
+      '/api/v1/backoffice/config/PAYMENT_GATEWAY',
+      undefined,
+      { authorization: `Bearer ${adminToken}`, 'x-tenant-id': 'tenant-alpha' }
+    );
+    assert.strictEqual(resV1.status, 200);
+    assert.strictEqual(resV1.body.status, true);
+
+    const resUnversioned = await makeHttpRequest(
+      app,
+      'GET',
+      '/api/backoffice/config',
+      undefined,
+      { authorization: `Bearer ${adminToken}`, 'x-tenant-id': 'tenant-alpha' }
+    );
+    assert.strictEqual(resUnversioned.status, 200);
+    assert.strictEqual(resUnversioned.body.status, true);
+  });
+
+  await t.test('11. F22 Parameter Validation: Rejects whitespace-only config key with 400', async () => {
+    const res = await makeHttpRequest(
+      app,
+      'GET',
+      '/api/v1/config/%20%20',
+      undefined,
+      { authorization: `Bearer ${adminToken}`, 'x-tenant-id': 'tenant-alpha' }
+    );
+    assert.strictEqual(res.status, 400);
   });
 });

@@ -83,7 +83,7 @@ export class PostgresAuditRepository implements IAuditRepository {
   async delete(id: string, tenantId?: string): Promise<boolean> {
     const tid = tenantId || 'default';
     const res = await dbPool.query(
-      `DELETE FROM audit.audit_logs WHERE id = $1 AND (tenant_id = $2 OR tenant_id = 'default')`,
+      `DELETE FROM audit.audit_logs WHERE id = $1 AND tenant_id = $2`,
       [id, tid]
     );
     return (res.rowCount ?? 0) > 0;

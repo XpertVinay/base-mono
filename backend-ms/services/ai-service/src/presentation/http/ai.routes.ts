@@ -5,6 +5,23 @@ import { requireAuth, requireRole } from '../../shared/presentation/auth.middlew
 export function createAiRouter(controller: AiController): Router {
   const router = Router();
 
+  router.get('/', (_req, res) => {
+    res.status(200).json({
+      service: 'ai-service',
+      description: 'AI & MCP Extensible Provider and Orchestration Service',
+      version: '1.0.0',
+      endpoints: [
+        '/capabilities',
+        '/providers',
+        '/tools',
+        '/tools/call',
+        '/orchestrate',
+        '/invocations',
+        '/health'
+      ]
+    });
+  });
+
   router.get('/capabilities', controller.capabilities);
 
   // Provider Management (Extensible MCP, Communication, Search, DB, External API providers)

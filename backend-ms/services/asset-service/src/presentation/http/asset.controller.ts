@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import path from 'node:path';
 import { z } from 'zod';
 import { CreateAssetUseCase } from '../../application/commands/create-asset.use-case.js';
 import { ListAssetsQuery } from '../../application/queries/list-assets.query.js';
@@ -10,11 +11,26 @@ import {
 } from '../../application/commands/backoffice-asset.use-cases.js';
 import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
+const storagePathSchema = z
+  .string()
+  .min(1)
+  .refine(val => !val.includes('\0'), {
+    message: 'storagePath must not contain null bytes'
+  })
+  .refine(val => !val.split(/[/\\]/).some(segment => segment === '..'), {
+    message: 'storagePath must not contain directory traversal sequences (..)'
+  })
+  .transform(val => path.posix.normalize(val.replace(/\\/g, '/')));
+
+const assetParamSchema = z.object({
+  id: z.string().trim().min(1, 'Asset ID is required')
+});
+
 const createAssetSchema = z.object({
   name: z.string().min(1),
   mimeType: z.string(),
   sizeBytes: z.number().positive(),
-  storagePath: z.string().min(1),
+  storagePath: storagePathSchema,
   tenantId: z.string().optional()
 });
 
@@ -22,7 +38,7 @@ const updateAssetSchema = z.object({
   name: z.string().min(1).optional(),
   mimeType: z.string().optional(),
   sizeBytes: z.number().positive().optional(),
-  storagePath: z.string().min(1).optional()
+  storagePath: storagePathSchema.optional()
 });
 
 const listAssetsQuerySchema = z.object({
@@ -150,7 +166,7 @@ export class AssetController {
 
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = req.params.id as string;
+      const { id } = assetParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
 
       if (!this.getByIdQuery) {
@@ -173,11 +189,26 @@ export class AssetController {
         return;
       }
 
+      const asset = result.getValue();
+      const currentUserId = req.user?.id || (req.header('x-user-id') as string);
+      const currentUserRole = req.user?.role || (req.header('x-user-role') as string);
+      const isPrivileged = currentUserRole === 'ADMIN' || currentUserRole === 'SUPPORT';
+
+      if (!isPrivileged && currentUserId && asset.ownerId !== currentUserId) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 403,
+          message: 'Forbidden: You do not have permission to access this asset',
+          errors: [{ code: 'FORBIDDEN', message: 'Not authorized to access this asset' }]
+        });
+        return;
+      }
+
       ApiResponse.success(res, {
         req,
         statusCode: 200,
         message: 'Asset retrieved successfully',
-        data: result.getValue()
+        data: asset
       });
     } catch (err) {
       next(err);
@@ -186,7 +217,7 @@ export class AssetController {
 
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = req.params.id as string;
+      const { id } = assetParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
       const validated = updateAssetSchema.parse(req.body);
 
@@ -223,7 +254,7 @@ export class AssetController {
 
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = req.params.id as string;
+      const { id } = assetParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
 
       if (!this.deleteUseCase) {

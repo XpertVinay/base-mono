@@ -17,6 +17,10 @@ const createJobSchema = z.object({
   cronExpression: z.string().min(1)
 });
 
+const jobParamSchema = z.object({
+  id: z.string().trim().min(1, 'Job ID is required')
+});
+
 const updateJobSchema = z.object({
   name: z.string().min(1).optional(),
   cronExpression: z.string().min(1).optional(),
@@ -33,9 +37,14 @@ export class SchedulerController {
     private readonly deleteUseCase?: DeleteJobUseCase
   ) {}
 
+  private getTenantId(req: Request): string {
+    return (req as any).tenant?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+  }
+
   list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.listQuery.execute();
+      const tenantId = this.getTenantId(req);
+      const result = await this.listQuery.execute({ tenantId });
       const jobs = result.getValue();
 
       ApiResponse.success(res, {
@@ -60,7 +69,18 @@ export class SchedulerController {
   create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const validated = createJobSchema.parse(req.body);
-      const result = await this.createUseCase.execute(validated);
+      const tenantId = this.getTenantId(req);
+      const result = await this.createUseCase.execute({ ...validated, tenantId });
+
+      if (result.isFailure) {
+        ApiResponse.error(res, {
+          req,
+          statusCode: 400,
+          message: result.getError(),
+          errors: [{ code: 'CREATE_JOB_FAILED', message: result.getError() }]
+        });
+        return;
+      }
 
       ApiResponse.success(res, {
         req,
@@ -80,8 +100,9 @@ export class SchedulerController {
         return;
       }
 
-      const id = req.params.id as string;
-      const result = await this.getByIdQuery.execute({ id });
+      const { id } = jobParamSchema.parse(req.params);
+      const tenantId = this.getTenantId(req);
+      const result = await this.getByIdQuery.execute({ id, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
@@ -111,10 +132,11 @@ export class SchedulerController {
         return;
       }
 
-      const id = req.params.id as string;
+      const { id } = jobParamSchema.parse(req.params);
       const validated = updateJobSchema.parse(req.body);
+      const tenantId = this.getTenantId(req);
 
-      const result = await this.updateUseCase.execute({ id, ...validated });
+      const result = await this.updateUseCase.execute({ id, ...validated, tenantId });
       if (result.isFailure) {
         ApiResponse.error(res, {
           req,
@@ -143,8 +165,9 @@ export class SchedulerController {
         return;
       }
 
-      const id = req.params.id as string;
-      const result = await this.deleteUseCase.execute({ id });
+      const { id } = jobParamSchema.parse(req.params);
+      const tenantId = this.getTenantId(req);
+      const result = await this.deleteUseCase.execute({ id, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
@@ -169,8 +192,9 @@ export class SchedulerController {
 
   trigger = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = req.params.id as string;
-      const result = await this.triggerUseCase.execute({ id });
+      const { id } = jobParamSchema.parse(req.params);
+      const tenantId = this.getTenantId(req);
+      const result = await this.triggerUseCase.execute({ id, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {

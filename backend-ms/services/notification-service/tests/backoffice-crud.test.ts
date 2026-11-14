@@ -257,5 +257,21 @@ test('Notification Service: Back-office CRUD Operations', async (t) => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
   });
+
+  await t.test('8. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/notifications and /api/backoffice/notifications', async () => {
+    const resV1 = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/notifications', undefined, {
+      Authorization: `Bearer ${adminToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resV1.status, 200);
+    assert.strictEqual(resV1.body.status, true);
+
+    const resUnversioned = await makeHttpRequest(app, 'GET', '/api/backoffice/notifications', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resUnversioned.status, 200);
+    assert.strictEqual(resUnversioned.body.status, true);
+  });
 });
 

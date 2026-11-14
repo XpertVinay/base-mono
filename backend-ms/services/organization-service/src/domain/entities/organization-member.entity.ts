@@ -1,4 +1,5 @@
 import { Entity } from '../../shared/domain/entity.js';
+import { ValidationError } from '../../shared/domain/errors.js';
 import {
   MemberRole,
   MemberStatus,
@@ -35,7 +36,7 @@ export class OrganizationMember extends Entity<OrganizationMemberProps> {
   ): OrganizationMember {
     const email = params.email.trim().toLowerCase();
     if (!email || !email.includes('@')) {
-      throw new Error('Valid member email is required');
+      throw new ValidationError('Valid member email is required');
     }
 
     return new OrganizationMember(

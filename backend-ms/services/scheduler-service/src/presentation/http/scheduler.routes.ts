@@ -5,6 +5,21 @@ import { requireAuth, requireRole } from '../../shared/presentation/auth.middlew
 export function createSchedulerRouter(controller: SchedulerController): Router {
   const router = Router();
 
+  router.get('/', (_req, res) => {
+    res.status(200).json({
+      service: 'scheduler-service',
+      description: 'Distributed Cron and Job Scheduling Service',
+      version: '1.0.0',
+      endpoints: [
+        '/jobs',
+        '/jobs/:id',
+        '/jobs/:id/trigger',
+        '/backoffice/jobs',
+        '/health'
+      ]
+    });
+  });
+
   // Job management CRUD
   router.get('/jobs', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.list);
   router.post('/jobs', requireAuth, requireRole(['ADMIN']), controller.create);

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getMultiTenancyConfig, resolveTenantContext } from './tenant.middleware.js';
@@ -55,7 +56,47 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   const secret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
 
   try {
-    const decoded = jwt.verify(token, secret) as any;
+    const complete = jwt.decode(token, { complete: true }) as any;
+    const alg = complete?.header?.alg;
+
+    let decoded: any;
+    if (alg === 'RS256') {
+      const pubKey = (process.env.JWT_PUBLIC_KEY || process.env.IAM_JWT_PUBLIC_KEY)?.replace(/\\n/g, '\n');
+      if (!pubKey) {
+        throw new Error('RS256 public key is not configured');
+      }
+      decoded = jwt.verify(token, pubKey, { algorithms: ['RS256'] });
+    } else if (alg === 'HS256' || !alg) {
+      decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+    } else {
+      throw new Error(`Unsupported token algorithm: ${alg}`);
+    }
+
+    if (decoded.fgp) {
+      const clientFgp = req.header('x-device-fingerprint');
+      if (!clientFgp || clientFgp.trim() === '') {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Session hijacking detected: device fingerprint required'
+          }
+        });
+        return;
+      }
+
+      const hashedClientFgp = crypto.createHash('sha256').update(clientFgp).digest('hex');
+      if (decoded.fgp !== clientFgp && decoded.fgp !== hashedClientFgp) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Session hijacking detected: device fingerprint mismatch'
+          }
+        });
+        return;
+      }
+    }
     const tokenTenantId = mtConfig.enabled
       ? (decoded.tenantId || decoded.tid || mtConfig.defaultTenantId)
       : mtConfig.defaultTenantId;

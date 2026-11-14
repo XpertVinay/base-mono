@@ -56,7 +56,29 @@ export function createApp(customRepo?: INotificationRepository): {
   );
   const router = createNotificationRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'notification-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'notification-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/notifications/health',
+      '/api/notifications/health',
+      '/api/v1/notification/health',
+      '/api/notification/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/notifications', router);
+  app.use('/api/backoffice/notifications', router);
 
   app.use('/api/v1/notifications', router);
   app.use('/api/notifications', router);

@@ -1,6 +1,6 @@
 import { IOidcProviderRepository } from '../../domain/repositories/oidc-provider-repository.interface.js';
 import { OidcProvider } from '../../domain/entities/oidc-provider.entity.js';
-import { getMultiTenancyConfig } from '../../shared/presentation/tenant.middleware.js';
+import { getMultiTenancyConfig } from '../../shared/infrastructure/config/multi-tenancy.config.js';
 
 export interface ResolvedProviderResult {
   provider: OidcProvider | null;

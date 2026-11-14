@@ -10,6 +10,7 @@ import { ITokenService } from '../ports/token-service.port.js';
 export interface RefreshTokenCommand {
   refreshToken: string;
   tenantId?: string;
+  deviceFingerprint?: string;
 }
 
 export class RefreshTokenUseCase implements UseCase<RefreshTokenCommand, AuthTokensDto> {
@@ -23,9 +24,9 @@ export class RefreshTokenUseCase implements UseCase<RefreshTokenCommand, AuthTok
   async execute(command: RefreshTokenCommand): Promise<Result<AuthTokensDto>> {
     let decoded;
     try {
-      decoded = this.tokenService.verifyRefreshToken(command.refreshToken);
-    } catch {
-      return Result.fail('Invalid or expired refresh token');
+      decoded = this.tokenService.verifyRefreshToken(command.refreshToken, command.deviceFingerprint);
+    } catch (err: any) {
+      return Result.fail(err.message || 'Invalid or expired refresh token');
     }
 
     if (command.tenantId && decoded.tenantId !== command.tenantId) {
@@ -68,7 +69,8 @@ export class RefreshTokenUseCase implements UseCase<RefreshTokenCommand, AuthTok
       provider: decoded.provider,
       sessionId: decoded.sid,
       refreshTokenJti: nextRefreshJti,
-      expiresInSeconds: tenant?.config.sessionTtlSeconds
+      expiresInSeconds: tenant?.config.sessionTtlSeconds,
+      deviceFingerprint: command.deviceFingerprint
     });
 
     return Result.ok(tokens);

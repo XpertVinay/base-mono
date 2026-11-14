@@ -1,5 +1,6 @@
 import { AggregateRoot } from '../../shared/domain/aggregate-root.js';
 import { DomainEvent } from '../../shared/domain/domain-event.js';
+import { ValidationError, ConflictError } from '../../shared/domain/errors.js';
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'CANCELLED';
 
@@ -49,7 +50,7 @@ export class Order extends AggregateRoot<OrderProps> {
     tenantId: string = 'default'
   ): Order {
     if (!items || items.length === 0) {
-      throw new Error('Order must contain at least one item');
+      throw new ValidationError('Order must contain at least one item');
     }
 
     const orderId = id || crypto.randomUUID();
@@ -105,7 +106,7 @@ export class Order extends AggregateRoot<OrderProps> {
 
   public cancel(_reason?: string): void {
     if (this.props.status === 'SHIPPED') {
-      throw new Error('Cannot cancel an already shipped order');
+      throw new ConflictError('Cannot cancel an already shipped order');
     }
     this.props.status = 'CANCELLED';
     this.props.updatedAt = new Date();

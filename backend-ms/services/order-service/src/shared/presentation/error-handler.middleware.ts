@@ -1,35 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../infrastructure/logger.js';
+import {
+  AppError,
+  NotFoundError,
+  UnauthorizedError,
+  ForbiddenError,
+  ConflictError,
+  ValidationError,
+  BadGatewayError
+} from '../domain/errors.js';
 
-export class AppError extends Error {
-  constructor(
-    public readonly message: string,
-    public readonly statusCode: number = 400,
-    public readonly code: string = 'BAD_REQUEST',
-    public readonly details?: any
-  ) {
-    super(message);
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(resource: string = 'Resource') {
-    super(`${resource} not found`, 404, 'NOT_FOUND');
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message: string = 'Unauthorized') {
-    super(message, 401, 'UNAUTHORIZED');
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message: string = 'Forbidden') {
-    super(message, 403, 'FORBIDDEN');
-  }
-}
+// Backward-compatible re-exports for Presentation layer & test suites
+export {
+  AppError,
+  NotFoundError,
+  UnauthorizedError,
+  ForbiddenError,
+  ConflictError,
+  ValidationError,
+  BadGatewayError
+};
 
 export function errorHandlerMiddleware(
   err: any,

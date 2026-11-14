@@ -18,6 +18,10 @@ const createDocumentSchema = z.object({
   metadata: z.record(z.any()).optional()
 });
 
+const searchParamSchema = z.object({
+  id: z.string().trim().min(1, 'Document ID is required')
+});
+
 const updateDocumentSchema = z.object({
   documentType: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
@@ -42,12 +46,17 @@ export class SearchController {
     private readonly deleteUseCase?: DeleteSearchDocumentUseCase
   ) {}
 
+  private getTenantId(req: Request): string {
+    return (req as any).tenant?.tenantId || (req.header('x-tenant-id') as string) || 'default';
+  }
+
   search = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const q = (req.query.q as string) || '';
       const type = req.query.type as string | undefined;
+      const tenantId = this.getTenantId(req);
 
-      const result = await this.searchQueryUseCase.execute({ query: q, type });
+      const result = await this.searchQueryUseCase.execute({ query: q, type, tenantId });
       const hits = result.getValue();
 
       ApiResponse.success(res, {
@@ -78,11 +87,13 @@ export class SearchController {
       }
 
       const queryParams = listDocumentsQuerySchema.parse(req.query);
+      const tenantId = this.getTenantId(req);
       const result = await this.listAllQuery.execute({
         page: queryParams.page,
         limit: queryParams.limit,
         type: queryParams.type,
-        search: queryParams.search
+        search: queryParams.search,
+        tenantId
       });
 
       const { documents, total, page, limit } = result.getValue();
@@ -113,8 +124,9 @@ export class SearchController {
         return;
       }
 
-      const id = req.params.id as string;
-      const result = await this.getByIdQuery.execute({ id });
+      const { id } = searchParamSchema.parse(req.params);
+      const tenantId = this.getTenantId(req);
+      const result = await this.getByIdQuery.execute({ id, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
@@ -145,7 +157,8 @@ export class SearchController {
       }
 
       const validated = createDocumentSchema.parse(req.body);
-      const result = await this.createUseCase.execute(validated);
+      const tenantId = this.getTenantId(req);
+      const result = await this.createUseCase.execute({ ...validated, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {
@@ -175,10 +188,11 @@ export class SearchController {
         return;
       }
 
-      const id = req.params.id as string;
+      const { id } = searchParamSchema.parse(req.params);
       const validated = updateDocumentSchema.parse(req.body);
+      const tenantId = this.getTenantId(req);
 
-      const result = await this.updateUseCase.execute({ id, ...validated });
+      const result = await this.updateUseCase.execute({ id, ...validated, tenantId });
       if (result.isFailure) {
         ApiResponse.error(res, {
           req,
@@ -207,8 +221,9 @@ export class SearchController {
         return;
       }
 
-      const id = req.params.id as string;
-      const result = await this.deleteUseCase.execute({ id });
+      const { id } = searchParamSchema.parse(req.params);
+      const tenantId = this.getTenantId(req);
+      const result = await this.deleteUseCase.execute({ id, tenantId });
 
       if (result.isFailure) {
         ApiResponse.error(res, {

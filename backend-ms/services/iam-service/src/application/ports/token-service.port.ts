@@ -14,6 +14,7 @@ export interface TokenIssueMetadata {
   expiresInSeconds?: number;
   isNewUser?: boolean;
   redirectUrl?: string;
+  deviceFingerprint?: string;
 }
 
 export interface ServiceTokenIssueMetadata {
@@ -41,5 +42,7 @@ export interface DecodedRefreshToken {
 export interface ITokenService {
   issueTokens(user: User, meta: TokenIssueMetadata): AuthTokensDto;
   issueServiceToken?(user: User, meta: ServiceTokenIssueMetadata): ServiceProviderTokenDto;
-  verifyRefreshToken(token: string): DecodedRefreshToken;
+  verifyRefreshToken(token: string, deviceFingerprint?: string): DecodedRefreshToken;
+  getJwks?(): { keys: Array<{ kty: string; use: string; alg: string; kid: string; n: string; e: string }> };
+  getPublicKeyPem?(): string;
 }

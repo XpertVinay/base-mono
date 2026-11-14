@@ -138,10 +138,10 @@ function makeHttpRequest(
   });
 }
 
-function createToken(role = 'ADMIN', tenantId = 'tenant-corp'): string {
+function createToken(role = 'ADMIN', tenantId = 'tenant-corp', userId = 'usr-admin-1'): string {
   const secret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
   return jwt.sign(
-    { sub: 'usr-admin-1', role, tenantId, email: 'admin@corp.io' },
+    { sub: userId, role, tenantId, email: `${userId}@corp.io` },
     secret,
     { expiresIn: '1h' }
   );
@@ -250,6 +250,69 @@ test('Order Service: Back-office CRUD Operations', async (t) => {
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
+  });
+
+  await t.test('8. Order Cancellation Status Codes: 404 for not found, 403 for unauthorized (D8 fix)', async () => {
+    // 1. Non-existent order cancellation returns 404
+    const notFoundRes = await makeHttpRequest(
+      app,
+      'POST',
+      '/api/v1/orders/non-existent-order-id/cancel',
+      undefined,
+      {
+        Authorization: `Bearer ${adminToken}`,
+        'X-Tenant-ID': 'tenant-corp'
+      }
+    );
+    assert.strictEqual(notFoundRes.status, 404);
+
+    // 2. Seed an order owned by user-alice
+    const aliceOrder = Order.create(
+      'user-alice',
+      [{ productId: 'p1', productName: 'Item A', quantity: 1, unitPrice: 20 }],
+      'USD',
+      'ord-alice-101',
+      'tenant-corp'
+    );
+    await repo.save(aliceOrder);
+
+    // 3. User bob attempts to cancel alice order -> 403 Forbidden
+    const bobToken = createToken('USER', 'tenant-corp', 'user-bob');
+    const forbiddenRes = await makeHttpRequest(
+      app,
+      'POST',
+      '/api/v1/orders/ord-alice-101/cancel',
+      undefined,
+      {
+        Authorization: `Bearer ${bobToken}`,
+        'X-Tenant-ID': 'tenant-corp'
+      }
+    );
+    assert.strictEqual(forbiddenRes.status, 403);
+  });
+
+  await t.test('9. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/orders and /api/backoffice/orders', async () => {
+    const resV1 = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/orders', undefined, {
+      Authorization: `Bearer ${adminToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resV1.status, 200);
+    assert.strictEqual(resV1.body.status, true);
+
+    const resUnversioned = await makeHttpRequest(app, 'GET', '/api/backoffice/orders', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resUnversioned.status, 200);
+    assert.strictEqual(resUnversioned.body.status, true);
+  });
+
+  await t.test('10. F22 Parameter Validation: Rejects whitespace-only order ID with 400', async () => {
+    const res = await makeHttpRequest(app, 'GET', '/api/v1/orders/%20%20', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(res.status, 400);
   });
 });
 

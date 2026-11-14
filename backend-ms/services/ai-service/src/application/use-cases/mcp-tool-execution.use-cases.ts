@@ -10,7 +10,7 @@ import { IToolInvocationRepository } from '../../domain/repositories/tool-invoca
 import { ProviderExecutionContext } from '../ports/provider-adapter.port.js';
 import { ProviderAdapterRegistry } from '../../infrastructure/providers/adapter-registry.js';
 import { decryptCredentials } from './provider-management.use-cases.js';
-import { AppError, BadGatewayError, NotFoundError } from '../../shared/presentation/error-handler.middleware.js';
+import { AppError, BadGatewayError, NotFoundError } from '../../shared/domain/errors.js';
 import { rabbitmq } from '../../shared/infrastructure/messaging/rabbitmq.service.js';
 import { McpPromptResult, McpPromptSpec, McpResourceContent, McpResourceSpec } from '../ports/mcp-client.port.js';
 

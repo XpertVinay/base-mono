@@ -5,6 +5,22 @@ import { requireAuth, requireRole } from '../../shared/presentation/auth.middlew
 export function createAssignmentRouter(controller: AssignmentController): Router {
   const router = Router();
 
+  router.get('/', (_req, res) => {
+    res.status(200).json({
+      service: 'rbac-service',
+      description: 'Role-Based Access Control and Permission Assignment Service',
+      version: '1.0.0',
+      endpoints: [
+        '/roles',
+        '/permissions',
+        '/users/:userId/roles',
+        '/users/:userId/permissions',
+        '/users/:userId/check-permission',
+        '/health'
+      ]
+    });
+  });
+
   // User role queries and permission evaluation
   router.get('/users/:userId/roles', controller.getUserRoles);
   router.get('/users/:userId/permissions', controller.getUserPermissions);

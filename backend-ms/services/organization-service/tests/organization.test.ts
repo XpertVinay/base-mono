@@ -581,9 +581,123 @@ describe('Organization & Tenant Service Domain & Use Cases', () => {
 
       (app as any).handle(mockReq, mockRes);
 
-      assert.strictEqual(responseData?.status, 'UP');
+      assert.ok(responseData?.status === 'ok' || responseData?.status === 'UP');
       assert.strictEqual(responseData?.service, 'organization-service');
       assert.strictEqual(statusCode, 200);
+    });
+
+    test('HTTP app serves namespaced health and readiness probes (D5 fix)', async () => {
+      const { app } = createApp({ orgRepo, memberRepo });
+
+      for (const probeUrl of ['/api/v1/organizations/health', '/ready', '/live']) {
+        let resData: any = null;
+        let resCode = 200;
+        const mockRes: any = {
+          status(code: number) { resCode = code; return this; },
+          json(payload: any) { resData = payload; return this; },
+          send(payload: any) { resData = payload; return this; },
+          end() { return this; },
+          setHeader() { return this; },
+          getHeader() { return undefined; },
+          removeHeader() { return this; }
+        };
+        const mockReq: any = {
+          method: 'GET',
+          url: probeUrl,
+          headers: {},
+          query: {},
+          params: {},
+          socket: { remoteAddress: '127.0.0.1' }
+        };
+
+        (app as any).handle(mockReq, mockRes);
+        assert.strictEqual(resCode, 200, `Probe failed for ${probeUrl}`);
+        assert.strictEqual(resData?.service, 'organization-service');
+      }
+    });
+
+    test('Organization Controller catches Zod validation errors and passes to errorHandlerMiddleware (D1 fix)', async () => {
+      const { app } = createApp({ orgRepo, memberRepo });
+
+      let resData: any = null;
+      let resCode = 200;
+      const mockRes: any = {
+        status(code: number) { resCode = code; return this; },
+        json(payload: any) { resData = payload; return this; },
+        send(payload: any) { resData = payload; return this; },
+        end() { return this; },
+        setHeader() { return this; },
+        getHeader() { return undefined; },
+        removeHeader() { return this; }
+      };
+
+      const mockReq: any = {
+        method: 'POST',
+        url: '/api/v1/organizations',
+        headers: {
+          'x-user-id': 'admin-1',
+          'x-user-role': 'ADMIN',
+          'x-internal-secret': process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars',
+          'content-type': 'application/json'
+        },
+        header(name: string) {
+          return this.headers[name.toLowerCase()];
+        },
+        body: {},
+        query: {},
+        params: {},
+        socket: { remoteAddress: '127.0.0.1' }
+      };
+
+      (app as any).handle(mockReq, mockRes);
+      assert.strictEqual(resCode, 400);
+      assert.strictEqual(resData?.status, false);
+      assert.ok(resData?.errors?.length > 0);
+    });
+
+    test('Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/organizations and /api/backoffice/organizations', async () => {
+      const { app } = createApp({ orgRepo, memberRepo });
+
+      await new Promise<void>((resolve, reject) => {
+        let resCode = 200;
+        const mockRes: any = {
+          status(code: number) { resCode = code; return this; },
+          json(payload: any) {
+            try {
+              assert.strictEqual(resCode, 200);
+              assert.strictEqual(payload?.status, true);
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+            return this;
+          },
+          send(payload: any) { return this.json(payload); },
+          end() { resolve(); return this; },
+          setHeader() { return this; },
+          getHeader() { return undefined; },
+          removeHeader() { return this; }
+        };
+
+        const mockReq: any = {
+          method: 'GET',
+          url: '/api/v1/backoffice/organizations',
+          headers: {
+            'x-user-id': 'admin-1',
+            'x-user-role': 'ADMIN',
+            'x-internal-secret': process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars'
+          },
+          header(name: string) {
+            return this.headers[name.toLowerCase()];
+          },
+          body: {},
+          query: {},
+          params: {},
+          socket: { remoteAddress: '127.0.0.1' }
+        };
+
+        (app as any).handle(mockReq, mockRes);
+      });
     });
   });
 });

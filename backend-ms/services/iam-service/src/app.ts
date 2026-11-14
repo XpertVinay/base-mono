@@ -6,6 +6,7 @@ import { correlationIdMiddleware } from './shared/presentation/request-context.j
 import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
+import { requireAuth, requireRole } from './shared/presentation/auth.middleware.js';
 import { IUserRepository } from './domain/repositories/user-repository.interface.js';
 import { ITenantRepository } from './domain/repositories/tenant-repository.interface.js';
 import { IOidcProviderRepository } from './domain/repositories/oidc-provider-repository.interface.js';
@@ -215,7 +216,7 @@ export function createApp(deps: IamAppDependencies = {}): {
   const initiateSloLogoutUseCase = new InitiateSloLogoutUseCase(ssoSessionRepo, oidcProviderRepo, oidcRegistry);
   const backchannelLogoutUseCase = new HandleBackchannelLogoutUseCase(oidcProviderRepo, ssoSessionRepo, oidcRegistry);
 
-  const iamController = new IamController(registerUseCase, loginUseCase, getUserByIdQuery, refreshTokenUseCase);
+  const iamController = new IamController(registerUseCase, loginUseCase, getUserByIdQuery, refreshTokenUseCase, tokenService);
   const deleteTenantUseCase = new DeleteTenantUseCase(tenantRepo);
   const tenantController = new TenantController(
     createTenantUseCase,
@@ -295,16 +296,70 @@ export function createApp(deps: IamAppDependencies = {}): {
   const backOfficeRouter = createBackOfficeRouter(backOfficeController);
 
   // Health probe
-  app.get('/health', (_req, res) =>
-    res.json({
-      status: 'UP',
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
       service: 'iam-service',
       multiTenancyEnabled: process.env.MULTI_TENANCY_ENABLED !== 'false',
       multiTenancyMode: process.env.MULTI_TENANCY_MODE || 'optional',
       supportedOidcProviders: oidcRegistry.listSupportedTypes(),
       timestamp: new Date().toISOString()
-    })
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/iam/health',
+      '/api/iam/health',
+      '/api/v1/health',
+      '/api/health'
+    ],
+    healthHandler
   );
+
+  // JWKS Public Key Endpoint (Feature F19)
+  const jwksHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json(tokenService.getJwks ? tokenService.getJwks() : { keys: [] });
+
+  app.get(
+    [
+      '/.well-known/jwks.json',
+      '/jwks',
+      '/api/v1/iam/.well-known/jwks.json',
+      '/api/iam/.well-known/jwks.json',
+      '/api/v1/iam/jwks',
+      '/api/iam/jwks'
+    ],
+    jwksHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  const backofficeUsersRouter = express.Router();
+  backofficeUsersRouter.get('/', requireAuth, requireRole(['ADMIN', 'SUPPORT']), backOfficeController.listUsers);
+  backofficeUsersRouter.post('/', requireAuth, requireRole(['ADMIN']), backOfficeController.createUser);
+  backofficeUsersRouter.get('/:id', requireAuth, requireRole(['ADMIN', 'SUPPORT']), backOfficeController.getUser);
+  backofficeUsersRouter.put('/:id', requireAuth, requireRole(['ADMIN']), backOfficeController.updateUser);
+  backofficeUsersRouter.patch('/:id', requireAuth, requireRole(['ADMIN']), backOfficeController.updateUser);
+  backofficeUsersRouter.patch('/:id/status', requireAuth, requireRole(['ADMIN', 'SUPPORT']), backOfficeController.updateUserStatus);
+  backofficeUsersRouter.post('/:id/reset-password', requireAuth, requireRole(['ADMIN']), backOfficeController.resetPassword);
+  backofficeUsersRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), backOfficeController.deleteUser);
+  backofficeUsersRouter.get('/:id/sessions', requireAuth, requireRole(['ADMIN', 'SUPPORT']), backOfficeController.listUserSessions);
+  backofficeUsersRouter.delete('/:id/sessions', requireAuth, requireRole(['ADMIN']), backOfficeController.revokeUserSessions);
+
+  const backofficeRolesRouter = express.Router();
+  backofficeRolesRouter.get('/', requireAuth, requireRole(['ADMIN', 'SUPPORT']), backOfficeController.getRoles);
+
+  app.use('/api/v1/backoffice/users', backofficeUsersRouter);
+  app.use('/api/backoffice/users', backofficeUsersRouter);
+  app.use('/api/v1/backoffice/roles', backofficeRolesRouter);
+  app.use('/api/backoffice/roles', backofficeRolesRouter);
+
+  app.use('/api/v1/backoffice/iam', backOfficeRouter);
+  app.use('/api/backoffice/iam', backOfficeRouter);
+  app.use('/api/v1/backoffice', backOfficeRouter);
+  app.use('/api/backoffice', backOfficeRouter);
 
   app.use('/api/v1/iam/backoffice', backOfficeRouter);
   app.use('/api/iam/backoffice', backOfficeRouter);

@@ -1,3 +1,5 @@
+import { ValidationError } from '../../shared/domain/errors.js';
+
 export interface CreateUserRoleProps {
   id: string;
   tenantId: string;
@@ -19,16 +21,16 @@ export class UserRoleAssignment {
 
   constructor(props: CreateUserRoleProps) {
     if (!props.id || props.id.trim() === '') {
-      throw new Error('Assignment ID cannot be empty');
+      throw new ValidationError('Assignment ID cannot be empty');
     }
     if (!props.tenantId || props.tenantId.trim() === '') {
-      throw new Error('Tenant ID cannot be empty');
+      throw new ValidationError('Tenant ID cannot be empty');
     }
     if (!props.userId || props.userId.trim() === '') {
-      throw new Error('User ID cannot be empty');
+      throw new ValidationError('User ID cannot be empty');
     }
     if (!props.roleId || props.roleId.trim() === '') {
-      throw new Error('Role ID cannot be empty');
+      throw new ValidationError('Role ID cannot be empty');
     }
 
     this._id = props.id.trim();

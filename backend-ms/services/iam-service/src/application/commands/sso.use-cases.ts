@@ -234,9 +234,22 @@ export class IntrospectSsoTokenUseCase implements UseCase<IntrospectSsoTokenComm
   constructor(private readonly ssoSessionRepo: ISsoSessionRepository) {}
 
   async execute(command: IntrospectSsoTokenCommand): Promise<Result<IntrospectedTokenDto>> {
-    const secret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
     try {
-      const decoded = jwt.verify(command.token, secret) as any;
+      const complete = jwt.decode(command.token, { complete: true }) as any;
+      const alg = complete?.header?.alg;
+
+      let decoded: any;
+      if (alg === 'RS256') {
+        const pubKey = (process.env.JWT_PUBLIC_KEY || process.env.IAM_JWT_PUBLIC_KEY)?.replace(/\\n/g, '\n');
+        if (!pubKey) {
+          return Result.ok({ active: false, reason: 'INVALID_OR_EXPIRED_TOKEN' });
+        }
+        decoded = jwt.verify(command.token, pubKey, { algorithms: ['RS256'] });
+      } else {
+        const secret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
+        decoded = jwt.verify(command.token, secret, { algorithms: ['HS256'] });
+      }
+
       const tenantId = decoded.tenantId || decoded.tid || process.env.DEFAULT_TENANT_ID || 'default';
       const aud = decoded.aud ? String(decoded.aud) : undefined;
 

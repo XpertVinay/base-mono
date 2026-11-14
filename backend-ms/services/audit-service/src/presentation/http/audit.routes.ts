@@ -82,6 +82,26 @@ export function createAuditRouter(
     return requireAuth(req, res, () => requireRole(['ADMIN'])(req, res, next));
   };
 
+  // Root discovery endpoint
+  router.get('/', (_req: Request, res: Response) => {
+    res.status(200).json({
+      service: 'audit-service',
+      description: 'Audit Telemetry and Security Compliance Service',
+      version: '1.0.0',
+      endpoints: [
+        '/logs',
+        '/logs/:id',
+        '/config',
+        '/alerts',
+        '/metrics/summary',
+        '/grafana/annotations',
+        '/remediate',
+        '/backoffice/logs',
+        '/health'
+      ]
+    });
+  });
+
   // Ingestion: accepts telemetry logs with DDoS throttling
   router.post('/logs', auditIngestRateLimiter, controller.record);
 

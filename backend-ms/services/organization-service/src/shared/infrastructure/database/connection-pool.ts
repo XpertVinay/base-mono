@@ -14,11 +14,11 @@ export class DatabasePool {
       database: process.env.DB_NAME || 'microservices_db',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
-      max: parseInt(process.env.DB_POOL_MAX || '5', 10),
-      min: parseInt(process.env.DB_POOL_MIN || '1', 10),
-      idleTimeoutMillis: 15000,
-      connectionTimeoutMillis: 5000,
-      statement_timeout: 10000,
+      max: parseInt(process.env.DB_POOL_MAX || '10', 10),
+      min: parseInt(process.env.DB_POOL_MIN || '2', 10),
+      idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
+      connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONN_TIMEOUT || '5000', 10),
+      statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '10000', 10),
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
     });
 

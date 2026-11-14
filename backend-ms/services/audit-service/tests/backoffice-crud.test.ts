@@ -48,8 +48,9 @@ class InMemoryAuditRepo implements IAuditRepository {
   }
 
   async delete(id: string, tenantId?: string): Promise<boolean> {
+    const tid = tenantId || 'default';
     const idx = this.logs.findIndex(
-      l => l.id === id && (!tenantId || l.tenantId === tenantId || l.tenantId === 'default')
+      l => l.id === id && l.tenantId === tid
     );
     if (idx >= 0) {
       this.logs.splice(idx, 1);
@@ -284,5 +285,34 @@ test('Backoffice Audit CRUD: Path aliases (/backoffice/logs)', async () => {
 
   assert.strictEqual(aliasRes.status, 200);
   assert.strictEqual(aliasRes.body.status, true);
+});
+
+test('Audit Directory Discovery: GET /api/v1/audit returns 200 discovery metadata (D6 fix)', async () => {
+  const repo = new InMemoryAuditRepo();
+  const { app } = createApp(repo);
+
+  const res = await makeHttpRequest(app, 'GET', '/api/v1/audit');
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.service, 'audit-service');
+  assert.ok(Array.isArray(res.body.endpoints));
+});
+
+test('Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/audit and /api/backoffice/audit', async () => {
+  const repo = new InMemoryAuditRepo();
+  const { app } = createApp(repo);
+
+  const adminToken = createToken({ sub: 'admin-1', email: 'admin@test.local', role: 'ADMIN', tenantId: 'tenant-1' });
+
+  const resV1 = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/audit/logs', undefined, {
+    Authorization: `Bearer ${adminToken}`
+  });
+  assert.strictEqual(resV1.status, 200);
+  assert.strictEqual(resV1.body.status, true);
+
+  const resUnversioned = await makeHttpRequest(app, 'GET', '/api/backoffice/audit/logs', undefined, {
+    Authorization: `Bearer ${adminToken}`
+  });
+  assert.strictEqual(resUnversioned.status, 200);
+  assert.strictEqual(resUnversioned.body.status, true);
 });
 

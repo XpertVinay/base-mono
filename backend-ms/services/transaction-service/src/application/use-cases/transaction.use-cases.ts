@@ -38,7 +38,7 @@ export class InitiatePaymentUseCase implements UseCase<InitiatePaymentInput, Tra
 
   async execute(input: InitiatePaymentInput): Promise<Result<TransactionDto>> {
     const tenantId = input.tenantId || 'default';
-    const activeGatewayName = (await this.configClient.getActiveGateway()).toUpperCase();
+    const activeGatewayName = (await this.configClient.getActiveGateway(tenantId)).toUpperCase();
     const adapter = this.adapters.get(activeGatewayName) || this.adapters.get('STRIPE')!;
 
     const transaction = Transaction.create({

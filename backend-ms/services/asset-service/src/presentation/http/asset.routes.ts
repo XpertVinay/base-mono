@@ -11,7 +11,7 @@ export function createAssetRouter(controller: AssetController): Router {
 
   // Backoffice & Administrative asset CRUD
   router.get('/', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.listAll);
-  router.get('/:id', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.getById);
+  router.get('/:id', requireAuth, controller.getById);
   router.put('/:id', requireAuth, requireRole(['ADMIN']), controller.update);
   router.patch('/:id', requireAuth, requireRole(['ADMIN']), controller.update);
   router.delete('/:id', requireAuth, requireRole(['ADMIN']), controller.delete);

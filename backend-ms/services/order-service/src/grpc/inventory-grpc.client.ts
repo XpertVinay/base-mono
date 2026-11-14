@@ -63,6 +63,8 @@ export class InventoryGrpcClient {
     metadata.set('x-tenant-id', tenantId);
     const internalSecret = process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars';
     metadata.set('x-internal-secret', internalSecret);
+    metadata.set('x-user-id', 'system-saga');
+    metadata.set('x-user-role', 'ADMIN');
 
     const dispatchReq = {
       method: 'POST',
@@ -70,7 +72,9 @@ export class InventoryGrpcClient {
       headers: {
         'content-type': 'application/json',
         'x-tenant-id': tenantId,
-        'x-internal-secret': internalSecret
+        'x-internal-secret': internalSecret,
+        'x-user-id': 'system-saga',
+        'x-user-role': 'ADMIN'
       },
       body: Buffer.from(JSON.stringify({ productId, quantity, tenantId }), 'utf8'),
       clientIp: '127.0.0.1',

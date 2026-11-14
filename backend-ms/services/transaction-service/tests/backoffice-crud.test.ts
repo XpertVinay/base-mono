@@ -384,3 +384,22 @@ test('Backoffice Transaction CRUD: Path aliases (/backoffice/transactions)', asy
   assert.strictEqual(aliasRes.status, 200);
   assert.strictEqual(aliasRes.body.status, true);
 });
+
+test('Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/transactions and /api/backoffice/transactions', async () => {
+  const repo = new InMemoryTransactionRepo();
+  const { app } = createApp(repo);
+
+  const adminToken = createToken({ sub: 'admin-1', email: 'admin@test.local', role: 'ADMIN', tenantId: 'tenant-1' });
+
+  const resV1 = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/transactions', undefined, {
+    Authorization: `Bearer ${adminToken}`
+  });
+  assert.strictEqual(resV1.status, 200);
+  assert.strictEqual(resV1.body.status, true);
+
+  const resUnversioned = await makeHttpRequest(app, 'GET', '/api/backoffice/transactions', undefined, {
+    Authorization: `Bearer ${adminToken}`
+  });
+  assert.strictEqual(resUnversioned.status, 200);
+  assert.strictEqual(resUnversioned.body.status, true);
+});

@@ -46,6 +46,10 @@ const updateOrderSchema = z.object({
   currency: z.string().min(1).max(10).optional()
 });
 
+const orderParamSchema = z.object({
+  id: z.string().trim().min(1, 'Order ID is required')
+});
+
 export class OrderController {
   constructor(
     private readonly createUseCase: CreateOrderUseCase,
@@ -149,7 +153,7 @@ export class OrderController {
 
   getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = req.params.id as string;
+      const { id } = orderParamSchema.parse(req.params);
       const userId = req.user?.id || (req.header('x-user-id') as string) || '';
       const role = req.user?.role || (req.header('x-user-role') as string) || 'USER';
       const tenantId = this.getTenantId(req);
@@ -204,7 +208,7 @@ export class OrderController {
         return;
       }
 
-      const id = req.params.id as string;
+      const { id } = orderParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
       const validated = updateOrderStatusSchema.parse(req.body);
 
@@ -243,7 +247,7 @@ export class OrderController {
         return;
       }
 
-      const id = req.params.id as string;
+      const { id } = orderParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
       const validated = updateOrderSchema.parse(req.body);
 
@@ -281,7 +285,7 @@ export class OrderController {
         return;
       }
 
-      const id = req.params.id as string;
+      const { id } = orderParamSchema.parse(req.params);
       const tenantId = this.getTenantId(req);
 
       const result = await this.deleteOrderUseCase.execute({ orderId: id, tenantId });
@@ -308,18 +312,31 @@ export class OrderController {
 
   cancel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = req.params.id as string;
+      const { id } = orderParamSchema.parse(req.params);
       const userId = req.user?.id || (req.header('x-user-id') as string) || '';
       const role = req.user?.role || (req.header('x-user-role') as string) || 'USER';
       const tenantId = this.getTenantId(req);
 
       const result = await this.cancelUseCase.execute({ orderId: id, userId, role, tenantId });
       if (result.isFailure) {
+        const errorMsg = result.getError();
+        const lowerMsg = errorMsg.toLowerCase();
+        let statusCode = 400;
+        let errorCode = 'CANCEL_FAILED';
+
+        if (lowerMsg.includes('not found')) {
+          statusCode = 404;
+          errorCode = 'ORDER_NOT_FOUND';
+        } else if (lowerMsg.includes('forbidden') || lowerMsg.includes('permission') || lowerMsg.includes('not authorized')) {
+          statusCode = 403;
+          errorCode = 'FORBIDDEN';
+        }
+
         ApiResponse.error(res, {
           req,
-          statusCode: 400,
-          message: result.getError(),
-          errors: [{ code: 'CANCEL_FAILED', message: result.getError() }]
+          statusCode,
+          message: errorMsg,
+          errors: [{ code: errorCode, message: errorMsg }]
         });
         return;
       }

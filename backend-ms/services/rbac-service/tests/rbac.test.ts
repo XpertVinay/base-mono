@@ -32,6 +32,7 @@ import {
   CheckUserPermissionQuery
 } from '../src/application/use-cases/assignment.use-cases.js';
 import { AppError, NotFoundError } from '../src/shared/presentation/error-handler.middleware.js';
+import { createApp } from '../src/app.js';
 
 // ==========================================================
 // In-Memory Mock Repositories
@@ -552,6 +553,53 @@ describe('RBAC Service Unit & Domain Tests', () => {
       await assert.rejects(async () => {
         await getRole.execute('tenant-beta', roleA.id);
       }, NotFoundError);
+    });
+  });
+
+  describe('Canonical Back-Office Routes (Feature F12)', () => {
+    test('Works under /api/v1/backoffice/rbac/roles and /api/v1/backoffice/rbac/permissions', async () => {
+      const { app } = createApp({ roleRepo, permRepo, userRoleRepo });
+
+      await new Promise<void>((resolve, reject) => {
+        let resCode = 200;
+        const mockRes: any = {
+          status(code: number) { resCode = code; return this; },
+          json(payload: any) {
+            try {
+              assert.strictEqual(resCode, 200);
+              assert.strictEqual(payload?.status, true);
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+            return this;
+          },
+          send(payload: any) { return this.json(payload); },
+          end() { resolve(); return this; },
+          setHeader() { return this; },
+          getHeader() { return undefined; },
+          removeHeader() { return this; }
+        };
+
+        const mockReq: any = {
+          method: 'GET',
+          url: '/api/v1/backoffice/rbac/roles',
+          headers: {
+            'x-user-id': 'admin-1',
+            'x-user-role': 'ADMIN',
+            'x-internal-secret': process.env.INTERNAL_SERVICE_SECRET || 'dev-internal-service-secret-token-32-chars'
+          },
+          header(name: string) {
+            return this.headers[name.toLowerCase()];
+          },
+          body: {},
+          query: {},
+          params: {},
+          socket: { remoteAddress: '127.0.0.1' }
+        };
+
+        (app as any).handle(mockReq, mockRes);
+      });
     });
   });
 });

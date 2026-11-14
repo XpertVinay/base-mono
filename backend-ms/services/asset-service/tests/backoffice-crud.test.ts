@@ -139,10 +139,10 @@ function makeHttpRequest(
   });
 }
 
-function createToken(role = 'ADMIN', tenantId = 'tenant-corp'): string {
+function createToken(role = 'ADMIN', tenantId = 'tenant-corp', userId = 'usr-admin-1'): string {
   const secret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
   return jwt.sign(
-    { sub: 'usr-admin-1', role, tenantId, email: 'admin@corp.io' },
+    { sub: userId, role, tenantId, email: `${userId}@corp.io` },
     secret,
     { expiresIn: '1h' }
   );
@@ -211,6 +211,43 @@ test('Asset Service: Back-office CRUD Operations', async (t) => {
     assert.strictEqual(res.body.data.name, 'contracts-2026.pdf');
   });
 
+  await t.test('4b. Owner Access & IDOR Protection: Owner can inspect asset, other user is blocked with 403 (D7 fix)', async () => {
+    // 1. User creates asset
+    const created = await makeHttpRequest(
+      app,
+      'POST',
+      '/api/v1/assets',
+      {
+        name: 'user-doc.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 512,
+        storagePath: '/storage/tenant-corp/user-doc.pdf'
+      },
+      {
+        Authorization: `Bearer ${userToken}`,
+        'X-Tenant-ID': 'tenant-corp'
+      }
+    );
+    assert.strictEqual(created.status, 201);
+    const userAssetId = created.body.data.id;
+
+    // 2. Owner fetches asset via GET /:id -> 200 OK
+    const ownerRes = await makeHttpRequest(app, 'GET', `/api/v1/assets/${userAssetId}`, undefined, {
+      Authorization: `Bearer ${userToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(ownerRes.status, 200);
+    assert.strictEqual(ownerRes.body.data.id, userAssetId);
+
+    // 3. Different user attempts to inspect owner asset -> 403 Forbidden
+    const otherUserToken = createToken('USER', 'tenant-corp', 'usr-intruder');
+    const forbiddenRes = await makeHttpRequest(app, 'GET', `/api/v1/assets/${userAssetId}`, undefined, {
+      Authorization: `Bearer ${otherUserToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(forbiddenRes.status, 403);
+  });
+
   await t.test('5. Update Asset: PATCH /api/v1/assets/:id updates metadata', async () => {
     const res = await makeHttpRequest(
       app,
@@ -255,5 +292,67 @@ test('Asset Service: Back-office CRUD Operations', async (t) => {
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
+  });
+
+  await t.test('8. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/assets and /api/backoffice/assets', async () => {
+    const resV1 = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/assets', undefined, {
+      Authorization: `Bearer ${adminToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resV1.status, 200);
+    assert.strictEqual(resV1.body.status, true);
+
+    const resUnversioned = await makeHttpRequest(app, 'GET', '/api/backoffice/assets', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resUnversioned.status, 200);
+    assert.strictEqual(resUnversioned.body.status, true);
+  });
+
+  await t.test('9. F22 Path Traversal Protection: Rejects storagePath containing traversal (..) or null byte', async () => {
+    // 1. Directory traversal rejected
+    const traversalRes = await makeHttpRequest(
+      app,
+      'POST',
+      '/api/v1/assets',
+      {
+        name: 'exploit.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 128,
+        storagePath: '../../etc/passwd'
+      },
+      {
+        Authorization: `Bearer ${adminToken}`,
+        'X-Tenant-ID': 'tenant-corp'
+      }
+    );
+    assert.strictEqual(traversalRes.status, 400);
+
+    // 2. Null byte rejected
+    const nullByteRes = await makeHttpRequest(
+      app,
+      'POST',
+      '/api/v1/assets',
+      {
+        name: 'exploit.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 128,
+        storagePath: 'uploads/file\0.png'
+      },
+      {
+        Authorization: `Bearer ${adminToken}`,
+        'X-Tenant-ID': 'tenant-corp'
+      }
+    );
+    assert.strictEqual(nullByteRes.status, 400);
+  });
+
+  await t.test('10. F22 Parameter Validation: Rejects whitespace-only asset ID with 400', async () => {
+    const res = await makeHttpRequest(app, 'GET', '/api/v1/assets/%20%20', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(res.status, 400);
   });
 });

@@ -5,12 +5,13 @@ export interface ListSearchDocumentsOptions {
   limit?: number;
   type?: string;
   search?: string;
+  tenantId?: string;
 }
 
 export interface ISearchRepository {
-  findById(id: string): Promise<SearchDocument | null>;
+  findById(id: string, tenantId?: string): Promise<SearchDocument | null>;
   index(doc: SearchDocument): Promise<void>;
-  search(query: string, type?: string): Promise<SearchDocument[]>;
+  search(query: string, type?: string, tenantId?: string): Promise<SearchDocument[]>;
   listAll(options?: ListSearchDocumentsOptions): Promise<{ documents: SearchDocument[]; total: number }>;
-  remove(id: string): Promise<boolean>;
+  remove(id: string, tenantId?: string): Promise<boolean>;
 }

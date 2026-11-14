@@ -12,6 +12,7 @@ export interface LoginUserCommand {
   password: string;
   tenantId?: string;
   tenantSlug?: string;
+  deviceFingerprint?: string;
 }
 
 export class LoginUserUseCase implements UseCase<LoginUserCommand, AuthTokensDto> {
@@ -77,7 +78,8 @@ export class LoginUserUseCase implements UseCase<LoginUserCommand, AuthTokensDto
       authMethod: user.authMethod,
       sessionId,
       refreshTokenJti,
-      expiresInSeconds: tenant.config.sessionTtlSeconds
+      expiresInSeconds: tenant.config.sessionTtlSeconds,
+      deviceFingerprint: command.deviceFingerprint
     });
 
     return Result.ok(tokens);

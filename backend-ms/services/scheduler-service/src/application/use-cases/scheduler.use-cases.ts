@@ -8,6 +8,7 @@ import { logger } from '../../shared/infrastructure/logger.js';
 export interface CreateJobInput {
   name: string;
   cronExpression: string;
+  tenantId?: string;
 }
 
 export class CreateJobUseCase implements UseCase<CreateJobInput, JobDto> {
@@ -16,7 +17,8 @@ export class CreateJobUseCase implements UseCase<CreateJobInput, JobDto> {
   async execute(input: CreateJobInput): Promise<Result<JobDto>> {
     const job = Job.create({
       name: input.name,
-      cronExpression: input.cronExpression
+      cronExpression: input.cronExpression,
+      tenantId: input.tenantId
     });
 
     await this.repo.save(job);
@@ -33,11 +35,15 @@ export class CreateJobUseCase implements UseCase<CreateJobInput, JobDto> {
   }
 }
 
-export class ListJobsQuery implements UseCase<void, JobDto[]> {
+export interface ListJobsInput {
+  tenantId?: string;
+}
+
+export class ListJobsQuery implements UseCase<ListJobsInput | void, JobDto[]> {
   constructor(private readonly repo: ISchedulerRepository) {}
 
-  async execute(): Promise<Result<JobDto[]>> {
-    const jobs = await this.repo.listAll();
+  async execute(input?: ListJobsInput | void): Promise<Result<JobDto[]>> {
+    const jobs = await this.repo.listAll(input?.tenantId);
     return Result.ok(
       jobs.map(j => ({
         id: j.id,
@@ -52,14 +58,14 @@ export class ListJobsQuery implements UseCase<void, JobDto[]> {
   }
 }
 
-export class TriggerJobUseCase implements UseCase<{ id: string }, JobDto> {
+export class TriggerJobUseCase implements UseCase<{ id: string; tenantId?: string }, JobDto> {
   constructor(
     private readonly repo: ISchedulerRepository,
     private readonly tasks: Map<string, () => Promise<void>>
   ) {}
 
-  async execute(input: { id: string }): Promise<Result<JobDto>> {
-    const job = await this.repo.findById(input.id);
+  async execute(input: { id: string; tenantId?: string }): Promise<Result<JobDto>> {
+    const job = await this.repo.findById(input.id, input.tenantId);
     if (!job) {
       return Result.fail('Job not found');
     }

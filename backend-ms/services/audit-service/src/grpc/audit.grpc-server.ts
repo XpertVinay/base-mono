@@ -41,7 +41,9 @@ export function startAuditGrpcServer(
           try { details = JSON.parse(req.detailsJson); } catch {}
         }
 
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || req.tenantId || 'default';
         const result = await recordUseCase.execute({
+          tenantId,
           actorId: req.actorId || undefined,
           actorEmail: req.actorEmail || undefined,
           action: req.action,
@@ -81,7 +83,9 @@ export function startAuditGrpcServer(
       const requestId = `grpc-audit-${Date.now()}`;
       try {
         const req = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || req.tenantId || 'default';
         const result = await queryUseCase.execute({
+          tenantId,
           actorId: req.actorId || undefined,
           resource: req.resource || undefined,
           action: req.action || undefined,

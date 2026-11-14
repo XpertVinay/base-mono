@@ -11,20 +11,21 @@ import { ISchedulerRepository } from '../src/domain/repositories/scheduler-repos
 class InMemorySchedulerRepo implements ISchedulerRepository {
   public jobs: Job[] = [];
 
-  async findById(id: string): Promise<Job | null> {
-    return this.jobs.find(j => j.id === id) || null;
+  async findById(id: string, tenantId?: string): Promise<Job | null> {
+    return this.jobs.find(j => j.id === id && (!tenantId || j.tenantId === tenantId || j.tenantId === 'default' || !j.tenantId)) || null;
   }
 
-  async findByName(name: string): Promise<Job | null> {
-    return this.jobs.find(j => j.name === name) || null;
+  async findByName(name: string, tenantId?: string): Promise<Job | null> {
+    return this.jobs.find(j => j.name === name && (!tenantId || j.tenantId === tenantId || j.tenantId === 'default' || !j.tenantId)) || null;
   }
 
-  async listAll(): Promise<Job[]> {
-    return [...this.jobs];
+  async listAll(tenantId?: string): Promise<Job[]> {
+    if (!tenantId) return [...this.jobs];
+    return this.jobs.filter(j => j.tenantId === tenantId || j.tenantId === 'default' || !j.tenantId);
   }
 
   async save(job: Job): Promise<void> {
-    const existing = this.jobs.findIndex(j => j.id === job.id);
+    const existing = this.jobs.findIndex(j => j.id === job.id && j.tenantId === job.tenantId);
     if (existing >= 0) {
       this.jobs[existing] = job;
     } else {
@@ -39,8 +40,8 @@ class InMemorySchedulerRepo implements ISchedulerRepository {
     }
   }
 
-  async delete(id: string): Promise<boolean> {
-    const idx = this.jobs.findIndex(j => j.id === id);
+  async delete(id: string, tenantId?: string): Promise<boolean> {
+    const idx = this.jobs.findIndex(j => j.id === id && (!tenantId || j.tenantId === tenantId));
     if (idx >= 0) {
       this.jobs.splice(idx, 1);
       return true;
@@ -235,6 +236,37 @@ test('Scheduler Service: Back-office CRUD Operations', async (t) => {
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, true);
+  });
+
+  await t.test('9. Root Directory Discovery: GET /api/v1/scheduler returns 200 discovery metadata (D6 fix)', async () => {
+    const res = await makeHttpRequest(app, 'GET', '/api/v1/scheduler');
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.service, 'scheduler-service');
+    assert.ok(Array.isArray(res.body.endpoints));
+  });
+
+  await t.test('10. Canonical Back-Office Routes (F12): Works under /api/v1/backoffice/scheduler and /api/v1/backoffice/jobs', async () => {
+    const resScheduler = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/scheduler/jobs', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resScheduler.status, 200);
+    assert.strictEqual(resScheduler.body.status, true);
+
+    const resJobs = await makeHttpRequest(app, 'GET', '/api/v1/backoffice/jobs', undefined, {
+      Authorization: `Bearer ${adminToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(resJobs.status, 200);
+    assert.strictEqual(resJobs.body.status, true);
+  });
+
+  await t.test('11. F22 Parameter Validation: Rejects whitespace-only job ID with 400', async () => {
+    const res = await makeHttpRequest(app, 'GET', '/api/v1/scheduler/jobs/%20%20', undefined, {
+      Authorization: `Bearer ${supportToken}`,
+      'X-Tenant-ID': 'tenant-corp'
+    });
+    assert.strictEqual(res.status, 400);
   });
 });
 

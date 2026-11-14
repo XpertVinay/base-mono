@@ -1,4 +1,5 @@
 import { AggregateRoot } from '../../shared/domain/aggregate-root.js';
+import { ValidationError } from '../../shared/domain/errors.js';
 import {
   McpAuthType,
   McpHealthStatus,
@@ -57,7 +58,7 @@ export class McpProvider extends AggregateRoot<McpProviderProps> {
   ): McpProvider {
     const slug = input.slug.trim().toLowerCase();
     if (!VALID_SLUG_RE.test(slug)) {
-      throw new Error(
+      throw new ValidationError(
         `Invalid provider slug '${input.slug}'. Must be 2-99 lowercase alphanumeric, dot, underscore, or hyphen characters.`
       );
     }
@@ -69,11 +70,11 @@ export class McpProvider extends AggregateRoot<McpProviderProps> {
       !input.endpointUrl &&
       !input.isBuiltin
     ) {
-      throw new Error(`Provider '${slug}' with transport '${input.transportType}' requires an endpointUrl`);
+      throw new ValidationError(`Provider '${slug}' with transport '${input.transportType}' requires an endpointUrl`);
     }
 
     if (input.transportType === 'STDIO' && !input.command) {
-      throw new Error(`Provider '${slug}' with transport 'STDIO' requires a command`);
+      throw new ValidationError(`Provider '${slug}' with transport 'STDIO' requires a command`);
     }
 
     const now = new Date();

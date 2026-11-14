@@ -44,8 +44,10 @@ export function startOrderGrpcServer(
       const requestId = `grpc-order-${Date.now()}`;
       try {
         const { userId, items, currency } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const result = await useCases.createUseCase.execute({
           userId,
+          tenantId,
           items: (items || []).map((i: any) => ({
             productId: i.productId,
             productName: i.productName,
@@ -91,10 +93,12 @@ export function startOrderGrpcServer(
       const requestId = `grpc-order-${Date.now()}`;
       try {
         const { orderId, userId, role } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const result = await useCases.getByIdQuery.execute({
           orderId,
           userId: userId || '',
-          role: role || 'USER'
+          role: role || 'USER',
+          tenantId
         });
 
         if (result.isFailure) {

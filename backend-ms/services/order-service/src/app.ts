@@ -74,7 +74,29 @@ export function createApp(customRepo?: IOrderRepository): {
   );
   const router = createOrderRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'order-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'order-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/orders/health',
+      '/api/orders/health',
+      '/api/v1/order/health',
+      '/api/order/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  app.use('/api/v1/backoffice/orders', router);
+  app.use('/api/backoffice/orders', router);
 
   app.use('/api/v1/orders', router);
   app.use('/api/orders', router);

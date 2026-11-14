@@ -6,6 +6,7 @@ import { correlationIdMiddleware } from './shared/presentation/request-context.j
 import { tenantContextMiddleware } from './shared/presentation/tenant.middleware.js';
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
+import { requireAuth, requireRole } from './shared/presentation/auth.middleware.js';
 import { PostgresSchedulerRepository } from './infrastructure/persistence/postgres-scheduler.repository.js';
 import { ISchedulerRepository } from './domain/repositories/scheduler-repository.interface.js';
 import {
@@ -66,7 +67,40 @@ export function createApp(customRepo?: ISchedulerRepository): {
   );
   const router = createSchedulerRouter(controller);
 
-  app.get('/health', (_req, res) => res.json({ status: 'UP', service: 'scheduler-service', timestamp: new Date().toISOString() }));
+  const healthHandler = (_req: express.Request, res: express.Response) =>
+    res.status(200).json({
+      status: 'ok',
+      service: 'scheduler-service',
+      timestamp: new Date().toISOString()
+    });
+
+  app.get(
+    [
+      '/health',
+      '/ready',
+      '/live',
+      '/api/v1/scheduler/health',
+      '/api/scheduler/health'
+    ],
+    healthHandler
+  );
+
+  // Canonical Back-Office Routes (Feature F12)
+  const backofficeJobsRouter = express.Router();
+  backofficeJobsRouter.get('/', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.list);
+  backofficeJobsRouter.post('/', requireAuth, requireRole(['ADMIN']), controller.create);
+  backofficeJobsRouter.get('/:id', requireAuth, requireRole(['ADMIN', 'SUPPORT']), controller.getById);
+  backofficeJobsRouter.put('/:id', requireAuth, requireRole(['ADMIN']), controller.updateJob);
+  backofficeJobsRouter.patch('/:id', requireAuth, requireRole(['ADMIN']), controller.updateJob);
+  backofficeJobsRouter.delete('/:id', requireAuth, requireRole(['ADMIN']), controller.deleteJob);
+  backofficeJobsRouter.post('/:id/trigger', requireAuth, requireRole(['ADMIN']), controller.trigger);
+
+  app.use('/api/v1/backoffice/jobs', backofficeJobsRouter);
+  app.use('/api/backoffice/jobs', backofficeJobsRouter);
+  app.use('/api/v1/backoffice/scheduler', router);
+  app.use('/api/backoffice/scheduler', router);
+  app.use('/api/v1/backoffice', router);
+  app.use('/api/backoffice', router);
 
   app.use('/api/v1/scheduler', router);
   app.use('/api/scheduler', router);

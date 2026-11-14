@@ -18,7 +18,7 @@ import {
 import { TenantResolverService } from '../services/tenant-resolver.service.js';
 import { ProviderResolverService } from '../services/provider-resolver.service.js';
 import { IOidcProviderRegistry, OidcDiscoveryMetadata } from '../ports/oidc-provider-adapter.port.js';
-import { getMultiTenancyConfig } from '../../shared/presentation/tenant.middleware.js';
+import { getMultiTenancyConfig } from '../../shared/infrastructure/config/multi-tenancy.config.js';
 
 export function toOidcProviderDto(provider: OidcProvider): OidcProviderDto {
   return {

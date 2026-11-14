@@ -4,6 +4,7 @@ import { RegisterUserUseCase } from '../../application/commands/register-user.us
 import { LoginUserUseCase } from '../../application/commands/login-user.use-case.js';
 import { RefreshTokenUseCase } from '../../application/commands/refresh-token.use-case.js';
 import { GetUserByIdQuery } from '../../application/queries/get-user-by-id.query.js';
+import { ITokenService } from '../../application/ports/token-service.port.js';
 import { ApiResponse } from '../../shared/presentation/standard-response.js';
 
 const registerSchema = z.object({
@@ -31,8 +32,14 @@ export class IamController {
     private readonly registerUseCase: RegisterUserUseCase,
     private readonly loginUseCase: LoginUserUseCase,
     private readonly getUserByIdQuery: GetUserByIdQuery,
-    private readonly refreshTokenUseCase: RefreshTokenUseCase
+    private readonly refreshTokenUseCase: RefreshTokenUseCase,
+    private readonly tokenService?: ITokenService
   ) {}
+
+  getJwks = (_req: Request, res: Response): void => {
+    const jwks = this.tokenService?.getJwks ? this.tokenService.getJwks() : { keys: [] };
+    res.status(200).json(jwks);
+  };
 
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -78,11 +85,13 @@ export class IamController {
       const validated = loginSchema.parse(req.body);
       const tenantId = validated.tenantId || (validated.tenantSlug ? undefined : req.tenant?.tenantId);
       const tenantSlug = validated.tenantSlug || (validated.tenantId ? undefined : req.tenant?.tenantSlug);
+      const deviceFingerprint = (req.header('x-device-fingerprint') || (req.body as any)?.deviceFingerprint)?.trim();
 
       const result = await this.loginUseCase.execute({
         ...validated,
         tenantId,
-        tenantSlug
+        tenantSlug,
+        deviceFingerprint
       });
 
       if (result.isFailure) {
@@ -112,9 +121,11 @@ export class IamController {
     try {
       const validated = refreshSchema.parse(req.body);
       const tenantId = req.tenant?.isDefault === false ? req.tenant.tenantId : undefined;
+      const deviceFingerprint = (req.header('x-device-fingerprint') || (req.body as any)?.deviceFingerprint)?.trim();
       const result = await this.refreshTokenUseCase.execute({
         refreshToken: validated.refreshToken,
-        tenantId
+        tenantId,
+        deviceFingerprint
       });
 
       if (result.isFailure) {

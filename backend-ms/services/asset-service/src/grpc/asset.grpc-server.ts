@@ -36,12 +36,14 @@ export function startAssetGrpcServer(
       const requestId = `grpc-asset-${Date.now()}`;
       try {
         const { name, mimeType, sizeBytes, storagePath, ownerId } = call.request;
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
         const result = await createUseCase.execute({
           name,
           mimeType,
           sizeBytes: Number(sizeBytes),
           storagePath,
-          ownerId
+          ownerId,
+          tenantId
         });
 
         if (result.isFailure) {
@@ -79,7 +81,8 @@ export function startAssetGrpcServer(
     ListMyAssets: async (call: any, callback: any) => {
       const requestId = `grpc-asset-${Date.now()}`;
       try {
-        const result = await listQuery.execute({ ownerId: call.request.ownerId });
+        const tenantId = call.metadata?.get('x-tenant-id')?.[0]?.toString() || call.request?.tenantId || 'default';
+        const result = await listQuery.execute({ ownerId: call.request.ownerId, tenantId });
         const items = result.getValue();
 
         callback(null, {
