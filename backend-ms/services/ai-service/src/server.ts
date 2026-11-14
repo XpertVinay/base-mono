@@ -38,20 +38,50 @@ async function bootstrap() {
     app
   );
 
+  let isShuttingDown = false;
   const shutdown = async (signal: string) => {
-    logger.info(`Received ${signal}. Shutting down ai-service...`);
-    server.close(async () => {
-      grpcServer.forceShutdown();
-      await closeResources();
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    logger.info(`Received ${signal}. Gracefully shutting down ai-service...`);
+
+    const forceTimer = setTimeout(() => {
+      logger.error("Graceful shutdown timeout exceeded (10s). Forcing termination.");
+      process.exit(1);
+    }, 10000);
+    forceTimer.unref();
+
+    try {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      logger.info("HTTP server closed to new connections");
+
+      await new Promise<void>((resolve) => {
+        grpcServer.tryShutdown((err) => {
+          if (err) {
+            logger.warn("gRPC tryShutdown timed out, forcing shutdown", err);
+            grpcServer.forceShutdown();
+          }
+          resolve();
+        });
+      });
+      logger.info("gRPC server drained and closed");
+
+      if (closeResources) {
+        await closeResources();
+      }
       await rabbitmq.close();
       await dbPool.close();
-      logger.info('ai-service shut down cleanly');
+
+      logger.info("ai-service shut down cleanly");
+      clearTimeout(forceTimer);
       process.exit(0);
-    });
+    } catch (err) {
+      logger.error("Error during graceful shutdown", err);
+      process.exit(1);
+    }
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 bootstrap().catch(err => {

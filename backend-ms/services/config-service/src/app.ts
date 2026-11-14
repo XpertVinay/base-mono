@@ -7,6 +7,7 @@ import { tenantContextMiddleware } from './shared/presentation/tenant.middleware
 import { rateLimiter } from './shared/presentation/rate-limiter.middleware.js';
 import { errorHandlerMiddleware, NotFoundError } from './shared/presentation/error-handler.middleware.js';
 import { PostgresConfigRepository } from './infrastructure/persistence/postgres-config.repository.js';
+import { IConfigRepository } from './domain/repositories/config-repository.interface.js';
 import {
   GetConfigQuery,
   SetConfigUseCase,
@@ -16,7 +17,7 @@ import {
 import { ConfigController } from './presentation/http/config.controller.js';
 import { createConfigRouter } from './presentation/http/config.routes.js';
 
-export function createApp(): { app: Express; repo: PostgresConfigRepository } {
+export function createApp(customRepo?: IConfigRepository): { app: Express; repo: IConfigRepository } {
   const app = express();
 
   app.set('trust proxy', 1);
@@ -28,7 +29,7 @@ export function createApp(): { app: Express; repo: PostgresConfigRepository } {
   app.use(tenantContextMiddleware());
   app.use(rateLimiter());
 
-  const repo = new PostgresConfigRepository();
+  const repo = customRepo || new PostgresConfigRepository();
   const getQuery = new GetConfigQuery(repo);
   const setUseCase = new SetConfigUseCase(repo);
   const listQuery = new ListConfigsQuery(repo);

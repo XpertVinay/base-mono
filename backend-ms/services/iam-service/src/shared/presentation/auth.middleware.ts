@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getMultiTenancyConfig, resolveTenantContext } from './tenant.middleware.js';
-import { ISsoSessionRepository } from '../../domain/repositories/sso-session-repository.interface.js';
+
+export interface ISsoSessionRevocationChecker {
+  isRevoked(sessionId: string): Promise<boolean>;
+}
 
 export interface AuthenticatedUser {
   id: string;
@@ -87,7 +90,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    const sessionRepo = req.app?.locals?.ssoSessionRepo as ISsoSessionRepository | undefined;
+    const sessionRepo = req.app?.locals?.ssoSessionRepo as ISsoSessionRevocationChecker | undefined;
     if (decoded.sid && sessionRepo) {
       const revoked = await sessionRepo.isRevoked(String(decoded.sid));
       if (revoked) {

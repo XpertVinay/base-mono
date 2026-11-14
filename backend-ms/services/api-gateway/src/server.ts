@@ -18,13 +18,32 @@ async function bootstrap() {
     logger.info('🔌 Mapped gRPC Upstreams:', grpcManager.getServiceMap());
   });
 
+  let isShuttingDown = false;
   const shutdown = async (signal: string) => {
-    logger.info(`Received ${signal}. Shutting down API Gateway...`);
-    server.close(() => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    logger.info(`Received ${signal}. Gracefully shutting down API Gateway...`);
+
+    const forceTimer = setTimeout(() => {
+      logger.error('Graceful shutdown timeout exceeded (10s). Forcing termination.');
+      process.exit(1);
+    }, 10000);
+    forceTimer.unref();
+
+    try {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      logger.info('HTTP server closed to new connections');
+
       grpcManager.closeAll();
+      logger.info('gRPC client channels closed');
+
       logger.info('API Gateway shut down cleanly');
+      clearTimeout(forceTimer);
       process.exit(0);
-    });
+    } catch (err) {
+      logger.error('Error during graceful shutdown', err);
+      process.exit(1);
+    }
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

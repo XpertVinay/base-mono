@@ -14,9 +14,11 @@ export class DatabasePool {
       database: process.env.DB_NAME || 'microservices_db',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
-      max: parseInt(process.env.DB_POOL_MAX || '20', 10),
-      idleTimeoutMillis: 30000,
+      max: parseInt(process.env.DB_POOL_MAX || '5', 10),
+      min: parseInt(process.env.DB_POOL_MIN || '1', 10),
+      idleTimeoutMillis: 15000,
       connectionTimeoutMillis: 5000,
+      statement_timeout: 10000,
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
     });
 
@@ -58,11 +60,18 @@ export class DatabasePool {
    */
   public async withTenantContext<T>(
     tenantId: string,
-    fn: (client: pg.PoolClient) => Promise<T>
+    fn: (client: pg.PoolClient) => Promise<T>,
+    options?: { readOnly?: boolean; statementTimeoutMs?: number }
   ): Promise<T> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      if (options?.readOnly) {
+        await client.query('SET TRANSACTION READ ONLY');
+      }
+      if (options?.statementTimeoutMs) {
+        await client.query(`SET LOCAL statement_timeout = ${Number(options.statementTimeoutMs)}`);
+      }
       await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
       const result = await fn(client);
       await client.query('COMMIT');
@@ -72,6 +81,16 @@ export class DatabasePool {
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  public async checkHealth(): Promise<{ status: 'UP' | 'DOWN'; latencyMs: number; error?: string }> {
+    const start = Date.now();
+    try {
+      await this.pool.query('SELECT 1');
+      return { status: 'UP', latencyMs: Date.now() - start };
+    } catch (err: any) {
+      return { status: 'DOWN', latencyMs: Date.now() - start, error: err?.message || String(err) };
     }
   }
 

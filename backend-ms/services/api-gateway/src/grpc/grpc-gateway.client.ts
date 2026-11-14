@@ -199,15 +199,31 @@ const CHANNEL_OPTIONS: grpc.ChannelOptions = {
   'grpc.max_send_message_length': 16 * 1024 * 1024
 };
 
+export interface CircuitBreakerState {
+  status: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  failures: number;
+  lastFailureTime: number;
+  threshold: number;
+  cooldownMs: number;
+}
+
 export class GrpcGatewayClientManager {
   private readonly clients = new Map<ServiceKey, any>();
   private readonly targets = new Map<ServiceKey, string>();
+  private readonly circuitBreakers = new Map<ServiceKey, CircuitBreakerState>();
   private readonly protoDir: string;
 
   constructor(targetOverrides?: Partial<Record<ServiceKey, string>>) {
     this.protoDir = path.resolve(__dirname, '../proto');
 
     for (const def of Object.values(GRPC_SERVICE_DEFINITIONS)) {
+      this.circuitBreakers.set(def.key, {
+        status: 'CLOSED',
+        failures: 0,
+        lastFailureTime: 0,
+        threshold: parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD || '5', 10),
+        cooldownMs: parseInt(process.env.CIRCUIT_BREAKER_COOLDOWN_MS || '10000', 10)
+      });
       let target = targetOverrides?.[def.key] || process.env[def.envVar];
       if (!target) {
         // Fallback: If HTTP service URL is defined (e.g. IAM_SERVICE_URL="http://iam-service:4001"), extract container hostname
@@ -261,6 +277,10 @@ export class GrpcGatewayClientManager {
     return result;
   }
 
+  getCircuitBreakerStatus(key: ServiceKey): CircuitBreakerState | undefined {
+    return this.circuitBreakers.get(key);
+  }
+
   dispatch(
     key: ServiceKey,
     request: DispatchRequest,
@@ -270,6 +290,23 @@ export class GrpcGatewayClientManager {
     const client = this.clients.get(key);
     if (!client) {
       return Promise.reject(new Error(`gRPC client for service '${key}' is not registered`));
+    }
+
+    const cb = this.circuitBreakers.get(key);
+    if (cb) {
+      if (cb.status === 'OPEN') {
+        const elapsed = Date.now() - cb.lastFailureTime;
+        if (elapsed > cb.cooldownMs) {
+          cb.status = 'HALF_OPEN';
+        } else {
+          const err: any = new Error(
+            `Circuit breaker is OPEN for service '${key}'. Downstream service is currently degraded.`
+          );
+          err.isCircuitBreakerOpen = true;
+          err.retryAfterSeconds = Math.max(1, Math.ceil((cb.cooldownMs - elapsed) / 1000));
+          return Promise.reject(err);
+        }
+      }
     }
 
     const metadata = new grpc.Metadata();
@@ -284,8 +321,21 @@ export class GrpcGatewayClientManager {
     return new Promise((resolve, reject) => {
       client.Dispatch(request, metadata, { deadline }, (err: grpc.ServiceError | null, response: any) => {
         if (err) {
+          if (cb) {
+            cb.failures++;
+            if (cb.failures >= cb.threshold || cb.status === 'HALF_OPEN') {
+              cb.status = 'OPEN';
+              cb.lastFailureTime = Date.now();
+            }
+          }
           return reject(err);
         }
+
+        if (cb) {
+          cb.status = 'CLOSED';
+          cb.failures = 0;
+        }
+
         const rawBody = response?.body;
         const bodyBuffer = Buffer.isBuffer(rawBody)
           ? rawBody

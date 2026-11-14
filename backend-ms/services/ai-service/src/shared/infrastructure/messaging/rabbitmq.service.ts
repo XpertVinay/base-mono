@@ -13,13 +13,21 @@ export interface DomainIntegrationEvent<T = any> {
 
 export type EventHandler<T = any> = (event: DomainIntegrationEvent<T>) => Promise<void>;
 
+interface BufferedPublishEvent {
+  routingKey: string;
+  event: DomainIntegrationEvent<any>;
+}
+
 export class RabbitMQService {
   private static instance: RabbitMQService;
   private connection: any = null;
   private channel: any = null;
   private readonly exchange = 'microservices.events';
+  private readonly dlxExchange = 'microservices.dlx';
   private readonly url = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
   private isConnecting = false;
+  private publishQueue: BufferedPublishEvent[] = [];
+  private readonly maxQueueSize = 1000;
 
   private constructor() {}
 
@@ -42,6 +50,7 @@ export class RabbitMQService {
       this.channel = await this.connection.createChannel();
 
       await this.channel.assertExchange(this.exchange, 'topic', { durable: true });
+      await this.channel.assertExchange(this.dlxExchange, 'direct', { durable: true });
 
       this.connection.on('error', (err: any) => {
         logger.error('RabbitMQ connection error', err);
@@ -54,6 +63,7 @@ export class RabbitMQService {
       });
 
       logger.info('RabbitMQ connected successfully');
+      await this.flushPublishQueue();
     } catch (err) {
       logger.error('Failed to connect to RabbitMQ broker', err);
       const timer = setTimeout(() => this.connect(), 5000);
@@ -70,14 +80,36 @@ export class RabbitMQService {
     timer.unref();
   }
 
+  private async flushPublishQueue(): Promise<void> {
+    if (!this.channel || this.publishQueue.length === 0) return;
+    const eventsToFlush = [...this.publishQueue];
+    this.publishQueue = [];
+    logger.info(`Flushing ${eventsToFlush.length} buffered RabbitMQ events`);
+
+    for (const item of eventsToFlush) {
+      await this.publish(item.routingKey, item.event);
+    }
+  }
+
   public async publish<T>(routingKey: string, event: DomainIntegrationEvent<T>): Promise<void> {
-    if (process.env.RABBITMQ_ENABLED === 'false') return;
     try {
-      if (!this.channel) {
+      if (!this.channel && process.env.RABBITMQ_ENABLED !== 'false') {
         await this.connect();
       }
       if (!this.channel) {
-        logger.warn('RabbitMQ channel not ready. Event skipped', { routingKey, eventId: event.id });
+        if (this.publishQueue.length < this.maxQueueSize) {
+          this.publishQueue.push({ routingKey, event });
+          logger.warn('RabbitMQ channel not ready. Event buffered in memory queue for dispatch upon connection', {
+            routingKey,
+            eventId: event.id,
+            queueDepth: this.publishQueue.length
+          });
+        } else {
+          logger.error('RabbitMQ fallback queue capacity reached. Event dropped', {
+            routingKey,
+            eventId: event.id
+          });
+        }
         return;
       }
 
@@ -105,25 +137,34 @@ export class RabbitMQService {
     routingKeys: string[],
     handler: EventHandler<T>
   ): Promise<void> {
-    if (process.env.RABBITMQ_ENABLED === 'false') return;
     try {
       if (!this.channel) {
         await this.connect();
       }
       if (!this.channel) {
-        const timer = setTimeout(() => this.subscribe(serviceQueueName, routingKeys, handler), 5000);
-        timer.unref();
+        setTimeout(() => this.subscribe(serviceQueueName, routingKeys, handler), 5000);
         return;
       }
 
-      const q = await this.channel.assertQueue(serviceQueueName, { durable: true });
+      // Assert Dead Letter Exchange and Queue for fault tolerance
+      const dlqName = `${serviceQueueName}.dlq`;
+      await this.channel.assertQueue(dlqName, { durable: true });
+      await this.channel.bindQueue(dlqName, this.dlxExchange, serviceQueueName);
+
+      const q = await this.channel.assertQueue(serviceQueueName, {
+        durable: true,
+        deadLetterExchange: this.dlxExchange,
+        deadLetterRoutingKey: serviceQueueName
+      });
 
       for (const key of routingKeys) {
         await this.channel.bindQueue(q.queue, this.exchange, key);
         logger.info(`Bound queue '${serviceQueueName}' to exchange '${this.exchange}' with routing key '${key}'`);
       }
 
-      await this.channel.prefetch(10);
+      // Performance & resilience: apply consumer prefetch QoS
+      const prefetchCount = parseInt(process.env.RABBITMQ_PREFETCH || '10', 10);
+      await this.channel.prefetch(prefetchCount);
 
       await this.channel.consume(
         q.queue,
@@ -135,10 +176,16 @@ export class RabbitMQService {
             if (!event.tenantId && headerTenantId) {
               event.tenantId = String(headerTenantId);
             }
+            logger.info(`Received event ${event.eventName} on queue ${serviceQueueName}`, {
+              eventId: event.id,
+              aggregateId: event.aggregateId,
+              tenantId: event.tenantId
+            });
             await handler(event);
             this.channel?.ack(msg);
           } catch (handlerErr) {
-            logger.error(`Handler failed for message on queue ${serviceQueueName}`, handlerErr);
+            logger.error(`Handler failed for message on queue ${serviceQueueName}. Routing to DLQ`, handlerErr);
+            // nack without requeue routes directly to deadLetterExchange (microservices.dlx -> dlq)
             this.channel?.nack(msg, false, false);
           }
         },
@@ -161,4 +208,3 @@ export class RabbitMQService {
 }
 
 export const rabbitmq = RabbitMQService.getInstance();
-

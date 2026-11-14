@@ -14,9 +14,11 @@ export class DatabasePool {
       database: process.env.DB_NAME || 'microservices_db',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
-      max: parseInt(process.env.DB_POOL_MAX || '20', 10),
-      idleTimeoutMillis: 30000,
+      max: parseInt(process.env.DB_POOL_MAX || '5', 10),
+      min: parseInt(process.env.DB_POOL_MIN || '1', 10),
+      idleTimeoutMillis: 15000,
       connectionTimeoutMillis: 5000,
+      statement_timeout: 10000,
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
     });
 
@@ -51,6 +53,11 @@ export class DatabasePool {
     }
   }
 
+  /**
+   * Executes database work within a transaction where PostgreSQL's session setting
+   * `app.current_tenant_id` is scoped via SET LOCAL, enabling seamless Row-Level Security (RLS)
+   * or tenant-aware SQL policies across microservices.
+   */
   public async withTenantContext<T>(
     tenantId: string,
     fn: (client: pg.PoolClient) => Promise<T>,
@@ -58,11 +65,14 @@ export class DatabasePool {
   ): Promise<T> {
     const client = await this.pool.connect();
     try {
-      await client.query(options?.readOnly ? 'BEGIN READ ONLY' : 'BEGIN');
-      await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
-      if (options?.statementTimeoutMs && options.statementTimeoutMs > 0) {
-        await client.query(`SELECT set_config('statement_timeout', $1, true)`, [String(options.statementTimeoutMs)]);
+      await client.query('BEGIN');
+      if (options?.readOnly) {
+        await client.query('SET TRANSACTION READ ONLY');
       }
+      if (options?.statementTimeoutMs) {
+        await client.query(`SET LOCAL statement_timeout = ${Number(options.statementTimeoutMs)}`);
+      }
+      await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
       const result = await fn(client);
       await client.query('COMMIT');
       return result;
@@ -74,10 +84,19 @@ export class DatabasePool {
     }
   }
 
+  public async checkHealth(): Promise<{ status: 'UP' | 'DOWN'; latencyMs: number; error?: string }> {
+    const start = Date.now();
+    try {
+      await this.pool.query('SELECT 1');
+      return { status: 'UP', latencyMs: Date.now() - start };
+    } catch (err: any) {
+      return { status: 'DOWN', latencyMs: Date.now() - start, error: err?.message || String(err) };
+    }
+  }
+
   public async close(): Promise<void> {
     await this.pool.end();
   }
 }
 
 export const dbPool = DatabasePool.getInstance();
-

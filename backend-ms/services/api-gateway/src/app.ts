@@ -235,7 +235,10 @@ export function createApp(deps: ApiGatewayDependencies = {}): {
           gateway: 'api-gateway',
           version: 'v1',
           transport: 'grpc+http2',
-          services: checks
+          services: checks,
+          circuitBreakers: Object.fromEntries(
+            keys.map((k) => [k, grpcManager.getCircuitBreakerStatus(k)?.status || 'CLOSED'])
+          )
         }
       });
     } else {
@@ -248,6 +251,9 @@ export function createApp(deps: ApiGatewayDependencies = {}): {
           .map(([k, v]) => ({ service: k, status: v.status, target: v.target, error: v.error })),
         meta: {
           debug: { checks },
+          circuitBreakers: Object.fromEntries(
+            keys.map((k) => [k, grpcManager.getCircuitBreakerStatus(k)?.status || 'CLOSED'])
+          ),
           further_steps: [
             'Check individual service gRPC servers and container liveness',
             'Verify system health at /api/v1/health/detailed'
@@ -591,21 +597,30 @@ export function createApp(deps: ApiGatewayDependencies = {}): {
         res.setHeader('x-gateway-upstream', `${serviceName}:grpc`);
         res.status(upstream.statusCode || 200).send(upstream.body);
       } catch (err: any) {
+        const isCircuitBreaker = err?.isCircuitBreakerOpen === true;
         const isTimeout = err?.code === grpc.status.DEADLINE_EXCEEDED;
-        const statusCode = isTimeout ? 504 : 502;
-        const errorCode = isTimeout ? 'GATEWAY_TIMEOUT' : 'BAD_GATEWAY';
+        const statusCode = isCircuitBreaker ? 503 : isTimeout ? 504 : 502;
+        const errorCode = isCircuitBreaker ? 'CIRCUIT_BREAKER_OPEN' : isTimeout ? 'GATEWAY_TIMEOUT' : 'BAD_GATEWAY';
+        const message = isCircuitBreaker
+          ? `Downstream gRPC service '${serviceName}' circuit breaker is OPEN due to repeated failures`
+          : `Downstream gRPC microservice '${serviceName}' is unavailable or timed out`;
+
+        if (isCircuitBreaker && err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
 
         logger.error(`gRPC dispatch error for ${serviceName}`, err, {
           url: req.originalUrl,
           target,
-          grpcCode: err?.code
+          grpcCode: err?.code,
+          isCircuitBreaker
         });
 
         if (!res.headersSent) {
           ApiResponse.error(res, {
             req,
             statusCode,
-            message: `Downstream gRPC microservice '${serviceName}' is unavailable or timed out`,
+            message,
             errors: [
               {
                 code: errorCode,

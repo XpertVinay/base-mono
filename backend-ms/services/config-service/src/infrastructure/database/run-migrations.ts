@@ -16,14 +16,21 @@ async function runMigrations() {
     process.exit(0);
   }
 
-  const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+  const pool = dbPool.getPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('config-service-migrations'))");
+
+    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
 
   for (const file of files) {
     const filePath = path.join(migrationsDir, file);
     const sql = fs.readFileSync(filePath, 'utf8');
     logger.info(`Applying migration: ${file}`);
     try {
-      await dbPool.query(sql);
+      await client.query(sql);
       logger.info(`Successfully applied: ${file}`);
     } catch (err) {
       logger.error(`Failed to apply migration ${file}`, err);
@@ -31,7 +38,14 @@ async function runMigrations() {
     }
   }
 
-  logger.info('Migrations completed cleanly.');
+  await client.query("COMMIT");
+    logger.info("Migrations completed cleanly.");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
   await dbPool.close();
 }
 

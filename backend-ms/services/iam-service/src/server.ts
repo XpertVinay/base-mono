@@ -27,15 +27,48 @@ async function bootstrap() {
 
   const grpcServer = startIamGrpcServer(userRepo, grpcPort, tenantRepo, app, ssoSessionRepo);
 
+  let isShuttingDown = false;
   const shutdown = async (signal: string) => {
-    logger.info(`Received ${signal}. Shutting down iam-service...`);
-    server.close(async () => {
-      grpcServer.forceShutdown();
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    logger.info(`Received ${signal}. Gracefully shutting down iam-service...`);
+
+    const forceTimer = setTimeout(() => {
+      logger.error('Graceful shutdown timeout exceeded (10s). Forcing termination.');
+      process.exit(1);
+    }, 10000);
+    forceTimer.unref();
+
+    try {
+      // 1. Stop accepting new ingress HTTP connections
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      logger.info('HTTP server closed to new connections');
+
+      // 2. Gracefully drain in-flight gRPC calls
+      await new Promise<void>((resolve) => {
+        grpcServer.tryShutdown((err) => {
+          if (err) {
+            logger.warn('gRPC tryShutdown timed out, forcing shutdown', err);
+            grpcServer.forceShutdown();
+          }
+          resolve();
+        });
+      });
+      logger.info('gRPC server drained and closed');
+
+      // 3. Close RabbitMQ channels and connection
       await rabbitmq.close();
+
+      // 4. Close Database connection pool
       await dbPool.close();
+
       logger.info('iam-service shut down cleanly');
+      clearTimeout(forceTimer);
       process.exit(0);
-    });
+    } catch (err) {
+      logger.error('Error during graceful shutdown', err);
+      process.exit(1);
+    }
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
