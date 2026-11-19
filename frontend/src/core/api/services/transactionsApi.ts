@@ -42,9 +42,71 @@ export interface InitiatePaymentResultDto {
   clientSecret?: string;
 }
 
+export interface TransactionQueryParams {
+  gateway?: PaymentGatewayType;
+  status?: TransactionStatus;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaymentGatewaysResponseDto {
+  gateways: PaymentGatewayType[];
+  defaultGateway: PaymentGatewayType;
+}
+
 const txPath = (subPath = ''): string => `${resolveServiceEndpoint('transactions')}${subPath}`;
 
 export const transactionsApi = {
+  /**
+   * List transactions for current tenant
+   */
+  async list(
+    params?: TransactionQueryParams,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<TransactionDto[]>> {
+    try {
+      const res = await apiClient.get<unknown>(txPath('/tenant'), {
+        ...options,
+        params: params as Record<string, string | number | boolean | undefined>,
+      });
+      return unwrapEnvelope<TransactionDto[]>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * List transactions for current authenticated user
+   */
+  async listMy(
+    params?: TransactionQueryParams,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<TransactionDto[]>> {
+    try {
+      const res = await apiClient.get<unknown>(txPath('/my'), {
+        ...options,
+        params: params as Record<string, string | number | boolean | undefined>,
+      });
+      return unwrapEnvelope<TransactionDto[]>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Get supported payment gateways
+   */
+  async getGateways(
+    options?: RequestContextOptions
+  ): Promise<ApiResult<PaymentGatewaysResponseDto>> {
+    try {
+      const res = await apiClient.get<unknown>(txPath('/gateways'), options);
+      return unwrapEnvelope<PaymentGatewaysResponseDto>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
   /**
    * Initiate a payment transaction through the configured payment gateway
    */
@@ -70,6 +132,26 @@ export const transactionsApi = {
     try {
       const res = await apiClient.get<unknown>(txPath(`/${encodeURIComponent(id)}`), options);
       return unwrapEnvelope<TransactionDto>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Refund a completed transaction
+   */
+  async refund(
+    id: string,
+    payload?: { amount?: number; reason?: string },
+    options?: RequestContextOptions
+  ): Promise<ApiResult<{ refunded: boolean; transactionId: string }>> {
+    try {
+      const res = await apiClient.post<unknown>(
+        txPath(`/${encodeURIComponent(id)}/refund`),
+        payload || {},
+        options
+      );
+      return unwrapEnvelope<{ refunded: boolean; transactionId: string }>(res.data, res.status);
     } catch (err) {
       throw extractApiServiceError(err);
     }

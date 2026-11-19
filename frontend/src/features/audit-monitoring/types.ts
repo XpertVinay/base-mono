@@ -8,7 +8,7 @@ export interface AuditLogItem {
   resource: string;
   resourceId?: string;
   severity: AuditSeverity;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   ipAddress?: string;
   correlationId?: string;
   createdAt: string;

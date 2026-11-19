@@ -34,9 +34,42 @@ export interface ReserveStockPayload {
   reservationTtlMinutes?: number;
 }
 
+export interface InventoryQueryParams {
+  sku?: string;
+  search?: string;
+  warehouseId?: string;
+}
+
 const inventoryPath = (subPath = ''): string => `${resolveServiceEndpoint('inventory')}${subPath}`;
 
 export const inventoryApi = {
+  /**
+   * List all inventory stock items
+   */
+  async list(
+    params?: InventoryQueryParams,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<InventoryItemDto[]>> {
+    try {
+      const res = await apiClient.get<unknown>(inventoryPath('/items'), {
+        ...options,
+        params: params as Record<string, string | number | boolean | undefined>,
+      });
+      return unwrapEnvelope<InventoryItemDto[]>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Alias for list
+   */
+  async listItems(
+    params?: InventoryQueryParams,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<InventoryItemDto[]>> {
+    return this.list(params, options);
+  },
   /**
    * Get available stock quantity and reservation metrics for a product
    */
@@ -80,6 +113,21 @@ export const inventoryApi = {
     try {
       const res = await apiClient.post<unknown>(inventoryPath('/reserve'), payload, options);
       return unwrapEnvelope<{ reserved: boolean; expiresAt?: string }>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Release reserved stock back to available inventory
+   */
+  async releaseStock(
+    payload: { productId: string; quantity: number; orderId?: string },
+    options?: RequestContextOptions
+  ): Promise<ApiResult<{ released: boolean }>> {
+    try {
+      const res = await apiClient.post<unknown>(inventoryPath('/release'), payload, options);
+      return unwrapEnvelope<{ released: boolean }>(res.data, res.status);
     } catch (err) {
       throw extractApiServiceError(err);
     }

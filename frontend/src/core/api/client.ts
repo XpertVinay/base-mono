@@ -7,7 +7,7 @@ import {
   ServiceKey,
 } from '../config/serviceConfig';
 import { getStoredAccessToken } from '../auth/tokenStorage';
-import { useApiTrafficStore, detectServiceTag } from './trafficStore';
+import { useApiTrafficStore, detectServiceTag, HttpMethod } from './trafficStore';
 
 export class ApiClient {
   private baseUrl: string;
@@ -56,7 +56,7 @@ export class ApiClient {
    */
   public async request<T = unknown>(endpoint: string, options: ApiClientOptions = {}): Promise<ApiResponse<T>> {
     const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const method = (options.method || 'GET').toUpperCase() as any;
+    const method = (options.method || 'GET').toUpperCase() as HttpMethod;
 
     // Build URL with query params
     let url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
@@ -147,7 +147,7 @@ export class ApiClient {
 
       const durationMs = Math.max(1, Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - startTime));
 
-      let responseData: any;
+      let responseData: unknown;
       const contentType = response.headers && typeof response.headers.get === 'function'
         ? response.headers.get('content-type') || ''
         : '';
@@ -336,7 +336,9 @@ export class ApiClient {
 
       // GET /organizations
       if (method === 'GET') {
-        const list = mockBackend.getOrganizations(options.params as any);
+        const list = mockBackend.getOrganizations(
+          options.params as { search?: string; status?: string; tier?: string }
+        );
         return {
           data: envelope(list, 'Organizations retrieved successfully', {
             page: Number(options.params?.page || 1),
@@ -372,6 +374,46 @@ export class ApiClient {
     // 3. Dynamic Config CRUD (/api/v1/config, /config)
     if (cleanPath.includes('/config')) {
       const keyMatch = cleanPath.match(/\/config\/([^/?#]+)$/);
+
+      // GET /config/sections
+      if (cleanPath.endsWith('/config/sections') && method === 'GET') {
+        const summary = mockBackend.getSectionsSummary();
+        return { data: envelope(summary, 'Configuration sections summary retrieved') as unknown as T, status: 200 };
+      }
+
+      // GET /config/sections/:section
+      const sectionMatch = cleanPath.match(/\/config\/sections\/([^/?#]+)$/);
+      if (sectionMatch && sectionMatch[1]) {
+        if (method === 'GET') {
+          const sec = mockBackend.getSection(sectionMatch[1]);
+          return { data: envelope(sec, `Section config for ${sectionMatch[1]} retrieved`) as unknown as T, status: 200 };
+        }
+        if (method === 'PUT' || method === 'POST') {
+          const body = options.body ? JSON.parse(options.body as string) : {};
+          const updated = mockBackend.updateSection(sectionMatch[1], body);
+          return { data: envelope(updated, `Section config for ${sectionMatch[1]} updated`) as unknown as T, status: 200 };
+        }
+      }
+
+      // GET /config/cache/stats
+      if (cleanPath.endsWith('/config/cache/stats') && method === 'GET') {
+        const stats = mockBackend.getCacheStats();
+        return { data: envelope(stats, 'Cache telemetry statistics retrieved') as unknown as T, status: 200 };
+      }
+
+      // POST /config/cache/invalidate
+      if (cleanPath.endsWith('/config/cache/invalidate') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.invalidateCache(body);
+        return { data: envelope(res, 'Cache invalidated successfully') as unknown as T, status: 200 };
+      }
+
+      // POST /config/context/token
+      if (cleanPath.endsWith('/config/context/token') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.createContextToken(body);
+        return { data: envelope(res, 'Encrypted tenant context token created') as unknown as T, status: 200 };
+      }
 
       // GET /config/client
       if (cleanPath.endsWith('/config/client') && method === 'GET') {
@@ -424,7 +466,7 @@ export class ApiClient {
 
       // GET /rbac/roles
       if (method === 'GET') {
-        const roles = mockBackend.getRoles(options.params as any);
+        const roles = mockBackend.getRoles(options.params as { search?: string; isSystem?: boolean });
         return {
           data: envelope(roles, 'Roles retrieved successfully', {
             page: 1,
@@ -459,9 +501,40 @@ export class ApiClient {
 
     // 5. Notifications (/api/v1/notifications, /notifications)
     if (cleanPath.includes('/notifications')) {
-      if (cleanPath.endsWith('/dry-run/outbox') && method === 'GET') {
-        const all = mockBackend.getNotifications().filter((n) => n.isDryRun);
-        return { data: envelope(all, 'Dry-run outbox retrieved') as unknown as T, status: 200 };
+      if (cleanPath.endsWith('/dry-run/outbox')) {
+        if (method === 'GET') {
+          const all = mockBackend.getNotifications().filter((n) => n.isDryRun);
+          return { data: envelope(all, 'Dry-run outbox retrieved') as unknown as T, status: 200 };
+        }
+        if (method === 'DELETE') {
+          const res = mockBackend.clearDryRunOutbox();
+          return { data: envelope(res, 'Dry-run outbox cleared') as unknown as T, status: 200 };
+        }
+      }
+
+      if (cleanPath.endsWith('/config') && method === 'GET') {
+        const cfg = mockBackend.getNotificationConfig();
+        return { data: envelope(cfg, 'Notification configuration retrieved') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/batch') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.sendBatchNotifications(body.notifications || [], body.dryRun);
+        return { data: envelope(res, 'Batch notifications processed') as unknown as T, status: 201 };
+      }
+
+      const webhookMatch = cleanPath.match(/\/webhooks\/([^/?#]+)$/);
+      if (webhookMatch && webhookMatch[1] && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.simulateWebhook(webhookMatch[1], body);
+        return { data: envelope(res, 'Webhook ingested successfully') as unknown as T, status: 200 };
+      }
+
+      const idMatch = cleanPath.match(/\/notifications\/([^/?#]+)$/);
+      if (idMatch && idMatch[1] && method === 'GET' && !idMatch[1].includes('config') && !idMatch[1].includes('outbox')) {
+        const found = mockBackend.getNotifications().find((n) => n.id === idMatch[1]);
+        if (!found) throw new ApiError('Notification not found', 404);
+        return { data: envelope(found, 'Notification detail retrieved') as unknown as T, status: 200 };
       }
 
       if (method === 'GET') {
@@ -477,7 +550,219 @@ export class ApiClient {
       }
     }
 
-    // 6. Data Records CRUD (/records)
+    // 6. Orders CRUD (/api/v1/orders, /orders)
+    if (cleanPath.includes('/orders')) {
+      const idMatch = cleanPath.match(/\/orders\/([^/?#]+)$/);
+      const cancelMatch = cleanPath.match(/\/orders\/([^/?#]+)\/cancel$/);
+
+      if (cancelMatch && cancelMatch[1] && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const cancelled = mockBackend.cancelOrder(cancelMatch[1], body.reason);
+        if (!cancelled) throw new ApiError('Order not found', 404);
+        return { data: envelope(cancelled, 'Order cancelled successfully') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/my') && method === 'GET') {
+        const orders = mockBackend.getOrders();
+        return { data: envelope(orders, 'User orders retrieved') as unknown as T, status: 200 };
+      }
+
+      if (idMatch && idMatch[1] && method === 'GET' && !idMatch[1].includes('my')) {
+        const order = mockBackend.getOrder(idMatch[1]);
+        if (!order) throw new ApiError('Order not found', 404);
+        return { data: envelope(order, 'Order retrieved successfully') as unknown as T, status: 200 };
+      }
+
+      if (method === 'GET') {
+        const statusParam = (options.params?.status as string) || undefined;
+        const orders = mockBackend.getOrders(statusParam);
+        return { data: envelope(orders, 'Orders list retrieved') as unknown as T, status: 200 };
+      }
+
+      if (method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const created = mockBackend.createOrder(body);
+        return { data: envelope(created, 'Order created successfully') as unknown as T, status: 201 };
+      }
+    }
+
+    // 7. Inventory CRUD (/api/v1/inventory, /inventory)
+    if (cleanPath.includes('/inventory')) {
+      if (cleanPath.endsWith('/reserve') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.reserveStock(body);
+        return { data: envelope(res, 'Stock reserved successfully') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/release') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.releaseStock(body);
+        return { data: envelope(res, 'Stock released successfully') as unknown as T, status: 200 };
+      }
+
+      if ((cleanPath.endsWith('/stock') || cleanPath.endsWith('/items')) && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.addStock(body);
+        return { data: envelope(res, 'Stock added successfully') as unknown as T, status: 200 };
+      }
+
+      const prodMatch = cleanPath.match(/\/inventory\/(?:items\/)?([^/?#]+)$/);
+      if (prodMatch && prodMatch[1] && method === 'GET' && prodMatch[1] !== 'items') {
+        const item = mockBackend.getStock(prodMatch[1]);
+        if (!item) throw new ApiError('Inventory item not found', 404);
+        return { data: envelope(item, 'Inventory stock retrieved') as unknown as T, status: 200 };
+      }
+
+      if (method === 'GET') {
+        const searchParam = (options.params?.search || options.params?.sku) as string | undefined;
+        const list = mockBackend.getInventory(searchParam);
+        return { data: envelope(list, 'Inventory list retrieved') as unknown as T, status: 200 };
+      }
+    }
+
+    // 8. Assets CRUD (/api/v1/assets, /assets)
+    if (cleanPath.includes('/assets')) {
+      const idMatch = cleanPath.match(/\/assets\/([^/?#]+)$/);
+
+      if (idMatch && idMatch[1] && method === 'GET' && !idMatch[1].includes('my')) {
+        const asset = mockBackend.getAsset(idMatch[1]);
+        if (!asset) throw new ApiError('Asset not found', 404);
+        return { data: envelope(asset, 'Asset retrieved successfully') as unknown as T, status: 200 };
+      }
+
+      if (idMatch && idMatch[1] && method === 'DELETE') {
+        const deleted = mockBackend.deleteAsset(idMatch[1]);
+        return { data: envelope({ deleted }, 'Asset deleted successfully') as unknown as T, status: 200 };
+      }
+
+      if (method === 'GET') {
+        const mime = options.params?.mimeType as string | undefined;
+        const list = mockBackend.getAssets(mime);
+        return { data: envelope(list, 'Assets retrieved successfully') as unknown as T, status: 200 };
+      }
+
+      if (method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const created = mockBackend.createAsset(body);
+        return { data: envelope(created, 'Asset metadata registered') as unknown as T, status: 201 };
+      }
+    }
+
+    // 9. Transactions CRUD (/api/v1/transactions, /transactions)
+    if (cleanPath.includes('/transactions')) {
+      if (cleanPath.endsWith('/gateways') && method === 'GET') {
+        return {
+          data: envelope({ gateways: ['STRIPE', 'PAYPAL', 'RAZORPAY', 'MOCK'], defaultGateway: 'STRIPE' }, 'Gateways retrieved') as unknown as T,
+          status: 200,
+        };
+      }
+
+      if (cleanPath.endsWith('/initiate') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.initiatePayment(body);
+        return { data: envelope(res, 'Payment initiated successfully') as unknown as T, status: 200 };
+      }
+
+      const refundMatch = cleanPath.match(/\/transactions\/([^/?#]+)\/refund$/);
+      if (refundMatch && refundMatch[1] && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.refundPayment(refundMatch[1], body);
+        return { data: envelope(res, 'Transaction refunded') as unknown as T, status: 200 };
+      }
+
+      const idMatch = cleanPath.match(/\/transactions\/([^/?#]+)$/);
+      if (idMatch && idMatch[1] && method === 'GET' && !idMatch[1].includes('tenant') && !idMatch[1].includes('my')) {
+        const txn = mockBackend.getTransaction(idMatch[1]);
+        if (!txn) throw new ApiError('Transaction not found', 404);
+        return { data: envelope(txn, 'Transaction retrieved successfully') as unknown as T, status: 200 };
+      }
+
+      if (method === 'GET') {
+        const list = mockBackend.getTransactions(
+          options.params as { gateway?: string; status?: string }
+        );
+        return { data: envelope(list, 'Transactions list retrieved') as unknown as T, status: 200 };
+      }
+    }
+
+    // 10. Scheduler CRUD (/api/v1/scheduler, /scheduler)
+    if (cleanPath.includes('/scheduler')) {
+      const triggerMatch = cleanPath.match(/\/scheduler\/jobs\/([^/?#]+)\/trigger$/);
+      if (triggerMatch && triggerMatch[1] && method === 'POST') {
+        const res = mockBackend.triggerJob(triggerMatch[1]);
+        return { data: envelope(res, 'Cron job triggered successfully') as unknown as T, status: 200 };
+      }
+
+      const idMatch = cleanPath.match(/\/scheduler\/jobs\/([^/?#]+)$/);
+      if (idMatch && idMatch[1] && method === 'DELETE') {
+        const deleted = mockBackend.deleteJob(idMatch[1]);
+        return { data: envelope({ deleted }, 'Scheduled job deleted') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.includes('/jobs') && method === 'GET') {
+        const list = mockBackend.getJobs();
+        return { data: envelope(list, 'Scheduled cron jobs retrieved') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.includes('/jobs') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const created = mockBackend.createJob(body);
+        return { data: envelope(created, 'Scheduled job created successfully') as unknown as T, status: 201 };
+      }
+    }
+
+    // 11. IAM MFA & Cryptography (/api/v1/iam, /iam)
+    if (cleanPath.includes('/iam')) {
+      if (cleanPath.endsWith('/mfa/status') && method === 'GET') {
+        const res = mockBackend.getMfaStatus();
+        return { data: envelope(res, 'MFA status retrieved') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/mfa/setup') && method === 'POST') {
+        const res = mockBackend.setupMfa();
+        return { data: envelope(res, 'MFA setup initialized') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/mfa/enable') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.enableMfa(body.code, body.secret);
+        return { data: envelope(res, 'MFA enabled successfully') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/mfa/verify') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.verifyMfa(body.mfaChallengeToken, body.code);
+        return { data: envelope(res, 'MFA challenge verified') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/mfa/reverify') && method === 'POST') {
+        const body = options.body ? JSON.parse(options.body as string) : {};
+        const res = mockBackend.reverifyMfa(body.code);
+        return { data: envelope(res, 'MFA session reverified') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/.well-known/jwks.json') && method === 'GET') {
+        const res = mockBackend.getJwks();
+        return { data: envelope(res, 'JWKS key set retrieved') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/public-key') && method === 'GET') {
+        const res = mockBackend.getPublicKey();
+        return { data: envelope(res, 'SPKI RSA Public Key retrieved') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/me') && method === 'GET') {
+        const res = mockBackend.getMe();
+        return { data: envelope(res, 'User profile retrieved') as unknown as T, status: 200 };
+      }
+
+      if (cleanPath.endsWith('/audit-logs') && method === 'GET') {
+        const res = mockBackend.getAuditLogs();
+        return { data: envelope(res, 'Audit logs retrieved') as unknown as T, status: 200 };
+      }
+    }
+
+    // 12. Data Records CRUD (/records)
     if (cleanPath.includes('/records')) {
       const match = cleanPath.match(/\/records\/([^/?#]+)/);
 

@@ -60,6 +60,27 @@ export interface BatchNotificationResultDto {
   }>;
 }
 
+export interface NotificationConfigDto {
+  channels?: string[];
+  providers?: Record<string, { enabled: boolean; priority?: number }>;
+  defaultChannelRouting?: Record<string, string>;
+  activeGateways?: string[];
+  retryPolicy?: { maxRetries: number; backoffMs: number };
+}
+
+export interface ClearDryRunResultDto {
+  cleared: boolean;
+  count?: number;
+  message?: string;
+}
+
+export interface WebhookSimulationResultDto {
+  handled: boolean;
+  provider: string;
+  eventId?: string;
+  status?: string;
+}
+
 const notifPath = (subPath = ''): string => `${resolveServiceEndpoint('notifications')}${subPath}`;
 
 export const notificationsApi = {
@@ -140,6 +161,54 @@ export const notificationsApi = {
     try {
       const res = await apiClient.get<unknown>(notifPath('/dry-run/outbox'), options);
       return unwrapEnvelope<NotificationDto[]>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Clear all simulated notifications from developer DRY-run outbox
+   */
+  async clearDryRunOutbox(
+    options?: RequestContextOptions
+  ): Promise<ApiResult<ClearDryRunResultDto>> {
+    try {
+      const res = await apiClient.delete<unknown>(notifPath('/dry-run/outbox'), options);
+      return unwrapEnvelope<ClearDryRunResultDto>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Retrieve active provider routing and notification engine configuration
+   */
+  async getProviderConfig(
+    options?: RequestContextOptions
+  ): Promise<ApiResult<NotificationConfigDto>> {
+    try {
+      const res = await apiClient.get<unknown>(notifPath('/config'), options);
+      return unwrapEnvelope<NotificationConfigDto>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Ingest or simulate provider webhook delivery callback
+   */
+  async simulateWebhook(
+    provider: string,
+    payload: Record<string, unknown>,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<WebhookSimulationResultDto>> {
+    try {
+      const res = await apiClient.post<unknown>(
+        notifPath(`/webhooks/${encodeURIComponent(provider)}`),
+        payload,
+        options
+      );
+      return unwrapEnvelope<WebhookSimulationResultDto>(res.data, res.status);
     } catch (err) {
       throw extractApiServiceError(err);
     }

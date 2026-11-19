@@ -84,6 +84,16 @@ export const ordersApi = {
   },
 
   /**
+   * Alias for listOrders
+   */
+  async list(
+    params?: OrderQueryParams,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<OrderDto[]>> {
+    return this.listOrders(params, options);
+  },
+
+  /**
    * List orders belonging to the authenticated user
    */
   async getMyOrders(options?: RequestContextOptions): Promise<ApiResult<OrderDto[]>> {

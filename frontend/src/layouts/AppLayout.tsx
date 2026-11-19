@@ -1,169 +1,128 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import {
-  Menu,
-  X,
-  ExternalLink,
-  Search,
-  Bell,
-  HelpCircle,
-  Command,
-  Activity,
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 import { useTenant } from '../core/tenant/TenantContext';
-import { DevTenantSwitcher } from '../core/tenant/DevTenantSwitcher';
-import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
-import { TenantLogo } from '../components/common/TenantLogo';
-import { SidebarNav } from '../components/navigation/SidebarNav';
+import { Header } from '../components/common/Header';
+import { Sidebar } from '../components/common/Sidebar';
+import { Breadcrumbs } from '../components/common/Breadcrumbs';
 import { ApiTrafficInspector } from '../components/telemetry/ApiTrafficInspector';
-import { useApiTrafficStore } from '../core/api/trafficStore';
 import styles from './AppLayout.module.css';
 
-export const AppLayout: React.FC = () => {
+export interface AppLayoutProps {
+  children?: React.ReactNode;
+}
+
+const STORAGE_SIDEBAR_COLLAPSED_KEY = 'enterprise_sidebar_collapsed';
+
+export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { tenant } = useTenant();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const { toggleDrawer, records } = useApiTrafficStore();
+  const location = useLocation();
+
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem(STORAGE_SIDEBAR_COLLAPSED_KEY) === 'true';
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close mobile drawer on route navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  const handleToggleCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(STORAGE_SIDEBAR_COLLAPSED_KEY, String(next));
+        } catch {
+          // Ignore storage write issues
+        }
+      }
+      return next;
+    });
+  };
 
   return (
-    <div className={styles.appContainer}>
-      {/* Sidebar Navigation */}
-      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
-        <div className={styles.sidebarHeader}>
-          <TenantLogo size={32} showText={true} />
-          {mobileMenuOpen && (
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              style={{ background: 'none', border: 'none', color: 'var(--color-muted)', cursor: 'pointer' }}
-              aria-label="Close navigation"
-            >
-              <X size={20} />
-            </button>
-          )}
+    <div className={styles.appContainer} data-testid="app-layout">
+      {/* Responsive Collapsible Navigation Sidebar */}
+      <Sidebar
+        collapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleCollapse}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
+
+      {/* Main Workspace Column */}
+      <div
+        className={`${styles.mainWrapper} ${
+          isSidebarCollapsed ? styles.mainWrapperCollapsed : ''
+        }`}
+      >
+        {/* Top Navigation Bar with Controls */}
+        <Header
+          onToggleMobileMenu={() => setMobileOpen((prev) => !prev)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleCollapse}
+        />
+
+        {/* Dynamic Breadcrumbs Bar */}
+        <div className={styles.breadcrumbsBar}>
+          <Breadcrumbs />
         </div>
 
-        <SidebarNav onItemClick={() => setMobileMenuOpen(false)} />
-      </aside>
-
-      {/* Main Workspace */}
-      <div className={styles.mainWrapper}>
-        <header className={styles.header}>
-          <div className={styles.headerLeft}>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              style={{
-                display: 'none',
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-text)',
-                cursor: 'pointer',
-              }}
-              className="mobileToggleBtn"
-              aria-label="Toggle navigation menu"
-            >
-              <Menu size={20} />
-            </button>
-
-            <div className={styles.tenantStatusPill} title={`${tenant.identity.displayName} (${tenant.industry})`}>
-              <span className={styles.statusLiveDot} />
-              <span className={styles.statusText}>{tenant.identity.displayName}</span>
-              <span className={styles.statusDivider}>•</span>
-              <span className={styles.statusSubtext}>{tenant.industry.toUpperCase()}</span>
-            </div>
-
-            {/* Global Search Bar */}
-            <div className={styles.searchBar}>
-              <Search size={16} className={styles.searchIcon} />
-              <input
-                type="text"
-                className={styles.searchInput}
-                placeholder="Search portal, entities, docs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <div className={styles.searchKbd}>
-                <Command size={11} />
-                <span>K</span>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.headerRight}>
-            <button
-              type="button"
-              className={styles.iconBtn}
-              title={`API Traffic Inspector (${records.length} captured calls)`}
-              aria-label="API Traffic Inspector"
-              onClick={toggleDrawer}
-              style={{ position: 'relative' }}
-            >
-              <Activity size={18} style={{ color: 'var(--color-primary, #3b82f6)' }} />
-              {records.length > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -2,
-                    right: -2,
-                    backgroundColor: 'var(--color-primary, #3b82f6)',
-                    color: '#fff',
-                    borderRadius: 8,
-                    fontSize: 9,
-                    fontWeight: 700,
-                    padding: '1px 4px',
-                    minWidth: 14,
-                    textAlign: 'center',
-                  }}
-                >
-                  {records.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              className={styles.iconBtn}
-              title="Notifications"
-              aria-label="Notifications"
-            >
-              <Bell size={18} />
-              <span className={styles.notificationDot} />
-            </button>
-
-            <button
-              type="button"
-              className={styles.iconBtn}
-              title="Documentation & Help"
-              aria-label="Documentation"
-              onClick={() => window.open(tenant.identity.supportUrl, '_blank')}
-            >
-              <HelpCircle size={18} />
-            </button>
-
-            <div className={styles.divider} />
-
-            <DevTenantSwitcher />
-            <LanguageSwitcher />
-          </div>
-        </header>
-
-        <main className={styles.content}>
-          <Outlet />
+        {/* Primary Page Content Area */}
+        <main className={styles.content} role="main">
+          {children || <Outlet />}
         </main>
 
-        <footer className={styles.footer}>
+        {/* Enterprise Compliance & Legal Footer */}
+        <footer className={styles.footer} role="contentinfo">
           <div>
             &copy; {new Date().getFullYear()} {tenant.identity.legalName}. All rights reserved.
           </div>
           <div className={styles.footerLinks}>
-            <a href={tenant.identity.supportUrl} target="_blank" rel="noreferrer" className={styles.footerLink}>
-              Support <ExternalLink size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />
-            </a>
-            <a href={tenant.identity.termsUrl} target="_blank" rel="noreferrer" className={styles.footerLink}>
-              Terms
-            </a>
-            <a href={tenant.identity.privacyUrl} target="_blank" rel="noreferrer" className={styles.footerLink}>
-              Privacy
-            </a>
+            {tenant.identity.supportUrl && (
+              <a
+                href={tenant.identity.supportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={styles.footerLink}
+              >
+                Support{' '}
+                <ExternalLink
+                  size={12}
+                  style={{ display: 'inline', verticalAlign: 'middle' }}
+                />
+              </a>
+            )}
+            {tenant.identity.termsUrl && (
+              <a
+                href={tenant.identity.termsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={styles.footerLink}
+              >
+                Terms
+              </a>
+            )}
+            {tenant.identity.privacyUrl && (
+              <a
+                href={tenant.identity.privacyUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={styles.footerLink}
+              >
+                Privacy
+              </a>
+            )}
           </div>
         </footer>
       </div>

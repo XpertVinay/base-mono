@@ -101,13 +101,16 @@
   background-color: var(--color-surface, #ffffff);
   border-radius: var(--radius-lg, 8px) var(--radius-lg, 8px) 0 0;
   padding: 6px 12px 0 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
 }
 
 .tabBtn {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 10px 14px;
   font-size: 13px;
   font-weight: 600;
   color: var(--color-text-secondary, #64748b);
@@ -115,6 +118,8 @@
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 

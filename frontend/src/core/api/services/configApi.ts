@@ -9,6 +9,19 @@ import {
 
 export type ConfigTarget = 'BACKEND' | 'FRONTEND' | 'ALL';
 
+export type ConfigSection =
+  | 'tenant'
+  | 'iam'
+  | 'white-label'
+  | 'asset'
+  | 'finance'
+  | 'transaction'
+  | 'inventory'
+  | 'order'
+  | 'property'
+  | 'search'
+  | 'scheduler';
+
 export interface ConfigSettingDto {
   key: string;
   value: string;
@@ -24,6 +37,40 @@ export interface SetConfigPayload {
   description?: string;
   isEncrypted?: boolean;
   target?: ConfigTarget;
+}
+
+export interface CacheStatsDto {
+  hits: number;
+  misses: number;
+  size: number;
+  hitRate?: number;
+  keys?: string[];
+  lastClearedAt?: string;
+}
+
+export interface InvalidateCachePayload {
+  key?: string;
+  section?: string;
+  all?: boolean;
+}
+
+export interface InvalidateCacheResultDto {
+  success: boolean;
+  invalidatedKey?: string;
+  clearedCount?: number;
+  timestamp?: string;
+}
+
+export interface ContextTokenPayload {
+  tenantId?: string;
+  orgId?: string;
+  ttlMs?: number;
+}
+
+export interface ContextTokenResultDto {
+  contextToken: string;
+  tenantId: string;
+  expiresInSeconds: number;
 }
 
 const configPath = (subPath = ''): string => `${resolveServiceEndpoint('config')}${subPath}`;
@@ -154,6 +201,52 @@ export const configApi = {
         }
       );
       return unwrapEnvelope<Record<string, unknown>>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Generate an encrypted PII tenant context token
+   */
+  async generateContextToken(
+    payload?: ContextTokenPayload,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<ContextTokenResultDto>> {
+    try {
+      const res = await apiClient.post<unknown>(configPath('/context/token'), payload || {}, options);
+      return unwrapEnvelope<ContextTokenResultDto>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Get in-memory configuration cache telemetry statistics
+   */
+  async getCacheStats(options?: RequestContextOptions): Promise<ApiResult<CacheStatsDto>> {
+    try {
+      const res = await apiClient.get<unknown>(configPath('/cache/stats'), options);
+      return unwrapEnvelope<CacheStatsDto>(res.data, res.status);
+    } catch (err) {
+      throw extractApiServiceError(err);
+    }
+  },
+
+  /**
+   * Invalidate specific or all cached configuration keys
+   */
+  async invalidateCache(
+    payload?: InvalidateCachePayload,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<InvalidateCacheResultDto>> {
+    try {
+      const res = await apiClient.post<unknown>(
+        configPath('/cache/invalidate'),
+        payload || {},
+        options
+      );
+      return unwrapEnvelope<InvalidateCacheResultDto>(res.data, res.status);
     } catch (err) {
       throw extractApiServiceError(err);
     }

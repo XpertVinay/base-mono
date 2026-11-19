@@ -4,6 +4,7 @@ import { useTenant } from '../core/tenant/TenantContext';
 import { ProtectedRoute } from '../core/auth/ProtectedRoute';
 import { AppLayout } from '../layouts/AppLayout';
 import { AuthLayout } from '../layouts/AuthLayout';
+import { ErrorLayout } from '../layouts/ErrorLayout';
 import { LoginPage } from '../features/auth/LoginPage';
 import { OidcCallbackPage } from '../features/auth/OidcCallbackPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
@@ -14,7 +15,6 @@ import { IamControlPlanePage } from '../features/iam/IamControlPlanePage';
 import { ApiExplorerPage } from '../features/api-explorer/ApiExplorerPage';
 import { UnknownTenantPage } from '../features/system/UnknownTenantPage';
 import { TenantLoadingPage } from '../features/system/TenantLoadingPage';
-import { NotFoundPage } from '../features/system/NotFoundPage';
 
 export const AppRoutes: React.FC = () => {
   const { status } = useTenant();
@@ -29,7 +29,7 @@ export const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
-      {/* Public Auth Routes */}
+      {/* 1. Public Auth Routes */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<LoginPage />} />
@@ -37,7 +37,12 @@ export const AppRoutes: React.FC = () => {
         <Route path="/auth/callback/:provider" element={<OidcCallbackPage />} />
       </Route>
 
-      {/* Protected Application Routes */}
+      {/* 2. Standalone Error Routes */}
+      <Route path="/403" element={<ErrorLayout statusCode={403} />} />
+      <Route path="/404" element={<ErrorLayout statusCode={404} />} />
+      <Route path="/500" element={<ErrorLayout statusCode={500} />} />
+
+      {/* 3. Protected Application Routes */}
       <Route
         element={
           <ProtectedRoute>
@@ -55,6 +60,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/iam" element={<IamControlPlanePage />} />
         <Route path="/security" element={<IamControlPlanePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+
         {/* Navigation & IAM Section Aliases */}
         <Route path="/organization" element={<Navigate to="/settings" replace />} />
         <Route path="/users" element={<Navigate to="/iam?tab=profile" replace />} />
@@ -62,10 +68,12 @@ export const AppRoutes: React.FC = () => {
         <Route path="/tenants" element={<Navigate to="/iam?tab=tenants" replace />} />
         <Route path="/sessions" element={<Navigate to="/iam?tab=sessions" replace />} />
         <Route path="/providers" element={<Navigate to="/iam?tab=providers" replace />} />
-        <Route path="*" element={<NotFoundPage />} />
+
+        {/* Catch-all 404 inside AppLayout */}
+        <Route path="*" element={<ErrorLayout statusCode={404} />} />
       </Route>
 
-      {/* Path-based tenant redirection helper (e.g. /t/:tenantSlug -> /) */}
+      {/* 4. Path-based tenant redirection helper (e.g. /t/:tenantSlug -> /) */}
       <Route path="/t/:tenantSlug/*" element={<Navigate to="/" replace />} />
     </Routes>
   );

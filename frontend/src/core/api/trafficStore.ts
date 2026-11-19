@@ -55,8 +55,15 @@ export function generateCurl(
 
   Object.entries(headers).forEach(([key, val]) => {
     if (val !== undefined && val !== null) {
-      // Avoid printing entire secret tokens in plain curl snippet if preferred, but keep standard Bearer syntax
-      parts.push(`  -H "${key}: ${val}"`);
+      // Redact Bearer tokens in generated cURL commands to prevent credential leakage
+      if (key.toLowerCase() === 'authorization') {
+        const maskedVal = val.toLowerCase().startsWith('bearer ')
+          ? 'Bearer [REDACTED]'
+          : '[REDACTED]';
+        parts.push(`  -H "${key}: ${maskedVal}"`);
+      } else {
+        parts.push(`  -H "${key}: ${val}"`);
+      }
     }
   });
 
@@ -82,6 +89,7 @@ export function resolveSwaggerDocUrl(endpoint: string): string {
   if (cleanPath.includes('/orders')) return `${baseUrl}/#/Order%20Service`;
   if (cleanPath.includes('/inventory')) return `${baseUrl}/#/Inventory%20Service`;
   if (cleanPath.includes('/transactions')) return `${baseUrl}/#/Transaction%20Service`;
+  if (cleanPath.includes('/scheduler')) return `${baseUrl}/#/Scheduler%20Service`;
   if (cleanPath.includes('/iam')) return `${baseUrl}/#/IAM%20Service`;
   if (cleanPath.includes('/health')) return `${baseUrl}/#/Health`;
   
@@ -98,11 +106,12 @@ export function detectServiceTag(endpoint: string): string {
   if (cleanPath.includes('/orders')) return 'Orders';
   if (cleanPath.includes('/inventory')) return 'Inventory';
   if (cleanPath.includes('/transactions')) return 'Transactions';
-  if (cleanPath.includes('/records')) return 'Records';
+  if (cleanPath.includes('/scheduler')) return 'Scheduler';
   if (cleanPath.includes('/iam')) return 'IAM';
+  if (cleanPath.includes('/records')) return 'Records';
   if (cleanPath.includes('/audit')) return 'Audit';
   if (cleanPath.includes('/health')) return 'Health';
-  return 'API';
+  return 'General';
 }
 
 const MAX_RECORDS = 100;

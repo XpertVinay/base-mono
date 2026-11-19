@@ -7,3 +7,4 @@ export * from './Select/Select';
 export * from './Table/Table';
 export * from './Spinner/Spinner';
 export * from './Alert/Alert';
+export * from './Toast';

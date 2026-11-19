@@ -45,6 +45,13 @@ export const schedulerApi = {
   },
 
   /**
+   * Alias for listJobs
+   */
+  async list(options?: RequestContextOptions): Promise<ApiResult<ScheduledJobDto[]>> {
+    return this.listJobs(options);
+  },
+
+  /**
    * Register a new scheduled cron job
    */
   async createJob(
@@ -57,6 +64,16 @@ export const schedulerApi = {
     } catch (err) {
       throw extractApiServiceError(err);
     }
+  },
+
+  /**
+   * Alias for createJob
+   */
+  async create(
+    payload: CreateJobPayload,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<ScheduledJobDto>> {
+    return this.createJob(payload, options);
   },
 
   /**
@@ -79,6 +96,16 @@ export const schedulerApi = {
   },
 
   /**
+   * Alias for triggerJob
+   */
+  async trigger(
+    id: string,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<{ triggered: boolean; jobId: string }>> {
+    return this.triggerJob(id, options);
+  },
+
+  /**
    * Delete a scheduled cron job
    */
   async deleteJob(
@@ -94,6 +121,16 @@ export const schedulerApi = {
     } catch (err) {
       throw extractApiServiceError(err);
     }
+  },
+
+  /**
+   * Alias for deleteJob
+   */
+  async delete(
+    id: string,
+    options?: RequestContextOptions
+  ): Promise<ApiResult<{ deleted: boolean }>> {
+    return this.deleteJob(id, options);
   },
 };
 

@@ -432,13 +432,22 @@ test('Real gRPC servers for all 11 microservices connect through API Gateway', a
     assert.equal(iamCfgRes.json.status, true);
     assert.equal(iamCfgRes.headers['x-gateway-upstream'], 'iam-service:grpc');
 
+    const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
+    const adminToken = jwt.sign(
+      { sub: 'admin-1', email: 'admin@example.com', role: 'ADMIN', tenantId: 'default' },
+      jwtSecret,
+      { expiresIn: '1h' }
+    );
+
     // 3. Real Audit routes through gRPC (in-memory monitoring config & alerts)
     const auditCfgRes = await invokeGateway(app, 'GET', '/api/v1/audit/config');
     assert.equal(auditCfgRes.status, 200);
     assert.equal(auditCfgRes.json.status, true);
     assert.equal(auditCfgRes.headers['x-gateway-upstream'], 'audit-service:grpc');
 
-    const auditAlertsRes = await invokeGateway(app, 'GET', '/api/v1/audit/alerts');
+    const auditAlertsRes = await invokeGateway(app, 'GET', '/api/v1/audit/alerts', {
+      headers: { authorization: `Bearer ${adminToken}` }
+    });
     assert.equal(auditAlertsRes.status, 200);
     assert.ok(Array.isArray(auditAlertsRes.json.data));
 
@@ -475,7 +484,6 @@ test('Real gRPC servers for all 11 microservices connect through API Gateway', a
     assert.equal(unauthNotifV1TrailingSlashRes.headers['x-gateway-upstream'], 'notification-service:grpc');
 
     // Non-admin role reaches RBAC check on /api/notifications/ -> 403 FORBIDDEN (not 404)
-    const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-super-secret-key-for-iam-service-32-chars';
     const userToken = jwt.sign(
       { sub: 'user-1', email: 'user@example.com', role: 'USER', tenantId: 'default' },
       jwtSecret,
@@ -488,11 +496,6 @@ test('Real gRPC servers for all 11 microservices connect through API Gateway', a
     assert.equal(forbiddenNotifRes.headers['x-gateway-upstream'], 'notification-service:grpc');
 
     // 5. Real Zod validation over gRPC for config-service (ADMIN JWT propagated via gateway)
-    const adminToken = jwt.sign(
-      { sub: 'admin-1', email: 'admin@example.com', role: 'ADMIN', tenantId: 'default' },
-      jwtSecret,
-      { expiresIn: '1h' }
-    );
     const badConfigRes = await invokeGateway(app, 'POST', '/api/v1/config', {
       headers: { authorization: `Bearer ${adminToken}` },
       body: { key: '' }

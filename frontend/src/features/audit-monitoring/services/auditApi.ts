@@ -109,7 +109,7 @@ const MOCK_INITIAL_LOGS: AuditLogItem[] = [
   }
 ];
 
-let localLogsState: AuditLogItem[] = [...MOCK_INITIAL_LOGS];
+const localLogsState: AuditLogItem[] = [...MOCK_INITIAL_LOGS];
 
 export class AuditApiService {
   private baseUrl: string;

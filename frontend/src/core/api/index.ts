@@ -5,6 +5,7 @@ export * from './queryClient';
 export * from './envelope';
 
 // Domain CRUD Services via API documentation at http://localhost:4000/api-docs/
+export * from './services/iamApi';
 export * from './services/organizationsApi';
 export * from './services/rbacApi';
 export * from './services/ordersApi';

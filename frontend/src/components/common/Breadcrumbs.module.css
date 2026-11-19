@@ -1,0 +1,69 @@
+.breadcrumbsNav {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-xs) 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.separatorWrapper {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
+}
+
+.separator {
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: color var(--transition-fast);
+  border-radius: var(--radius-xs);
+  padding: 2px 4px;
+}
+
+.link:hover {
+  color: var(--color-primary);
+  background-color: var(--color-surface-hover);
+}
+
+.current {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 4px;
+}
+
+.homeIcon {
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.link:hover .homeIcon {
+  color: var(--color-primary);
+}

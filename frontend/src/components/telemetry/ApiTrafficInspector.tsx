@@ -122,7 +122,7 @@ export const ApiTrafficInspector: React.FC = () => {
           <div className={styles.headerActions}>
             <select
               value={connectionMode}
-              onChange={(e) => setConnectionMode(e.target.value as any)}
+              onChange={(e) => setConnectionMode(e.target.value as 'auto' | 'live' | 'mock')}
               className={styles.filterSelect}
               title="Toggle API Connection Mode"
             >
